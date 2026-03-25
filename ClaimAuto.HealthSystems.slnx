@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="claimauto.healthsystems.client/claimauto.healthsystems.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="ClaimAuto.HealthSystems.Server/ClaimAuto.HealthSystems.Server.csproj" />
+</Solution>

@@ -1,0 +1,6 @@
+@ClaimAuto.HealthSystems.Server_HostAddress = http://localhost:5182
+
+GET {{ClaimAuto.HealthSystems.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
