@@ -1,4 +1,5 @@
 
+using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server
@@ -10,7 +11,7 @@ namespace ClaimAuto.HealthSystems.Server
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-            builder.Services.AddDbContext<AppDbContext>(options =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DBConnection")));
 
             builder.Services.AddControllers();
