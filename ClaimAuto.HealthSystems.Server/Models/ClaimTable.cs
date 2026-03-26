@@ -8,7 +8,6 @@ namespace ClaimAuto.HealthSystems.Server.Models
         [Key] public int ClaimId { get; set; }
         public int UserId { get; set; }
         [ForeignKey("UserId")] public UserTable User { get; set; }
-
         public int ProviderId { get; set; }
         [ForeignKey("PolicyId")] public ProviderTable Provider { get; set; }
         public DateTime SubmissionDate { get; set; } = DateTime.UtcNow;
