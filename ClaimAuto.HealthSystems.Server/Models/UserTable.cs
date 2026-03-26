@@ -9,6 +9,5 @@ namespace ClaimAuto.HealthSystems.Server.Models
         [Required] public string  Email { get; set; }
         [Required] public string UserRole { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
     }
 }
