@@ -10,46 +10,55 @@ namespace ClaimAuto.HealthSystems.Server.Models
 
         [Required]
         public int PatientId { get; set; }
-        public Patient Patient { get; set; }
+
+        public Patient Patient { get; set; } = null!;
 
         [Required]
         public int PolicyId { get; set; }
-        public Policy Policy { get; set; }
+
+        public Policy Policy { get; set; } = null!;
 
         [Required]
         public int HospitalId { get; set; }
-        public Hospital Hospital { get; set; }
+
+        public Hospital Hospital { get; set; } = null!;
 
         public int? DoctorId { get; set; }
-        public Doctor Doctor { get; set; }
 
-        [Required, MaxLength(50)]
-        public string ClaimType { get; set; } // "Cashless", "Reimbursement"
+        public Doctor? Doctor { get; set; }
 
+        [Required, MaxLength(20)]
+        public string ClaimType { get; set; } = "Cashless"; // Cashless, Reimbursement
+
+        [Required]
         public DateTime DateOfService { get; set; }
 
         public decimal TotalAmount { get; set; }
+
         public decimal ClaimedAmount { get; set; }
 
         [MaxLength(20)]
-        public string DiagnosisCode { get; set; }
+        public string? DiagnosisCode { get; set; }
 
-        [MaxLength(500)]
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
 
-        [Required, MaxLength(50)]
-        public string Status { get; set; } // "Submitted", "Auto-Approved", "Pending Review", "Approved", "Rejected"
+        [Required, MaxLength(30)]
+        public string Status { get; set; } = "Submitted"; // Submitted, AutoApproved, PendingReview, Approved, Rejected
 
-        // Who created this claim (patient self-service or hospital)
-        public string CreatedByUserId { get; set; }
-        public ApplicationUser CreatedByUser { get; set; }
+        [Required]
+        public int CreatedBy { get; set; } // FK to User who created claim
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Child entities (1–many)
+        // 1‑to‑many: Claim → Documents
         public ICollection<ClaimDocument> Documents { get; set; } = new List<ClaimDocument>();
-        public ICollection<ClaimStatusHistory> StatusHistories { get; set; } = new List<ClaimStatusHistory>();
-        public ICollection<ClaimPayment> ClaimPayments { get; set; } = new List<ClaimPayment>();
+
+        // 1‑to‑many: Claim → StatusHistory
+        public ICollection<ClaimStatusHistory> StatusHistory { get; set; } = new List<ClaimStatusHistory>();
+
+        // 1‑to‑one: Claim → Payment (optional)
+        public ClaimPayment? Payment { get; set; }
     }
 }

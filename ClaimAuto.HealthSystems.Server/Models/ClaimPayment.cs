@@ -8,19 +8,20 @@ namespace ClaimAuto.HealthSystems.Server.Models
 
         [Required]
         public int ClaimId { get; set; }
-        public Claim Claim { get; set; }
+
+        public Claim Claim { get; set; } = null!;
 
         public decimal PaidAmount { get; set; }
 
-        [Required, MaxLength(30)]
-        public string PaymentMode { get; set; } // "Bank Transfer", "Cheque" (mock)
+        [Required, MaxLength(20)]
+        public string PaymentMode { get; set; } = "BankTransfer"; // BankTransfer, Cheque
 
         [Required, MaxLength(20)]
-        public string PaymentStatus { get; set; } // "Pending", "Paid", "Failed"
+        public string PaymentStatus { get; set; } = "Pending"; // Pending, Paid, Failed
 
-        public DateTime PaidAt { get; set; }
+        public DateTime? PaidAt { get; set; }
 
-        public string ProcessedByUserId { get; set; }
-        public ApplicationUser ProcessedByUser { get; set; }
+        [Required]
+        public int ProcessedBy { get; set; } // FK to User (ClaimsHandler/Admin)
     }
 }

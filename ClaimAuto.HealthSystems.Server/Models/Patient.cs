@@ -6,19 +6,33 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public int Id { get; set; }
 
         [Required]
-        public string Name { get; set; }
+        public int UserId { get; set; }
+
+        public User User { get; set; } = null!;
+
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
         public DateTime DateOfBirth { get; set; }
-        public string Phone { get; set; }
-        public string Address { get; set; }
-        public string AadhaarOrID { get; set; }
+
+        [MaxLength(15)]
+        public string Phone { get; set; } = string.Empty;
+
+        public string Address { get; set; } = string.Empty;
+
+        [Required, MaxLength(20)]
+        public string AadhaarOrID { get; set; } = string.Empty;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Foreign key to ApplicationUser (who owns this patient)
-        public string UserId { get; set; }
-        public ApplicationUser User { get; set; }
+        // 1‑to‑many: Patient → Policies
+        public ICollection<Policy> Policies { get; set; } = new List<Policy>();
 
-        // Child entities
-        public ICollection<Dependent> Dependents { get; set; } = new List<Dependent>();
+        // 1‑to‑many: Patient → Claims
         public ICollection<Claim> Claims { get; set; } = new List<Claim>();
+
+        // 1‑to‑many: Patient → Dependents
+        public ICollection<Dependent> Dependents { get; set; } = new List<Dependent>();
     }
 }
