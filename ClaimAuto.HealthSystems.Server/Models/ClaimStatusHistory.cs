@@ -1,17 +1,27 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ClaimAuto.HealthSystems.Server.Models
 {
     public class ClaimStatusHistory
     {
-        public int Id { get; set; } 
+        public int Id { get; set; }
+
+        [Required]
         public int ClaimId { get; set; }
-        [ForeignKey("Claim")]
         public Claim Claim { get; set; }
-        public string OldStatus {  get; set; }
+
+        [Required, MaxLength(50)]
+        public string OldStatus { get; set; }
+
+        [Required, MaxLength(50)]
         public string NewStatus { get; set; }
-        public int ChangedBy { get; set; }
+
         public string Remarks { get; set; }
-        public DateTime ChangedAt { get; set; }
+
+        public string ChangedByUserId { get; set; }
+        public ApplicationUser ChangedByUser { get; set; }
+
+        public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
     }
 }

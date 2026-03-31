@@ -19,7 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public bool IsRenewed { get; set; }
 
         [Required, MaxLength(20)]
-        public string Status { get; set; } = "Active";
+        public string Status { get; set; } = "Active"; // "Active", "Expired", "Cancelled"
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -27,5 +27,7 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public string CreatedByUserId { get; set; }
         public ApplicationUser CreatedByUser { get; set; }
 
+        // Child entities
+        public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }
