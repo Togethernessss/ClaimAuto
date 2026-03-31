@@ -13,6 +13,6 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public bool IsCovered { get; set; }
         //Foreign key
         public int PatientId { get; set; }
-        public ApplicationUser Patient { get; set; }    
+        public ApplicationUser Patient { get; set; }
     }
 }
