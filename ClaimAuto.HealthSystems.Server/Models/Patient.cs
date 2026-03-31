@@ -13,9 +13,12 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public string AadhaarOrID { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Foreign key 
+        // Foreign key to ApplicationUser (who owns this patient)
         public string UserId { get; set; }
         public ApplicationUser User { get; set; }
 
+        // Child entities
+        public ICollection<Dependent> Dependents { get; set; } = new List<Dependent>();
+        public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }

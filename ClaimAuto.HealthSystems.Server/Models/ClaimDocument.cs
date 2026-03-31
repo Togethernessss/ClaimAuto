@@ -1,32 +1,27 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ClaimAuto.HealthSystems.Server.Models
 {
     public class ClaimDocument
     {
-        [Key]
         public int Id { get; set; }
 
-        //Foreign Key to Claims table
+        [Required]
         public int ClaimId { get; set; }
-
-        [ForeignKey("ClaimId")]
         public Claim Claim { get; set; }
 
-        [Required]
+        [Required, MaxLength(100)]
         public string DocumentName { get; set; }
 
-        [Required]
+        [Required, MaxLength(200)]
         public string DocumentPath { get; set; }
 
-        public string DocType { get; set; }
+        [Required, MaxLength(30)]
+        public string DocType { get; set; } // "Bill", "Prescription", "Discharge Summary", "ID Proof"
 
-        public int UploadedBy { get; set; }
-        [ForeignKey("UploadedBy")]
-        public ApplicationUser User { get; set; }
+        public string UploadedByUserId { get; set; }
+        public ApplicationUser UploadedByUser { get; set; }
 
-        public DateTime UploadedAt { get; set; }
-
+        public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     }
 }
