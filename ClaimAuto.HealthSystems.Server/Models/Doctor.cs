@@ -1,19 +1,28 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using ClaimAuto.HealthSystems.Server.Models;
 
-namespace ClaimAuto.HealthSystems.Server.Models
+namespace ClaimAuto.HealthSystem.Server.Models
 {
     public class Doctor
     {
-        [Key]
         public int Id { get; set; }
+
+        [Required, MaxLength(100)]
         public string Name { get; set; }
+
+        [Required, MaxLength(50)]
         public string Specialization { get; set; }
+
+        [Required, MaxLength(50)]
         public string RegistrationNo { get; set; }
-        public bool IsAvailable { get; set; }
-        //Foreign key
+
+        public bool IsAvailable { get; set; } = true;
+
+        // FK to Hospital
         public int HospitalId { get; set; }
-        public ApplicationUser Hospital { get; set; }   
+        public Hospital Hospital { get; set; }
 
-
+        // Child entities
+        public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }
