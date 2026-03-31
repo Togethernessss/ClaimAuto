@@ -17,7 +17,7 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
+        // Navigation properties (relationships )
         public ICollection<Patient> Patients { get; set; } = new List<Patient>();
         public ICollection<Claim> ClaimsCreatedBy { get; set; } = new List<Claim>();
         public ICollection<ClaimStatusHistory> ClaimStatusHistories { get; set; } = new List<ClaimStatusHistory>();
