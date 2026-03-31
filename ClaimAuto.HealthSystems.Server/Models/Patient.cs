@@ -17,8 +17,5 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public string UserId { get; set; }
         public ApplicationUser User { get; set; }
 
-        // Child entities
-        public ICollection<Dependent> Dependents { get; set; } = new List<Dependent>();
-        public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }
