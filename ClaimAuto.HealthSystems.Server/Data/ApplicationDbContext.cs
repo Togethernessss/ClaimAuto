@@ -18,6 +18,9 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<ClaimDocument> ClaimDocuments { get; set; }
         public DbSet<ClaimStatusHistory> ClaimStatusHistories { get; set; }
         public DbSet<ClaimPayment> ClaimPayments { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SystemConfig> SystemConfigs { get; set; }
+        public DbSet<ConfigChangeLog> ConfigChangeLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
