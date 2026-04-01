@@ -24,7 +24,6 @@ namespace ClaimAuto.HealthSystems.Server.Models
         [Required]
         public int UploadedBy { get; set; } // FK to User
 
-        public Date
-Time UploadedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     }
 }
