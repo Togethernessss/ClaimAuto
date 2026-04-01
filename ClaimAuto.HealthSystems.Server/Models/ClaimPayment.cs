@@ -1,20 +1,27 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using ClaimAuto.HealthSystems.Server.Models;
 
-public class Claim
+namespace ClaimAuto.HealthSystems.Server.Models
 {
-    [Key]
-    public int Id { get; set; }
+    public class ClaimPayment
+    {
+        public int Id { get; set; }
 
-    [Required]
-    public decimal PaidAmount { get; set; }
-    public string PaymentMode { get; set; }
-    public string PaymentStatus { get; set; }
-    public DateTime PaidAt { get; set; }
+        [Required]
+        public int ClaimId { get; set; }
 
-    public int ProcessedBy { get; set; }
+        public Claim Claim { get; set; } = null!;
 
-    [ForeignKey(nameof(ProcessedBy))]
-    public ApplicationUser ProcessedByUser { get; set; }
+        public decimal PaidAmount { get; set; }
+
+        [Required, MaxLength(20)]
+        public string PaymentMode { get; set; } = "BankTransfer"; // BankTransfer, Cheque
+
+        [Required, MaxLength(20)]
+        public string PaymentStatus { get; set; } = "Pending"; // Pending, Paid, Failed
+
+        public DateTime? PaidAt { get; set; }
+
+        [Required]
+        public int ProcessedBy { get; set; } // FK to User (ClaimsHandler/Admin)
+    }
 }

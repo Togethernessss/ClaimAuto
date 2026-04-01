@@ -1,20 +1,30 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ClaimAuto.HealthSystems.Server.Models
 {
     public class Hospital
     {
-        [Key]
         public int Id { get; set; }
-        public string Name { get; set; }
 
-        public string Code { get; set; }
-        public string Address { get; set; }
-        public bool IsInNetwork { get; set; }
-        public string Contact { get; set; }
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required, MaxLength(20)]
+        public string Code { get; set; } = string.Empty;
+
+        public string Address { get; set; } = string.Empty;
+
+        public bool IsInNetwork { get; set; } = true;
+
+        public string Contact { get; set; } = string.Empty;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        // 1‑to‑many: Hospital → Doctors
+        public ICollection<Doctor> Doctors { get; set; } = new List<Doctor>();
 
-
+        // 1‑to‑many: Hospital → Claims
+        public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }
