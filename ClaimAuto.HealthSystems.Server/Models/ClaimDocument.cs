@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ClaimAuto.HealthSystems.Server.Models
 {
@@ -8,20 +9,22 @@ namespace ClaimAuto.HealthSystems.Server.Models
 
         [Required]
         public int ClaimId { get; set; }
-        public Claim Claim { get; set; }
+
+        public Claim Claim { get; set; } = null!;
 
         [Required, MaxLength(100)]
-        public string DocumentName { get; set; }
+        public string DocumentName { get; set; } = string.Empty;
 
-        [Required, MaxLength(200)]
-        public string DocumentPath { get; set; }
+        [Required]
+        public string DocumentPath { get; set; } = string.Empty;
 
-        [Required, MaxLength(30)]
-        public string DocType { get; set; } // "Bill", "Prescription", "Discharge Summary", "ID Proof"
+        [Required, MaxLength(20)]
+        public string DocType { get; set; } = "Bill"; // Bill, Prescription, DischargeSummary, IDProof
 
-        public string UploadedByUserId { get; set; }
-        public ApplicationUser UploadedByUser { get; set; }
+        [Required]
+        public int UploadedBy { get; set; } // FK to User
 
-        public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+        public Date
+Time UploadedAt { get; set; } = DateTime.UtcNow;
     }
 }

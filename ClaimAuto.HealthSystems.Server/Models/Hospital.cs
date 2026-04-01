@@ -8,23 +8,23 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public int Id { get; set; }
 
         [Required, MaxLength(100)]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [Required, MaxLength(20)]
-        public string Code { get; set; }
+        public string Code { get; set; } = string.Empty;
 
-        [Required, MaxLength(200)]
-        public string Address { get; set; }
+        public string Address { get; set; } = string.Empty;
 
-        public bool IsInNetwork { get; set; }
+        public bool IsInNetwork { get; set; } = true;
 
-        [MaxLength(100)]
-        public string Contact { get; set; }
+        public string Contact { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Child entities
+        // 1‑to‑many: Hospital → Doctors
         public ICollection<Doctor> Doctors { get; set; } = new List<Doctor>();
+
+        // 1‑to‑many: Hospital → Claims
         public ICollection<Claim> Claims { get; set; } = new List<Claim>();
     }
 }

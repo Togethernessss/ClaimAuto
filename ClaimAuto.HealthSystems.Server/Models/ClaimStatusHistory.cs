@@ -9,18 +9,19 @@ namespace ClaimAuto.HealthSystems.Server.Models
 
         [Required]
         public int ClaimId { get; set; }
-        public Claim Claim { get; set; }
 
-        [Required, MaxLength(50)]
-        public string OldStatus { get; set; }
+        public Claim Claim { get; set; } = null!;
 
-        [Required, MaxLength(50)]
-        public string NewStatus { get; set; }
+        [Required, MaxLength(30)]
+        public string OldStatus { get; set; } = string.Empty;
 
-        public string Remarks { get; set; }
+        [Required, MaxLength(30)]
+        public string NewStatus { get; set; } = string.Empty;
 
-        public string ChangedByUserId { get; set; }
-        public ApplicationUser ChangedByUser { get; set; }
+        [Required]
+        public int ChangedBy { get; set; } // FK to User
+
+        public string? Remarks { get; set; }
 
         public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
     }

@@ -7,17 +7,19 @@ namespace ClaimAuto.HealthSystems.Server.Models
         public int Id { get; set; }
 
         [Required]
-        public string Name { get; set; }
+        public int PatientId { get; set; }
 
-        [Required, MaxLength(30)]
-        public string Relation { get; set; } // "Spouse", "Child", "Parent"
+        public Patient Patient { get; set; } = null!;
 
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required, MaxLength(20)]
+        public string Relation { get; set; } = string.Empty; // Spouse, Child, Parent
+
+        [Required]
         public DateTime DateOfBirth { get; set; }
 
         public bool IsCovered { get; set; } = true;
-
-        // FK to Patient
-        public int PatientId { get; set; }
-        public Patient Patient { get; set; }
     }
 }
