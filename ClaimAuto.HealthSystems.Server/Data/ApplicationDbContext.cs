@@ -77,47 +77,104 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
 
-            // ── Claim → multiple Users (avoid cascade cycles) ──
+            // ── Restrict all secondary FK paths to avoid cascade cycles ──
+
+            // Claim → Provider (User) — already has Claim → Member → User path
             mb.Entity<Claim>()
                 .HasOne(c => c.Provider)
                 .WithMany()
                 .HasForeignKey(c => c.ProviderID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Claim → Policy — already has Claim → Member → Policy path
+            mb.Entity<Claim>()
+                .HasOne(c => c.Policy)
+                .WithMany(p => p.Claims)
+                .HasForeignKey(c => c.PolicyID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ClaimDocument → Uploader (User)
             mb.Entity<ClaimDocument>()
                 .HasOne(d => d.Uploader)
                 .WithMany()
                 .HasForeignKey(d => d.UploadedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // ClaimDocument → VerifiedBy (User)
             mb.Entity<ClaimDocument>()
                 .HasOne(d => d.VerifiedBy)
                 .WithMany()
                 .HasForeignKey(d => d.VerifiedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // AdjudicationRecord → PerformedBy (User)
             mb.Entity<AdjudicationRecord>()
                 .HasOne(a => a.PerformedBy)
                 .WithMany()
                 .HasForeignKey(a => a.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Appeal → DecisionBy (User)
             mb.Entity<Appeal>()
                 .HasOne(a => a.DecisionBy)
                 .WithMany()
                 .HasForeignKey(a => a.DecisionByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Appeal → FiledBy (User) — already has Claims → Appeals path from User
+            mb.Entity<Appeal>()
+                .HasOne(a => a.FiledByUser)
+                .WithMany()
+                .HasForeignKey(a => a.FiledBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // EligibilityCheck → Policy — already has Member → Policy path
+            mb.Entity<EligibilityCheck>()
+                .HasOne(e => e.Policy)
+                .WithMany(p => p.EligibilityChecks)
+                .HasForeignKey(e => e.PolicyID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // EligibilityCheck → PerformedBy (User)
             mb.Entity<EligibilityCheck>()
                 .HasOne(e => e.PerformedBy)
                 .WithMany()
                 .HasForeignKey(e => e.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Reconciliation → PerformedBy (User)
             mb.Entity<Reconciliation>()
                 .HasOne(r => r.PerformedBy)
                 .WithMany()
                 .HasForeignKey(r => r.PerformedByID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // FraudCase → OpenedBy (User) — already has Claims → FraudCases path from User
+            mb.Entity<FraudCase>()
+                .HasOne(f => f.OpenedByUser)
+                .WithMany()
+                .HasForeignKey(f => f.OpenedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Payment → Payee (User) — already has Claims → Payments path from User
+            mb.Entity<Payment>()
+                .HasOne(p => p.Payee)
+                .WithMany()
+                .HasForeignKey(p => p.PayeeID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Notification → User — already has Claims → Notifications path from User
+            mb.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Tasks → AssignedTo (User) — already has Claims → Tasks path from User
+            mb.Entity<Tasks>()
+                .HasOne(t => t.AssignedToUser)
+                .WithMany()
+                .HasForeignKey(t => t.AssignedTo)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ── Remittance 1-to-1 with Payment ─────────────
