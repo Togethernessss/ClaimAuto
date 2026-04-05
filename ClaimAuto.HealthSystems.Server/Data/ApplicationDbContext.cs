@@ -120,6 +120,30 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(r => r.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<Appeal>()
+                .HasOne(a => a.FiledByUser)
+                .WithMany()
+                .HasForeignKey(a => a.FiledBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<FraudCase>()
+                .HasOne(f => f.OpenedByUser)
+                .WithMany()
+                .HasForeignKey(f => f.OpenedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Report>()
+                .HasOne(r => r.GeneratedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.GeneratedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Rule>()
+                .HasOne(r => r.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // ── Remittance 1-to-1 with Payment ─────────────
             mb.Entity<Remittance>()
                 .HasOne(r => r.Payment)
