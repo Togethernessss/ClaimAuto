@@ -131,25 +131,37 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 PerformedByID = null  // null = auto
             };
 
-            _context.AdjudicationRecords.Add(record);
-
-            // Update claim status
-            claim.Status = decision == AdjDecision.Paid ? ClaimStatus.Adjudicated
-                         : decision == AdjDecision.Denied ? ClaimStatus.Rejected
-                         : ClaimStatus.Validated; // PendingReview
-
-            // Audit log
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures AdjudicationRecord + Claim status + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = claim.ProviderID,
-                Action = "AutoAdjudication",
-                ResourceType = "Claim",
-                ResourceID = claimId.ToString(),
-                DetailsJSON = $"{{\"Decision\":\"{decision}\"}}",
-                Timestamp = DateTime.UtcNow
-            });
+                _context.AdjudicationRecords.Add(record);
 
-            await _context.SaveChangesAsync();
+                // Update claim status
+                claim.Status = decision == AdjDecision.Paid ? ClaimStatus.Adjudicated
+                             : decision == AdjDecision.Denied ? ClaimStatus.Rejected
+                             : ClaimStatus.Validated; // PendingReview
+
+                // Audit log
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = claim.ProviderID,
+                    Action = "AutoAdjudication",
+                    ResourceType = "Claim",
+                    ResourceID = claimId.ToString(),
+                    DetailsJSON = $"{{\"Decision\":\"{decision}\"}}",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
             return CreatedAtAction(nameof(GetByClaimId), new { claimId }, record);
         }
 
@@ -163,27 +175,39 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (claim == null)
                 return NotFound($"Claim {record.ClaimID} not found.");
 
-            record.ExecutedAt = DateTime.UtcNow;
-
-            _context.AdjudicationRecords.Add(record);
-
-            // Update claim status based on decision
-            claim.Status = record.Decision == AdjDecision.Paid ? ClaimStatus.Adjudicated
-                         : record.Decision == AdjDecision.Denied ? ClaimStatus.Rejected
-                         : ClaimStatus.Validated;
-
-            // Audit log
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures AdjudicationRecord + Claim status + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = record.PerformedByID ?? 0,
-                Action = "ManualAdjudication",
-                ResourceType = "Claim",
-                ResourceID = record.ClaimID.ToString(),
-                DetailsJSON = $"{{\"Decision\":\"{record.Decision}\"}}",
-                Timestamp = DateTime.UtcNow
-            });
+                record.ExecutedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
+                _context.AdjudicationRecords.Add(record);
+
+                // Update claim status based on decision
+                claim.Status = record.Decision == AdjDecision.Paid ? ClaimStatus.Adjudicated
+                             : record.Decision == AdjDecision.Denied ? ClaimStatus.Rejected
+                             : ClaimStatus.Validated;
+
+                // Audit log
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = record.PerformedByID ?? 0,
+                    Action = "ManualAdjudication",
+                    ResourceType = "Claim",
+                    ResourceID = record.ClaimID.ToString(),
+                    DetailsJSON = $"{{\"Decision\":\"{record.Decision}\"}}",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
             return Ok(record);
         }
     }

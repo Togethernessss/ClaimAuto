@@ -50,31 +50,43 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<ActionResult<Payment>> CreatePayment(Payment payment)
         {
-            payment.CreatedAt = DateTime.UtcNow;
-            payment.Status = PaymentStatus.Pending;
-
-            _context.Payments.Add(payment);
-            await _context.SaveChangesAsync();
-
-            // Auto-generate remittance advice
-            var remittance = new Remittance
+            // ACID: Transaction ensures Payment + Remittance + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                PaymentID = payment.PaymentID,
-                GeneratedAt = DateTime.UtcNow,
-                Status = RemittanceStatus.Generated
-            };
-            _context.Remittances.Add(remittance);
+                payment.CreatedAt = DateTime.UtcNow;
+                payment.Status = PaymentStatus.Pending;
 
-            _context.AuditLogs.Add(new AuditLog
+                _context.Payments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                // Auto-generate remittance advice
+                var remittance = new Remittance
+                {
+                    PaymentID = payment.PaymentID,
+                    GeneratedAt = DateTime.UtcNow,
+                    Status = RemittanceStatus.Generated
+                };
+                _context.Remittances.Add(remittance);
+
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = payment.PayeeID,
+                    Action = "CreatePayment",
+                    ResourceType = "Payment",
+                    ResourceID = payment.PaymentID.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                UserID = payment.PayeeID,
-                Action = "CreatePayment",
-                ResourceType = "Payment",
-                ResourceID = payment.PaymentID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
+                await transaction.RollbackAsync();
+                throw;
+            }
 
-            await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetPayment), new { id = payment.PaymentID }, payment);
         }
 
