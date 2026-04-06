@@ -1,4 +1,5 @@
 
+using System.Text.Json.Serialization;
 using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +15,15 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DBConnection")));
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options =>
+                {
+                    options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+                })
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                });
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
