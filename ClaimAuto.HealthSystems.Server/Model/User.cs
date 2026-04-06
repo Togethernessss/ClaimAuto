@@ -1,0 +1,41 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace ClaimAuto.HealthSystems.Server.Model
+{
+    [Table("Users")]
+    public class User
+    {
+        [Key]
+        public int UserID { get; set; }
+
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        public UserRole Role { get; set; }
+
+        [Required, MaxLength(150)]
+        public string Email { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string? Phone { get; set; }
+
+        [MaxLength(100)]
+        public string? Department { get; set; }
+
+        public bool MFAEnabled { get; set; } = false;
+
+        [Required]
+        public AccountStatus Status { get; set; }
+
+        [Required]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Required]
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation
+        public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    }
+}
