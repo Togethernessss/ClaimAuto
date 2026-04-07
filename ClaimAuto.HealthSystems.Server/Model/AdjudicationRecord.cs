@@ -1,0 +1,36 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace ClaimAuto.HealthSystems.Server.Model
+{
+    [Table("AdjudicationRecords")]
+    public class AdjudicationRecord
+    {
+        [Key]
+        public int AdjID { get; set; }
+
+        [ForeignKey("Claim")]
+        public int ClaimID { get; set; }
+        public Claim Claim { get; set; } = null!;
+
+        [Required]
+        public DateTime ExecutedAt { get; set; } = DateTime.UtcNow;
+
+        [MaxLength(50)]
+        public string? EngineVersion { get; set; }
+
+        [Required]
+        public AdjDecision Decision { get; set; }
+
+        public string? CalculationsJSON { get; set; }
+
+        public string? AppliedRulesJSON { get; set; }
+
+        public string? Notes { get; set; }
+
+        // Null when auto-adjudicated
+        public int? PerformedByID { get; set; }
+        [ForeignKey("PerformedByID")]
+        public User? PerformedBy { get; set; }
+    }
+}
