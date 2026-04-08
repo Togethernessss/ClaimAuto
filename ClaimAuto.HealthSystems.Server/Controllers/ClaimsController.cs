@@ -1,13 +1,15 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ClaimsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -86,6 +88,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // POST: api/claims
         // Submits a new claim
         [HttpPost]
+        [Authorize(Roles = "Hospital")]
         public async Task<ActionResult<Claim>> SubmitClaim(Claim claim)
         {
             // Check for duplicate external reference
@@ -98,23 +101,35 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     return Conflict("A claim with this external reference already exists.");
             }
 
-            claim.SubmittedAt = DateTime.UtcNow;
-            claim.ReceivedAt = DateTime.UtcNow;
-            claim.Status = ClaimStatus.Submitted;
-
-            _context.Claims.Add(claim);
-            await _context.SaveChangesAsync();
-
-            // Audit log
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures Claim + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = claim.ProviderID,
-                Action = "SubmitClaim",
-                ResourceType = "Claim",
-                ResourceID = claim.ClaimID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+                claim.SubmittedAt = DateTime.UtcNow;
+                claim.ReceivedAt = DateTime.UtcNow;
+                claim.Status = ClaimStatus.Submitted;
+
+                _context.Claims.Add(claim);
+                await _context.SaveChangesAsync();
+
+                // Audit log
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = claim.ProviderID,
+                    Action = "SubmitClaim",
+                    ResourceType = "Claim",
+                    ResourceID = claim.ClaimID.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             return CreatedAtAction(nameof(GetClaim), new { id = claim.ClaimID }, claim);
         }
@@ -137,6 +152,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // DELETE: api/claims/5
         // Hard delete — only Admin should be able to do this
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClaim(int id)
         {
             var claim = await _context.Claims.FindAsync(id);
