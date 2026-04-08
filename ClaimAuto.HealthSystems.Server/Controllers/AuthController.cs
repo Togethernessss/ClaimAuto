@@ -1,11 +1,19 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
-    [Route("api/[controller]")]
+    
     [ApiController]
+    [Route("api/auth")]
     public class AuthController : ControllerBase
     {
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] CreateUserDto dto) { }
+
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto dto) { }
     }
 }
