@@ -1,5 +1,6 @@
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin")]  // ← Only Admin manages rules
     public class RulesController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -70,21 +72,33 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<ActionResult<Rule>> CreateRule(Rule rule)
         {
-            rule.CreatedAt = DateTime.UtcNow;
-            rule.Status = RuleStatus.Draft;
-
-            _context.Rules.Add(rule);
-            await _context.SaveChangesAsync();
-
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures Rule + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = rule.CreatedBy,
-                Action = "CreateRule",
-                ResourceType = "Rule",
-                ResourceID = rule.RuleID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+                rule.CreatedAt = DateTime.UtcNow;
+                rule.Status = RuleStatus.Draft;
+
+                _context.Rules.Add(rule);
+                await _context.SaveChangesAsync();
+
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = rule.CreatedBy,
+                    Action = "CreateRule",
+                    ResourceType = "Rule",
+                    ResourceID = rule.RuleID.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             return CreatedAtAction(nameof(GetRule), new { id = rule.RuleID }, rule);
         }

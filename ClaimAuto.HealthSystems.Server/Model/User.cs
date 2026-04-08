@@ -18,6 +18,9 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required, MaxLength(150)]
         public string Email { get; set; } = string.Empty;
 
+        [Required]
+        public string PasswordHash { get; set; } = string.Empty;
+
         [MaxLength(20)]
         public string? Phone { get; set; }
 

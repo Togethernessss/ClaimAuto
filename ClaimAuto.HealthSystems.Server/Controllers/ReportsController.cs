@@ -1,13 +1,15 @@
+using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ClaimAuto.HealthSystems.Server.Data;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin,InsuranceStaff")]  // ← Only Admin & Staff access reports
     public class ReportsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

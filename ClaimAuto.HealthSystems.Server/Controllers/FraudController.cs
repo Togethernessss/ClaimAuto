@@ -1,5 +1,6 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin,InsuranceStaff")]  // ← Only Admin & Staff handle fraud
     public class FraudController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -104,37 +106,49 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 GeneratedAt = DateTime.UtcNow
             };
 
-            _context.FraudScores.Add(fraudScore);
-
-            // Auto-create FraudCase and Notification if high risk
-            if (fraudScore.ScoreValue >= HIGH_RISK_THRESHOLD)
+            // ACID: Transaction ensures FraudScore + FraudCase + Notification are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var fraudCase = new FraudCase
-                {
-                    ClaimID = claimId,
-                    OpenedAt = DateTime.UtcNow,
-                    OpenedBy = 1, // System user — replace with actual staff ID
-                    Priority = fraudScore.ScoreValue >= 90
-                                    ? FraudCasePriority.Critical
-                                    : FraudCasePriority.High,
-                    Status = FraudCaseStatus.Open
-                };
-                _context.FraudCases.Add(fraudCase);
+                _context.FraudScores.Add(fraudScore);
 
-                // Notify Insurance Staff
-                _context.Notifications.Add(new Notification
+                // Auto-create FraudCase and Notification if high risk
+                if (fraudScore.ScoreValue >= HIGH_RISK_THRESHOLD)
                 {
-                    UserID = 1, // Replace with actual staff user ID
-                    ClaimID = claimId,
-                    Message = $"High fraud score ({fraudScore.ScoreValue}) on Claim #{claimId}. Immediate review required.",
-                    Category = NotificationCategory.Exception,
-                    Severity = NotificationSeverity.Critical,
-                    CreatedAt = DateTime.UtcNow,
-                    Status = NotificationStatus.Unread
-                });
+                    var fraudCase = new FraudCase
+                    {
+                        ClaimID = claimId,
+                        OpenedAt = DateTime.UtcNow,
+                        OpenedBy = 1, // System user — replace with actual staff ID
+                        Priority = fraudScore.ScoreValue >= 90
+                                        ? FraudCasePriority.Critical
+                                        : FraudCasePriority.High,
+                        Status = FraudCaseStatus.Open
+                    };
+                    _context.FraudCases.Add(fraudCase);
+
+                    // Notify Insurance Staff
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserID = 1, // Replace with actual staff user ID
+                        ClaimID = claimId,
+                        Message = $"High fraud score ({fraudScore.ScoreValue}) on Claim #{claimId}. Immediate review required.",
+                        Category = NotificationCategory.Exception,
+                        Severity = NotificationSeverity.Critical,
+                        CreatedAt = DateTime.UtcNow,
+                        Status = NotificationStatus.Unread
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
             }
 
-            await _context.SaveChangesAsync();
             return Ok(fraudScore);
         }
 
@@ -147,21 +161,33 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (fraudCase == null)
                 return NotFound($"Fraud case {caseId} not found.");
 
-            fraudCase.Status = FraudCaseStatus.Resolved;
-            fraudCase.Outcome = update.Outcome;
-            fraudCase.InvestigationNotes = update.InvestigationNotes;
-            fraudCase.ResolvedAt = DateTime.UtcNow;
-
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures FraudCase update + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = update.OpenedBy,
-                Action = "ResolveFraudCase",
-                ResourceType = "FraudCase",
-                ResourceID = caseId.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
+                fraudCase.Status = FraudCaseStatus.Resolved;
+                fraudCase.Outcome = update.Outcome;
+                fraudCase.InvestigationNotes = update.InvestigationNotes;
+                fraudCase.ResolvedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = update.OpenedBy,
+                    Action = "ResolveFraudCase",
+                    ResourceType = "FraudCase",
+                    ResourceID = caseId.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
             return NoContent();
         }
     }

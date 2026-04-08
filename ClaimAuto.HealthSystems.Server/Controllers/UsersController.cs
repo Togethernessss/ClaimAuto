@@ -1,5 +1,6 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin")]
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -63,22 +65,34 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (emailExists)
                 return Conflict("A user with this email already exists.");
 
-            user.CreatedAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            // Log the action in AuditLog
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures User + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = user.UserID,
-                Action = "CreateUser",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+                user.CreatedAt = DateTime.UtcNow;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                // Log the action in AuditLog
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = user.UserID,
+                    Action = "CreateUser",
+                    ResourceType = "User",
+                    ResourceID = user.UserID.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             // 201 Created + location header pointing to GET /api/users/{id}
             return CreatedAtAction(nameof(GetUser), new { id = user.UserID }, user);

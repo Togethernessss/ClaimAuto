@@ -1,13 +1,15 @@
-﻿using ClaimAuto.HealthSystems.Server.Model;
+﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ClaimAuto.HealthSystems.Server.Data;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]  // ← Any authenticated user (Policyholder/Hospital can file appeals)
     public class AppealsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -50,62 +52,87 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<ActionResult<Appeal>> FileAppeal(Appeal appeal)
         {
-            appeal.FiledAt = DateTime.UtcNow;
-            appeal.Status = AppealStatus.Filed;
-
-            _context.Appeals.Add(appeal);
-            await _context.SaveChangesAsync();
-
-            // Create a task for Insurance Staff to review
-            _context.Tasks.Add(new Tasks
+            // ACID: Transaction ensures Appeal + Task + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                AssignedTo = 1, // Replace with actual staff assignment logic
-                ClaimID = appeal.ClaimID,
-                Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
-                DueDate = DateTime.UtcNow.AddDays(7), // 7-day SLA
-                Priority = TaskPriority.High,
-                CreatedAt = DateTime.UtcNow,
-                Status = Model.TaskStatus.Pending
-            });
+                appeal.FiledAt = DateTime.UtcNow;
+                appeal.Status = AppealStatus.Filed;
 
-            _context.AuditLogs.Add(new AuditLog
+                _context.Appeals.Add(appeal);
+                await _context.SaveChangesAsync();
+
+                // Create a task for Insurance Staff to review
+                _context.Tasks.Add(new Tasks
+                {
+                    AssignedTo = 1, // Replace with actual staff assignment logic
+                    ClaimID = appeal.ClaimID,
+                    Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
+                    DueDate = DateTime.UtcNow.AddDays(7), // 7-day SLA
+                    Priority = TaskPriority.High,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = Model.TaskStatus.Pending
+                });
+
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = appeal.FiledBy,
+                    Action = "FileAppeal",
+                    ResourceType = "Appeal",
+                    ResourceID = appeal.AppealID.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                UserID = appeal.FiledBy,
-                Action = "FileAppeal",
-                ResourceType = "Appeal",
-                ResourceID = appeal.AppealID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
+                await transaction.RollbackAsync();
+                throw;
+            }
 
-            await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetAppeal), new { id = appeal.AppealID }, appeal);
         }
 
         // PUT: api/appeals/5/decide
         // Insurance Staff makes a decision on an appeal
         [HttpPut("{id}/decide")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] Appeal update)
         {
             var appeal = await _context.Appeals.FindAsync(id);
             if (appeal == null)
                 return NotFound();
 
-            appeal.Status = AppealStatus.Decided;
-            appeal.Outcome = update.Outcome;
-            appeal.DecisionAt = DateTime.UtcNow;
-            appeal.DecisionByID = update.DecisionByID;
-
-            _context.AuditLogs.Add(new AuditLog
+            // ACID: Transaction ensures Appeal update + AuditLog are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                UserID = update.DecisionByID ?? 0,
-                Action = "DecideAppeal",
-                ResourceType = "Appeal",
-                ResourceID = id.ToString(),
-                DetailsJSON = $"{{\"Outcome\":\"{update.Outcome}\"}}",
-                Timestamp = DateTime.UtcNow
-            });
+                appeal.Status = AppealStatus.Decided;
+                appeal.Outcome = update.Outcome;
+                appeal.DecisionAt = DateTime.UtcNow;
+                appeal.DecisionByID = update.DecisionByID;
 
-            await _context.SaveChangesAsync();
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = update.DecisionByID ?? 0,
+                    Action = "DecideAppeal",
+                    ResourceType = "Appeal",
+                    ResourceID = id.ToString(),
+                    DetailsJSON = $"{{\"Outcome\":\"{update.Outcome}\"}}",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
             return NoContent();
         }
 
