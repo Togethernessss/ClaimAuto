@@ -1,13 +1,15 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ClaimsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -86,6 +88,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // POST: api/claims
         // Submits a new claim
         [HttpPost]
+        [Authorize(Roles = "Hospital")]
         public async Task<ActionResult<Claim>> SubmitClaim(Claim claim)
         {
             // Check for duplicate external reference
@@ -149,6 +152,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // DELETE: api/claims/5
         // Hard delete — only Admin should be able to do this
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClaim(int id)
         {
             var claim = await _context.Claims.FindAsync(id);
