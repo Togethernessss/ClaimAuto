@@ -80,10 +80,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
 
             // ── Restrict all secondary FK paths to avoid cascade cycles ──
-<<<<<<< HEAD
 
-=======
->>>>>>> 5f6a0f27fddaf865a62cba56c72f3096c4766eef
             // Claim → Provider (User) — already has Claim → Member → User path
             mb.Entity<Claim>()
                 .HasOne(c => c.Provider)
