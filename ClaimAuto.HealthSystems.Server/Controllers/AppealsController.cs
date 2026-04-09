@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,12 +15,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // Hospital sees only their own appeals.
         // Staff and Admin see all.
         [HttpGet]
-        public async Task<IActionResult> GetAllAppeals() { }
+        public async Task<IActionResult> GetAllAppeals() 
+        { 
+            throw new NotImplementedException();
+        }
 
         // GET /api/appeals/{id}
         // Returns single appeal.
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetAppealById(int id) { }
+        public async Task<IActionResult> GetAppealById(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // POST /api/appeals
         // Policyholder or Hospital files an appeal.
@@ -28,7 +35,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> FileAppeal(
             [FromBody] CreateAppealDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // PUT /api/appeals/{id}/decide
         // Sneha decides on an appeal.
@@ -38,12 +47,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> DecideAppeal(int id,
             [FromBody] DecideAppealDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // PUT /api/appeals/{id}/withdraw
         // Policyholder or Hospital withdraws their own appeal.
         [HttpPut("{id}/withdraw")]
-        public async Task<IActionResult> WithdrawAppeal(int id) { }
+        public async Task<IActionResult> WithdrawAppeal(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // ── Subrogation sub-routes ────────────────────────────────
 
@@ -53,12 +67,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> CreateSubrogation(
             [FromBody] CreateSubrogationDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/appeals/subrogation
         // Returns all subrogation records.
         [HttpGet("subrogation")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
-        public async Task<IActionResult> GetSubrogations() { }
+        public async Task<IActionResult> GetSubrogations() 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

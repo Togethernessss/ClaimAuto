@@ -15,10 +15,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [FromQuery] string? resourceType,
         [FromQuery] string? action,
         [FromQuery] int limit = 500)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetAuditLogById(int id) { }
+        public async Task<IActionResult> GetAuditLogById(int id) 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

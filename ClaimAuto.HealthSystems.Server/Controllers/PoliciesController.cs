@@ -11,34 +11,50 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class PoliciesController : ControllerBase
     {
         [HttpGet]
-        public async Task<IActionResult> GetAllPolicies() { }
+        public async Task<IActionResult> GetAllPolicies() 
+        {
+            throw new NotImplementedException();
+        }
 
 
         [HttpGet("active")]
-        public async Task<IActionResult> GetActivePolicies() { }
+        public async Task<IActionResult> GetActivePolicies() 
+        {
+            throw new NotImplementedException();
+        }
 
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetPolicyById(int id) { }
+        public async Task<IActionResult> GetPolicyById(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreatePolicy(
         [FromBody] CreatePolicyDto dto)
-        { }
+        {
+            throw new NotImplementedException(); 
+        }
 
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdatePolicy(int id,
         [FromBody] UpdatePolicyDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
 
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeactivatePolicy(int id) { }
+        public async Task<IActionResult> DeactivatePolicy(int id) 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

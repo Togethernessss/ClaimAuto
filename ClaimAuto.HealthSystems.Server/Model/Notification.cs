@@ -13,9 +13,10 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public int UserID { get; set; }
         public User User { get; set; } = null!;
 
-        [ForeignKey("Claim")]
-        public int ClaimID { get; set; }
-        public Claim Claim { get; set; } = null!;
+        public int? ClaimID { get; set; }
+
+        [ForeignKey("ClaimID")]
+        public Claim? Claim { get; set; }
 
         [Required]
         public string Message { get; set; } = string.Empty;
