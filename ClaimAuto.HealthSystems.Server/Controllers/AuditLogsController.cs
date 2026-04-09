@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.AspNetCore.Mvc;
@@ -80,5 +81,29 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             return Ok(logs);
         }
+=======
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace ClaimAuto.HealthSystems.Server.Controllers
+{
+    [ApiController]
+    [Route("api/auditlogs")]
+    [Authorize(Roles = "Admin")]
+    public class AuditLogsController : ControllerBase
+    {
+        [HttpGet]
+        public async Task<IActionResult> GetAuditLogs(
+        [FromQuery] int? userId,
+        [FromQuery] string? resourceType,
+        [FromQuery] string? action,
+        [FromQuery] int limit = 500)
+        { }
+
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetAuditLogById(int id) { }
+>>>>>>> 5f6a0f27fddaf865a62cba56c72f3096c4766eef
     }
 }

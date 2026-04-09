@@ -1,11 +1,17 @@
+<<<<<<< HEAD
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.EntityFrameworkCore;
+=======
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using Microsoft.AspNetCore.Authorization;
+>>>>>>> 5f6a0f27fddaf865a62cba56c72f3096c4766eef
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+<<<<<<< HEAD
     [Route("api/[controller]")]
     [ApiController]
     public class MembersController : ControllerBase
@@ -117,5 +123,46 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+=======
+    [ApiController]
+    [Route("api/members")]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
+    public class MembersController : ControllerBase
+    {
+        // GET /api/members
+        // Returns all members. Filter by PolicyID, Status.
+        [HttpGet]
+        public async Task<IActionResult> GetAllMembers(
+            [FromQuery] int? policyId,
+            [FromQuery] string? status)
+        { }
+
+        // GET /api/members/{id}
+        // Returns single member with PolicyName resolved.
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetMemberById(int id) { }
+
+        // GET /api/members/{id}/eligibility
+        // Checks eligibility with TTL-based caching.
+        // If a valid cached result exists (TTL not expired) — returns cached.
+        // Otherwise — runs a new real-time check and caches it.
+        // Returns: EligibilityResponseDto
+        [HttpGet("{id}/eligibility")]
+        public async Task<IActionResult> CheckEligibility(int id) { }
+
+        // POST /api/members
+        // Creates a new member. PolicyID, DOB, Gender set once.
+        [HttpPost]
+        public async Task<IActionResult> CreateMember(
+            [FromBody] CreateMemberDto dto)
+        { }
+
+        // PUT /api/members/{id}
+        // Updates only mutable fields — Name, Contact, CoverageEnd, Status.
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateMember(int id,
+            [FromBody] UpdateMemberDto dto)
+        { }
+>>>>>>> 5f6a0f27fddaf865a62cba56c72f3096c4766eef
     }
 }
