@@ -15,19 +15,26 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllReports(
             [FromQuery] string? scope)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/reports/{id}
         // Returns single report.
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetReportById(int id) { }
+        public async Task<IActionResult> GetReportById(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // POST /api/reports
         // Generates a new report. GeneratedBy from JWT token.
         [HttpPost]
         public async Task<IActionResult> GenerateReport(
             [FromBody] GenerateReportDto dto)
-        { }
+        {
+            throw new NotImplementedException(); 
+        }
 
         // NOTE: No DELETE — reports are immutable for compliance.
         // A regulator might request a report that was previously generated.
@@ -38,7 +45,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // GET /api/reports/kpis
         // Returns all KPIs — live dashboard data.
         [HttpGet("kpis")]
-        public async Task<IActionResult> GetAllKPIs() { }
+        public async Task<IActionResult> GetAllKPIs() 
+        {
+            throw new NotImplementedException();
+        }
 
         // PUT /api/reports/kpis/{id}
         // Admin updates KPI target or current value.
@@ -46,14 +56,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateKPI(int id,
             [FromBody] UpdateKPIDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // ── Audit Package sub-routes ──────────────────────────────
 
         // GET /api/reports/audit-packages
         // Returns all audit packages.
         [HttpGet("audit-packages")]
-        public async Task<IActionResult> GetAllAuditPackages() { }
+        public async Task<IActionResult> GetAllAuditPackages() 
+        {
+            throw new NotImplementedException();
+        }
 
         // POST /api/reports/audit-packages
         // Admin generates a new audit package for a period.
@@ -63,6 +78,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GenerateAuditPackage(
             [FromQuery] DateTime periodStart,
             [FromQuery] DateTime periodEnd)
-        { }
+        {
+            throw new NotImplementedException(); 
+        }
     }
 }

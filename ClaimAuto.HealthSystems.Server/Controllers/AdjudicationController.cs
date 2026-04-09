@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +18,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // Updates Claim.Status to Adjudicated.
         // Uses ACID transaction — both saved together or neither.
         [HttpPost("auto/{claimId}")]
-        public async Task<IActionResult> AutoAdjudicate(int claimId) { }
+        public async Task<IActionResult> AutoAdjudicate(int claimId) 
+        {
+            throw new NotImplementedException();
+        }
 
         // POST /api/adjudication/manual
         // Sneha manually overrides or adjudicates a claim.
@@ -26,18 +30,26 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost("manual")]
         public async Task<IActionResult> ManualAdjudicate(
             [FromBody] ManualAdjudicateDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/adjudication/{claimId}
         // Returns the adjudication record for a claim.
         // Returns: AdjudicationResponseDto
         [HttpGet("{claimId}")]
-        public async Task<IActionResult> GetAdjudication(int claimId) { }
+        public async Task<IActionResult> GetAdjudication(int claimId) 
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/adjudication/{claimId}/trace
         // Returns the rule trace — which rules fired and why.
         // Returns: List<RuleTraceDto>
         [HttpGet("{claimId}/trace")]
-        public async Task<IActionResult> GetRuleTrace(int claimId) { }
+        public async Task<IActionResult> GetRuleTrace(int claimId) 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

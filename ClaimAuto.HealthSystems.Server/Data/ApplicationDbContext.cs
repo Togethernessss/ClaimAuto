@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
-
 using ClaimAuto.HealthSystems.Server.Model;
-using Microsoft.EntityFrameworkCore;
+
 namespace ClaimAuto.HealthSystems.Server.Data
 {
     public class ApplicationDbContext : DbContext
@@ -47,7 +46,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
         // Module 9
         public DbSet<Notification> Notifications { get; set; }
-        public DbSet<Tasks> Tasks { get; set; }
+        public DbSet<ClaimTasks> ClaimTasks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
@@ -171,11 +170,24 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(n => n.UserID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<Notification>()
+                .HasOne(n => n.Claim)
+                .WithMany(c => c.Notifications)
+                .HasForeignKey(n => n.ClaimID)
+                .IsRequired(false)                        // ClaimID is optional
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Tasks → AssignedTo (User) — already has Claims → Tasks path from User
-            mb.Entity<Tasks>()
+            mb.Entity<ClaimTasks>()
                 .HasOne(t => t.AssignedToUser)
                 .WithMany()
                 .HasForeignKey(t => t.AssignedTo)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Report>()
+                .HasOne(r => r.GeneratedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.GeneratedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ── Remittance 1-to-1 with Payment ─────────────
@@ -213,8 +225,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Notification>().Property(n => n.Category).HasConversion<string>();
             mb.Entity<Notification>().Property(n => n.Severity).HasConversion<string>();
             mb.Entity<Notification>().Property(n => n.Status).HasConversion<string>();
-            mb.Entity<Tasks>().Property(t => t.Priority).HasConversion<string>();
-            mb.Entity<Tasks>().Property(t => t.Status).HasConversion<string>();
+            mb.Entity<ClaimTasks>().Property(t => t.Priority).HasConversion<string>();
+            mb.Entity<ClaimTasks>().Property(t => t.Status).HasConversion<string>();
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿.using Microsoft.AspNetCore.Http;
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
@@ -18,13 +20,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
             [FromQuery] string? priority)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/claims/{id}
         // Returns full claim detail — lines, documents, adjudication.
         // Returns: ClaimDetailResponseDto
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetClaimById(int id) { }
+        public async Task<IActionResult> GetClaimById(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // POST /api/claims
         // Hospital submits a claim. Validates Provider, Member, Policy.
@@ -32,7 +39,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> SubmitClaim(
             [FromBody] CreateClaimDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // PUT /api/claims/{id}
         // Updates Status and Priority.
@@ -41,13 +50,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> UpdateClaim(int id,
             [FromBody] CreateClaimDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // DELETE /api/claims/{id}
         // Hard delete — Admin only. Only allowed for Rejected claims.
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeleteClaim(int id) { }
+        public async Task<IActionResult> DeleteClaim(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // ── Nested: Claim Lines ───────────────────────────────────
 
@@ -57,12 +71,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost("{id}/lines")]
         public async Task<IActionResult> AddClaimLine(int id,
             [FromBody] AddClaimLineDto dto)
-        { }
+        {
+            throw new NotImplementedException(); 
+        }
 
         // GET /api/claims/{id}/lines
         // Returns all line items for a claim.
         [HttpGet("{id}/lines")]
-        public async Task<IActionResult> GetClaimLines(int id) { }
+        public async Task<IActionResult> GetClaimLines(int id) 
+        {
+            throw new NotImplementedException();
+        }
 
         // ── Nested: Claim Documents ───────────────────────────────
 
@@ -72,11 +91,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost("{id}/documents")]
         public async Task<IActionResult> UploadDocument(int id,
             [FromBody] UploadDocumentDto dto)
-        { }
+        {
+            throw new NotImplementedException();
+        }
 
         // GET /api/claims/{id}/documents
         // Returns all documents for a claim.
         [HttpGet("{id}/documents")]
-        public async Task<IActionResult> GetClaimDocuments(int id) { }
+        public async Task<IActionResult> GetClaimDocuments(int id) 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

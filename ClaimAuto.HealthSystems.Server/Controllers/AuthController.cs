@@ -10,10 +10,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class AuthController : ControllerBase
     {
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] CreateUserDto dto) { }
+        public async Task<IActionResult> Register([FromBody] CreateUserDto dto) 
+        {
+            throw new NotImplementedException();
+        }
 
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto) { }
+        public async Task<IActionResult> Login([FromBody] LoginDto dto) 
+        {
+            throw new NotImplementedException();
+        }
     }
 }

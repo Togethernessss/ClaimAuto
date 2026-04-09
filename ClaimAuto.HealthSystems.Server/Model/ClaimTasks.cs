@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ClaimAuto.HealthSystems.Server.Model
 {
     [Table("Tasks")]
-    public class Tasks
+    public class ClaimTasks
     {
         [Key]
         public int TaskID { get; set; }

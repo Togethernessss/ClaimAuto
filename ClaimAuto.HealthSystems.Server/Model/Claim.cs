@@ -56,6 +56,6 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public ICollection<FraudCase> FraudCases { get; set; } = new List<FraudCase>();
         public ICollection<Appeal> Appeals { get; set; } = new List<Appeal>();
         public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
-        public ICollection<Tasks> Tasks { get; set; } = new List<Tasks>();
+        public ICollection<ClaimTasks> Tasks { get; set; } = new List<ClaimTasks>();
     }
 }

@@ -9,8 +9,8 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Key]
         public int PolicyID { get; set; }
 
-        [MaxLength(50)]
-        public string? PlanCode { get; set; }
+        [Required, MaxLength(50)]
+        public string PlanCode { get; set; } = string.Empty;
 
         [Required, MaxLength(150)]
         public string PlanName { get; set; } = string.Empty;
