@@ -1,13 +1,15 @@
-﻿using ClaimAuto.HealthSystems.Server.Model;
+﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ClaimAuto.HealthSystems.Server.Data;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]  // ← Any authenticated user (Policyholder/Hospital can file appeals)
     public class AppealsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -96,6 +98,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // PUT: api/appeals/5/decide
         // Insurance Staff makes a decision on an appeal
         [HttpPut("{id}/decide")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] Appeal update)
         {
             var appeal = await _context.Appeals.FindAsync(id);
