@@ -1,6 +1,7 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,19 +15,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class UsersController : ControllerBase
     {
 
-        private readonly ApplicationDbContext _context;
+        // ✅ Now depends on the INTERFACE — not the database directly
+        private readonly IUserRepository _userRepository;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(IUserRepository userRepository)
         {
-            _context = context;
+            _userRepository = userRepository;
         }
 
         // GET: api/users
-        // Returns all users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
-            var users = await _context.Users.ToListAsync();
+            var users = await _userRepository.GetAllUsersAsync();
 
             var response = users.Select(u => new UserResponseDto
             {
@@ -44,17 +45,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // GET: api/users/5
-        // Returns one user by ID
+        // GET: api/users/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<UserResponseDto>> GetUser(int id)
         {
-            var user = await _context.Users.FindAsync(id);
-
+            var user = await _userRepository.GetUserByIdAsync(id);
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
-            var response = new UserResponseDto
+            return Ok(new UserResponseDto
             {
                 UserID = user.UserID,
                 Name = user.Name,
@@ -65,19 +64,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = user.MFAEnabled,
                 Status = user.Status.ToString(),
                 CreatedAt = user.CreatedAt
-            };
-
-            return Ok(response);
+            });
         }
 
-        // GET: api/users/role/InsuranceStaff
-        // Returns all users of a specific role
+        // GET: api/users/role/{role}
         [HttpGet("role/{role}")]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
-            var users = await _context.Users
-                .Where(u => u.Role == role && u.Status == AccountStatus.Active)
-                .ToListAsync();
+            var users = await _userRepository.GetUsersByRoleAsync(role);
 
             var response = users.Select(u => new UserResponseDto
             {
@@ -96,11 +90,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // POST: api/users
-        // Creates a new user
         [HttpPost]
         public async Task<ActionResult<UserResponseDto>> CreateUser(CreateUserDto dto)
         {
-            bool emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
+            bool emailExists = await _userRepository.EmailExistsAsync(dto.Email);
             if (emailExists)
                 return Conflict("A user with this email already exists.");
 
@@ -121,81 +114,52 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 UpdatedAt = DateTime.UtcNow
             };
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
-
-                _context.AuditLogs.Add(new AuditLog
-                {
-                    UserID = user.UserID,
-                    Action = "CreateUser",
-                    ResourceType = "User",
-                    ResourceID = user.UserID.ToString(),
-                    Timestamp = DateTime.UtcNow
-                });
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            // Repository handles ACID transaction internally
+            var createdUser = await _userRepository.CreateUserAsync(user);
 
             var response = new UserResponseDto
             {
-                UserID = user.UserID,
-                Name = user.Name,
-                Role = user.Role.ToString(),
-                Email = user.Email,
-                Phone = user.Phone,
-                Department = user.Department,
-                MFAEnabled = user.MFAEnabled,
-                Status = user.Status.ToString(),
-                CreatedAt = user.CreatedAt
+                UserID = createdUser.UserID,
+                Name = createdUser.Name,
+                Role = createdUser.Role.ToString(),
+                Email = createdUser.Email,
+                Phone = createdUser.Phone,
+                Department = createdUser.Department,
+                MFAEnabled = createdUser.MFAEnabled,
+                Status = createdUser.Status.ToString(),
+                CreatedAt = createdUser.CreatedAt
             };
 
-            return CreatedAtAction(nameof(GetUser), new { id = user.UserID }, response);
+            return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);
         }
-        // PUT: api/users/5
-        // Updates an existing user
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User updatedUser)
-        {
-            if (id != updatedUser.UserID)
-                return BadRequest("ID in URL does not match ID in body.");
 
-            var user = await _context.Users.FindAsync(id);
+        // PUT: api/users/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateUser(int id, UpdateUserDto dto)
+        {
+            var user = await _userRepository.GetUserByIdAsync(id);
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
-            user.Name = updatedUser.Name;
-            user.Phone = updatedUser.Phone;
-            user.Department = updatedUser.Department;
-            user.MFAEnabled = updatedUser.MFAEnabled;
-            user.Status = updatedUser.Status;
-            user.UpdatedAt = DateTime.UtcNow;
+            if (dto.Name != null) user.Name = dto.Name;
+            if (dto.Phone != null) user.Phone = dto.Phone;
+            if (dto.Department != null) user.Department = dto.Department;
+            if (dto.MFAEnabled.HasValue) user.MFAEnabled = dto.MFAEnabled.Value;
+            if (dto.Status != null && Enum.TryParse<AccountStatus>(dto.Status, out var status))
+                user.Status = status;
 
-            await _context.SaveChangesAsync();
+            await _userRepository.UpdateUserAsync(user);
             return NoContent();
         }
 
-
-        // DELETE: api/users/5
-        // Soft delete — sets status to Inactive instead of removing
+        // DELETE: api/users/{id} — Soft Delete
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
+            var success = await _userRepository.SoftDeleteUserAsync(id);
+            if (!success)
                 return NotFound($"User with ID {id} not found.");
 
-            user.Status = AccountStatus.Inactive;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }

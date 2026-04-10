@@ -1,10 +1,12 @@
 
-using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
+using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -17,6 +19,9 @@ namespace ClaimAuto.HealthSystems.Server
             // Add services to the container.
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DBConnection")));
+
+            // Register Repository with DI — Scoped means one instance per HTTP request
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
