@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -20,30 +21,45 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET: api/claims
-        // Returns all claims with their lines and documents
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Claim>>> GetAllClaims()
+        public async Task<ActionResult<IEnumerable<ClaimResponseDto>>> GetAllClaims()
         {
             var claims = await _context.Claims
-                .Include(c => c.ClaimLines)        // JOIN ClaimLines
-                .Include(c => c.ClaimDocuments)    // JOIN ClaimDocuments
-                .Include(c => c.Member)            // JOIN Member
-                .Include(c => c.Policy)            // JOIN Policy
+                .Include(c => c.ClaimLines)
+                .Include(c => c.ClaimDocuments)
+                .Include(c => c.Member)
+                .Include(c => c.Policy)
+                .Include(c => c.Provider)
                 .ToListAsync();
 
-            return Ok(claims);
+            var response = claims.Select(c => new ClaimResponseDto
+            {
+                ClaimID = c.ClaimID,
+                ExternalClaimRef = c.ExternalClaimRef,
+                ProviderID = c.ProviderID,
+                ProviderName = c.Provider?.Name ?? "",
+                MemberID = c.MemberID,
+                MemberName = c.Member?.Name ?? "",
+                ClaimType = c.ClaimType.ToString(),
+                TotalBilledAmount = c.TotalBilledAmount,
+                Status = c.Status.ToString(),
+                Priority = c.Priority.ToString(),
+                SubmittedAt = c.SubmittedAt
+            });
+
+            return Ok(response);
         }
 
         // GET: api/claims/5
-        // Returns one claim with full details
         [HttpGet("{id}")]
-        public async Task<ActionResult<Claim>> GetClaim(int id)
+        public async Task<ActionResult<ClaimResponseDto>> GetClaim(int id)
         {
             var claim = await _context.Claims
                 .Include(c => c.ClaimLines)
                 .Include(c => c.ClaimDocuments)
                 .Include(c => c.Member)
                 .Include(c => c.Policy)
+                .Include(c => c.Provider)
                 .Include(c => c.AdjudicationRecords)
                 .Include(c => c.FraudScores)
                 .FirstOrDefaultAsync(c => c.ClaimID == id);
@@ -51,28 +67,58 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (claim == null)
                 return NotFound($"Claim with ID {id} not found.");
 
-            return Ok(claim);
+            var response = new ClaimResponseDto
+            {
+                ClaimID = claim.ClaimID,
+                ExternalClaimRef = claim.ExternalClaimRef,
+                ProviderID = claim.ProviderID,
+                ProviderName = claim.Provider?.Name ?? "",
+                MemberID = claim.MemberID,
+                MemberName = claim.Member?.Name ?? "",
+                ClaimType = claim.ClaimType.ToString(),
+                TotalBilledAmount = claim.TotalBilledAmount,
+                Status = claim.Status.ToString(),
+                Priority = claim.Priority.ToString(),
+                SubmittedAt = claim.SubmittedAt
+            };
+
+            return Ok(response);
         }
 
         // GET: api/claims/member/7
-        // Returns all claims for a specific member (Policyholder portal)
         [HttpGet("member/{memberId}")]
-        public async Task<ActionResult<IEnumerable<Claim>>> GetClaimsByMember(int memberId)
+        public async Task<ActionResult<IEnumerable<ClaimResponseDto>>> GetClaimsByMember(int memberId)
         {
             var claims = await _context.Claims
                 .Where(c => c.MemberID == memberId)
                 .Include(c => c.ClaimLines)
                 .Include(c => c.Policy)
+                .Include(c => c.Member)
+                .Include(c => c.Provider)
                 .OrderByDescending(c => c.SubmittedAt)
                 .ToListAsync();
 
-            return Ok(claims);
+            var response = claims.Select(c => new ClaimResponseDto
+            {
+                ClaimID = c.ClaimID,
+                ExternalClaimRef = c.ExternalClaimRef,
+                ProviderID = c.ProviderID,
+                ProviderName = c.Provider?.Name ?? "",
+                MemberID = c.MemberID,
+                MemberName = c.Member?.Name ?? "",
+                ClaimType = c.ClaimType.ToString(),
+                TotalBilledAmount = c.TotalBilledAmount,
+                Status = c.Status.ToString(),
+                Priority = c.Priority.ToString(),
+                SubmittedAt = c.SubmittedAt
+            });
+
+            return Ok(response);
         }
 
         // GET: api/claims/status/Submitted
-        // Returns claims filtered by status (Insurance Staff exception queue)
         [HttpGet("status/{status}")]
-        public async Task<ActionResult<IEnumerable<Claim>>> GetClaimsByStatus(ClaimStatus status)
+        public async Task<ActionResult<IEnumerable<ClaimResponseDto>>> GetClaimsByStatus(ClaimStatus status)
         {
             var claims = await _context.Claims
                 .Where(c => c.Status == status)
@@ -82,47 +128,79 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 .ThenBy(c => c.SubmittedAt)
                 .ToListAsync();
 
-            return Ok(claims);
+            var response = claims.Select(c => new ClaimResponseDto
+            {
+                ClaimID = c.ClaimID,
+                ExternalClaimRef = c.ExternalClaimRef,
+                ProviderID = c.ProviderID,
+                ProviderName = c.Provider?.Name ?? "",
+                MemberID = c.MemberID,
+                MemberName = c.Member?.Name ?? "",
+                ClaimType = c.ClaimType.ToString(),
+                TotalBilledAmount = c.TotalBilledAmount,
+                Status = c.Status.ToString(),
+                Priority = c.Priority.ToString(),
+                SubmittedAt = c.SubmittedAt
+            });
+
+            return Ok(response);
         }
 
         // POST: api/claims
-        // Submits a new claim
         [HttpPost]
         [Authorize(Roles = "Hospital")]
-        public async Task<ActionResult<Claim>> SubmitClaim(Claim claim)
+        public async Task<ActionResult<ClaimResponseDto>> SubmitClaim(CreateClaimDto dto)
         {
-            // Check for duplicate external reference
-            if (!string.IsNullOrEmpty(claim.ExternalClaimRef))
+            // Get the logged-in user's ID from JWT token
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                              ?? User.FindFirst("sub");
+            int providerID = int.Parse(userIdClaim!.Value);
+
+            if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
                 bool duplicate = await _context.Claims
-                    .AnyAsync(c => c.ExternalClaimRef == claim.ExternalClaimRef);
-
+                    .AnyAsync(c => c.ExternalClaimRef == dto.ExternalClaimRef);
                 if (duplicate)
                     return Conflict("A claim with this external reference already exists.");
             }
 
-            // ACID: Transaction ensures Claim + AuditLog are saved together
+            if (!Enum.TryParse<ClaimType>(dto.ClaimType, true, out var claimType))
+                return BadRequest($"Invalid ClaimType: {dto.ClaimType}");
+
+            if (!Enum.TryParse<SourceChannel>(dto.SourceChannel, true, out var sourceChannel))
+                sourceChannel = SourceChannel.Portal;
+
+            var claim = new Claim
+            {
+                MemberID = dto.MemberID,
+                PolicyID = dto.PolicyID,
+                ProviderID = providerID,
+                ClaimType = claimType,
+                TotalBilledAmount = dto.TotalBilledAmount,
+                Currency = dto.Currency,
+                SourceChannel = sourceChannel,
+                ExternalClaimRef = dto.ExternalClaimRef,
+                SubmittedAt = DateTime.UtcNow,
+                ReceivedAt = DateTime.UtcNow,
+                Status = ClaimStatus.Submitted,
+                Priority = ClaimPriority.Normal
+            };
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                claim.SubmittedAt = DateTime.UtcNow;
-                claim.ReceivedAt = DateTime.UtcNow;
-                claim.Status = ClaimStatus.Submitted;
-
                 _context.Claims.Add(claim);
                 await _context.SaveChangesAsync();
 
-                // Audit log
                 _context.AuditLogs.Add(new AuditLog
                 {
-                    UserID = claim.ProviderID,
+                    UserID = providerID,
                     Action = "SubmitClaim",
                     ResourceType = "Claim",
                     ResourceID = claim.ClaimID.ToString(),
                     Timestamp = DateTime.UtcNow
                 });
                 await _context.SaveChangesAsync();
-
                 await transaction.CommitAsync();
             }
             catch
@@ -131,12 +209,31 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 throw;
             }
 
-            return CreatedAtAction(nameof(GetClaim), new { id = claim.ClaimID }, claim);
+            // Load navigation for response
+            await _context.Entry(claim).Reference(c => c.Member).LoadAsync();
+            await _context.Entry(claim).Reference(c => c.Provider).LoadAsync();
+
+            var response = new ClaimResponseDto
+            {
+                ClaimID = claim.ClaimID,
+                ExternalClaimRef = claim.ExternalClaimRef,
+                ProviderID = claim.ProviderID,
+                ProviderName = claim.Provider?.Name ?? "",
+                MemberID = claim.MemberID,
+                MemberName = claim.Member?.Name ?? "",
+                ClaimType = claim.ClaimType.ToString(),
+                TotalBilledAmount = claim.TotalBilledAmount,
+                Status = claim.Status.ToString(),
+                Priority = claim.Priority.ToString(),
+                SubmittedAt = claim.SubmittedAt
+            };
+
+            return CreatedAtAction(nameof(GetClaim), new { id = claim.ClaimID }, response);
         }
 
         // PUT: api/claims/5/status
-        // Updates claim status (used by adjudication engine and staff)
         [HttpPut("{id}/status")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> UpdateClaimStatus(int id, [FromBody] ClaimStatus newStatus)
         {
             var claim = await _context.Claims.FindAsync(id);
@@ -144,13 +241,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Claim with ID {id} not found.");
 
             claim.Status = newStatus;
-
             await _context.SaveChangesAsync();
             return NoContent();
         }
 
         // DELETE: api/claims/5
-        // Hard delete — only Admin should be able to do this
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClaim(int id)
@@ -168,7 +263,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         //  CLAIM LINES  —  /api/claims/{claimId}/lines
         // ═══════════════════════════════════════════════════
 
-        // GET: api/claims/5/lines
         [HttpGet("{claimId}/lines")]
         public async Task<ActionResult<IEnumerable<ClaimLine>>> GetClaimLines(int claimId)
         {
@@ -183,7 +277,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(lines);
         }
 
-        // GET: api/claims/5/lines/3
         [HttpGet("{claimId}/lines/{lineId}")]
         public async Task<ActionResult<ClaimLine>> GetClaimLine(int claimId, int lineId)
         {
@@ -196,8 +289,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(line);
         }
 
-        // POST: api/claims/5/lines
         [HttpPost("{claimId}/lines")]
+        [Authorize(Roles = "Hospital")]
         public async Task<ActionResult<ClaimLine>> AddClaimLine(int claimId, ClaimLine line)
         {
             var claim = await _context.Claims.FindAsync(claimId);
@@ -212,8 +305,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 new { claimId, lineId = line.LineID }, line);
         }
 
-        // PUT: api/claims/5/lines/3
         [HttpPut("{claimId}/lines/{lineId}")]
+        [Authorize(Roles = "Hospital,Admin")]
         public async Task<IActionResult> UpdateClaimLine(int claimId, int lineId, ClaimLine updated)
         {
             var line = await _context.ClaimLines
@@ -235,8 +328,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
 
-        // DELETE: api/claims/5/lines/3
         [HttpDelete("{claimId}/lines/{lineId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClaimLine(int claimId, int lineId)
         {
             var line = await _context.ClaimLines
@@ -254,7 +347,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         //  CLAIM DOCUMENTS  —  /api/claims/{claimId}/documents
         // ═══════════════════════════════════════════════════
 
-        // GET: api/claims/5/documents
         [HttpGet("{claimId}/documents")]
         public async Task<ActionResult<IEnumerable<ClaimDocument>>> GetClaimDocuments(int claimId)
         {
@@ -270,7 +362,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(docs);
         }
 
-        // GET: api/claims/5/documents/2
         [HttpGet("{claimId}/documents/{docId}")]
         public async Task<ActionResult<ClaimDocument>> GetClaimDocument(int claimId, int docId)
         {
@@ -285,8 +376,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(doc);
         }
 
-        // POST: api/claims/5/documents
         [HttpPost("{claimId}/documents")]
+        [Authorize(Roles = "Hospital")]
         public async Task<ActionResult<ClaimDocument>> UploadDocument(int claimId, ClaimDocument doc)
         {
             var claim = await _context.Claims.FindAsync(claimId);
@@ -303,8 +394,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 new { claimId, docId = doc.DocID }, doc);
         }
 
-        // PUT: api/claims/5/documents/2/verify
         [HttpPut("{claimId}/documents/{docId}/verify")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> VerifyDocument(int claimId, int docId,
             [FromBody] int verifiedByUserId)
         {
@@ -321,8 +412,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
 
-        // DELETE: api/claims/5/documents/2
         [HttpDelete("{claimId}/documents/{docId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteDocument(int claimId, int docId)
         {
             var doc = await _context.ClaimDocuments

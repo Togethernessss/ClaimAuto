@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -20,62 +21,107 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET: api/users
-        // Returns all users
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetAllUsers()
+        public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
             var users = await _context.Users.ToListAsync();
-            return Ok(users);
+
+            var response = users.Select(u => new UserResponseDto
+            {
+                UserID = u.UserID,
+                Name = u.Name,
+                Role = u.Role.ToString(),
+                Email = u.Email,
+                Phone = u.Phone,
+                Department = u.Department,
+                MFAEnabled = u.MFAEnabled,
+                Status = u.Status.ToString(),
+                CreatedAt = u.CreatedAt
+            });
+
+            return Ok(response);
         }
 
         // GET: api/users/5
-        // Returns one user by ID
         [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
+        public async Task<ActionResult<UserResponseDto>> GetUser(int id)
         {
             var user = await _context.Users.FindAsync(id);
 
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
-            return Ok(user);
+            var response = new UserResponseDto
+            {
+                UserID = user.UserID,
+                Name = user.Name,
+                Role = user.Role.ToString(),
+                Email = user.Email,
+                Phone = user.Phone,
+                Department = user.Department,
+                MFAEnabled = user.MFAEnabled,
+                Status = user.Status.ToString(),
+                CreatedAt = user.CreatedAt
+            };
+
+            return Ok(response);
         }
 
         // GET: api/users/role/InsuranceStaff
-        // Returns all users of a specific role
         [HttpGet("role/{role}")]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsersByRole(UserRole role)
+        public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
             var users = await _context.Users
                 .Where(u => u.Role == role && u.Status == AccountStatus.Active)
                 .ToListAsync();
 
-            return Ok(users);
+            var response = users.Select(u => new UserResponseDto
+            {
+                UserID = u.UserID,
+                Name = u.Name,
+                Role = u.Role.ToString(),
+                Email = u.Email,
+                Phone = u.Phone,
+                Department = u.Department,
+                MFAEnabled = u.MFAEnabled,
+                Status = u.Status.ToString(),
+                CreatedAt = u.CreatedAt
+            });
+
+            return Ok(response);
         }
 
         // POST: api/users
-        // Creates a new user
         [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
+        public async Task<ActionResult<UserResponseDto>> CreateUser(CreateUserDto dto)
         {
-            // Check if email already exists
-            bool emailExists = await _context.Users
-                .AnyAsync(u => u.Email == user.Email);
-
+            bool emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
             if (emailExists)
                 return Conflict("A user with this email already exists.");
 
-            // ACID: Transaction ensures User + AuditLog are saved together
+            if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
+                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
+
+            var user = new User
+            {
+                Name = dto.Name,
+                Role = role,
+                Email = dto.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                Phone = dto.Phone,
+                Department = dto.Department,
+                MFAEnabled = dto.MFAEnabled,
+                Status = AccountStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                user.CreatedAt = DateTime.UtcNow;
-                user.UpdatedAt = DateTime.UtcNow;
-
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
-                // Log the action in AuditLog
                 _context.AuditLogs.Add(new AuditLog
                 {
                     UserID = user.UserID,
@@ -85,7 +131,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Timestamp = DateTime.UtcNow
                 });
                 await _context.SaveChangesAsync();
-
                 await transaction.CommitAsync();
             }
             catch
@@ -94,12 +139,23 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 throw;
             }
 
-            // 201 Created + location header pointing to GET /api/users/{id}
-            return CreatedAtAction(nameof(GetUser), new { id = user.UserID }, user);
+            var response = new UserResponseDto
+            {
+                UserID = user.UserID,
+                Name = user.Name,
+                Role = user.Role.ToString(),
+                Email = user.Email,
+                Phone = user.Phone,
+                Department = user.Department,
+                MFAEnabled = user.MFAEnabled,
+                Status = user.Status.ToString(),
+                CreatedAt = user.CreatedAt
+            };
+
+            return CreatedAtAction(nameof(GetUser), new { id = user.UserID }, response);
         }
 
         // PUT: api/users/5
-        // Updates an existing user
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(int id, User updatedUser)
         {
@@ -118,11 +174,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             user.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return NoContent(); // 204 — success, no body needed
+            return NoContent();
         }
 
         // DELETE: api/users/5
-        // Soft delete — sets status to Inactive instead of removing
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
@@ -138,4 +193,3 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
     }
 }
-
