@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,7 +22,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // GET: api/payments
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Payment>>> GetAllPayments()
+        public async Task<ActionResult<IEnumerable<PaymentResponseDto>>> GetAllPayments()
         {
             var payments = await _context.Payments
                 .Include(p => p.Claim)
@@ -29,40 +30,92 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 .Include(p => p.Remittance)
                 .ToListAsync();
 
-            return Ok(payments);
+            var response = payments.Select(p => new PaymentResponseDto
+            {
+                PaymentID = p.PaymentID,
+                ClaimID = p.ClaimID,
+                PayeeID = p.PayeeID,
+                PayeeName = p.Payee?.Name ?? "",
+                Amount = p.Amount,
+                Currency = p.Currency,
+                PaymentMethod = p.PaymentMethod.ToString(),
+                Status = p.Status.ToString(),
+                ReferenceNumber = p.ReferenceNumber,
+                CreatedAt = p.CreatedAt,
+                ScheduledAt = p.ScheduledAt,
+                ExecutedAt = p.ExecutedAt
+            });
+
+            return Ok(response);
         }
 
         // GET: api/payments/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Payment>> GetPayment(int id)
+        public async Task<ActionResult<PaymentResponseDto>> GetPayment(int id)
         {
             var payment = await _context.Payments
                 .Include(p => p.Claim)
+                .Include(p => p.Payee)
                 .Include(p => p.Remittance)
                 .FirstOrDefaultAsync(p => p.PaymentID == id);
 
             if (payment == null)
                 return NotFound();
 
-            return Ok(payment);
+            var response = new PaymentResponseDto
+            {
+                PaymentID = payment.PaymentID,
+                ClaimID = payment.ClaimID,
+                PayeeID = payment.PayeeID,
+                PayeeName = payment.Payee?.Name ?? "",
+                Amount = payment.Amount,
+                Currency = payment.Currency,
+                PaymentMethod = payment.PaymentMethod.ToString(),
+                Status = payment.Status.ToString(),
+                ReferenceNumber = payment.ReferenceNumber,
+                CreatedAt = payment.CreatedAt,
+                ScheduledAt = payment.ScheduledAt,
+                ExecutedAt = payment.ExecutedAt
+            };
+
+            return Ok(response);
         }
 
         // POST: api/payments
-        // Creates a payment instruction for an approved claim
         [HttpPost]
-        public async Task<ActionResult<Payment>> CreatePayment(Payment payment)
+        public async Task<ActionResult<PaymentResponseDto>> CreatePayment(CreatePaymentDto dto)
         {
-            // ACID: Transaction ensures Payment + Remittance + AuditLog are saved together
+            // Get the logged-in user's ID from JWT
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                              ?? User.FindFirst("sub");
+            int currentUserId = int.Parse(userIdClaim!.Value);
+
+            // Find the claim to get the ProviderID (payee)
+            var claim = await _context.Claims.FindAsync(dto.ClaimID);
+            if (claim == null)
+                return NotFound($"Claim with ID {dto.ClaimID} not found.");
+
+            if (!Enum.TryParse<PaymentMethod>(dto.PaymentMethod, true, out var paymentMethod))
+                return BadRequest($"Invalid PaymentMethod: {dto.PaymentMethod}");
+
+            var payment = new Payment
+            {
+                ClaimID = dto.ClaimID,
+                PayeeID = claim.ProviderID,
+                Amount = dto.Amount,
+                Currency = dto.Currency,
+                PaymentMethod = paymentMethod,
+                ReferenceNumber = dto.ReferenceNumber,
+                CreatedAt = DateTime.UtcNow,
+                Status = PaymentStatus.Pending
+            };
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                payment.CreatedAt = DateTime.UtcNow;
-                payment.Status = PaymentStatus.Pending;
-
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                // Auto-generate remittance advice
                 var remittance = new Remittance
                 {
                     PaymentID = payment.PaymentID,
@@ -73,7 +126,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                 _context.AuditLogs.Add(new AuditLog
                 {
-                    UserID = payment.PayeeID,
+                    UserID = currentUserId,
                     Action = "CreatePayment",
                     ResourceType = "Payment",
                     ResourceID = payment.PaymentID.ToString(),
@@ -89,11 +142,28 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 throw;
             }
 
-            return CreatedAtAction(nameof(GetPayment), new { id = payment.PaymentID }, payment);
+            await _context.Entry(payment).Reference(p => p.Payee).LoadAsync();
+
+            var response = new PaymentResponseDto
+            {
+                PaymentID = payment.PaymentID,
+                ClaimID = payment.ClaimID,
+                PayeeID = payment.PayeeID,
+                PayeeName = payment.Payee?.Name ?? "",
+                Amount = payment.Amount,
+                Currency = payment.Currency,
+                PaymentMethod = payment.PaymentMethod.ToString(),
+                Status = payment.Status.ToString(),
+                ReferenceNumber = payment.ReferenceNumber,
+                CreatedAt = payment.CreatedAt,
+                ScheduledAt = payment.ScheduledAt,
+                ExecutedAt = payment.ExecutedAt
+            };
+
+            return CreatedAtAction(nameof(GetPayment), new { id = payment.PaymentID }, response);
         }
 
         // PUT: api/payments/5/authorize
-        // Insurance Staff authorizes a pending payment
         [HttpPut("{id}/authorize")]
         public async Task<IActionResult> AuthorizePayment(int id)
         {
@@ -124,8 +194,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // POST: api/payments/reconciliations
         [HttpPost("reconciliations")]
-        public async Task<ActionResult<Reconciliation>> CreateReconciliation(
-            Reconciliation recon)
+        public async Task<ActionResult<Reconciliation>> CreateReconciliation(Reconciliation recon)
         {
             recon.ReconciledAt = DateTime.UtcNow;
             _context.Reconciliations.Add(recon);

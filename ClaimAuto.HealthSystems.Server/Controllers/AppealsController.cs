@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,19 +22,35 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // GET: api/appeals
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Appeal>>> GetAllAppeals()
+        public async Task<ActionResult<IEnumerable<AppealResponseDto>>> GetAllAppeals()
         {
             var appeals = await _context.Appeals
                 .Include(a => a.Claim)
                 .Include(a => a.FiledByUser)
+                .Include(a => a.DecisionBy)
                 .ToListAsync();
 
-            return Ok(appeals);
+            var response = appeals.Select(a => new AppealResponseDto
+            {
+                AppealID = a.AppealID,
+                ClaimID = a.ClaimID,
+                FiledBy = a.FiledBy,
+                FiledByName = a.FiledByUser?.Name ?? "",
+                FiledAt = a.FiledAt,
+                Reason = a.Reason,
+                Status = a.Status.ToString(),
+                Outcome = a.Outcome?.ToString(),
+                DecisionAt = a.DecisionAt,
+                DecisionByID = a.DecisionByID,
+                DecisionByName = a.DecisionBy?.Name
+            });
+
+            return Ok(response);
         }
 
         // GET: api/appeals/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Appeal>> GetAppeal(int id)
+        public async Task<ActionResult<AppealResponseDto>> GetAppeal(int id)
         {
             var appeal = await _context.Appeals
                 .Include(a => a.Claim)
@@ -44,31 +61,55 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (appeal == null)
                 return NotFound();
 
-            return Ok(appeal);
+            var response = new AppealResponseDto
+            {
+                AppealID = appeal.AppealID,
+                ClaimID = appeal.ClaimID,
+                FiledBy = appeal.FiledBy,
+                FiledByName = appeal.FiledByUser?.Name ?? "",
+                FiledAt = appeal.FiledAt,
+                Reason = appeal.Reason,
+                Status = appeal.Status.ToString(),
+                Outcome = appeal.Outcome?.ToString(),
+                DecisionAt = appeal.DecisionAt,
+                DecisionByID = appeal.DecisionByID,
+                DecisionByName = appeal.DecisionBy?.Name
+            };
+
+            return Ok(response);
         }
 
         // POST: api/appeals
-        // Policyholder or Hospital files an appeal
         [HttpPost]
-        public async Task<ActionResult<Appeal>> FileAppeal(Appeal appeal)
+        public async Task<ActionResult<AppealResponseDto>> FileAppeal(CreateAppealDto dto)
         {
-            // ACID: Transaction ensures Appeal + Task + AuditLog are saved together
+            // Get the logged-in user's ID from JWT
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                              ?? User.FindFirst("sub");
+            int filedByUserId = int.Parse(userIdClaim!.Value);
+
+            var appeal = new Appeal
+            {
+                ClaimID = dto.ClaimID,
+                FiledBy = filedByUserId,
+                Reason = dto.Reason,
+                DocumentsJSON = dto.DocumentsJSON,
+                FiledAt = DateTime.UtcNow,
+                Status = AppealStatus.Filed
+            };
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                appeal.FiledAt = DateTime.UtcNow;
-                appeal.Status = AppealStatus.Filed;
-
                 _context.Appeals.Add(appeal);
                 await _context.SaveChangesAsync();
 
-                // Create a task for Insurance Staff to review
                 _context.Tasks.Add(new Tasks
                 {
-                    AssignedTo = 1, // Replace with actual staff assignment logic
+                    AssignedTo = 1,
                     ClaimID = appeal.ClaimID,
                     Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
-                    DueDate = DateTime.UtcNow.AddDays(7), // 7-day SLA
+                    DueDate = DateTime.UtcNow.AddDays(7),
                     Priority = TaskPriority.High,
                     CreatedAt = DateTime.UtcNow,
                     Status = Model.TaskStatus.Pending
@@ -76,7 +117,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                 _context.AuditLogs.Add(new AuditLog
                 {
-                    UserID = appeal.FiledBy,
+                    UserID = filedByUserId,
                     Action = "FileAppeal",
                     ResourceType = "Appeal",
                     ResourceID = appeal.AppealID.ToString(),
@@ -92,35 +133,57 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 throw;
             }
 
-            return CreatedAtAction(nameof(GetAppeal), new { id = appeal.AppealID }, appeal);
+            await _context.Entry(appeal).Reference(a => a.FiledByUser).LoadAsync();
+
+            var response = new AppealResponseDto
+            {
+                AppealID = appeal.AppealID,
+                ClaimID = appeal.ClaimID,
+                FiledBy = appeal.FiledBy,
+                FiledByName = appeal.FiledByUser?.Name ?? "",
+                FiledAt = appeal.FiledAt,
+                Reason = appeal.Reason,
+                Status = appeal.Status.ToString(),
+                Outcome = appeal.Outcome?.ToString(),
+                DecisionAt = appeal.DecisionAt,
+                DecisionByID = appeal.DecisionByID
+            };
+
+            return CreatedAtAction(nameof(GetAppeal), new { id = appeal.AppealID }, response);
         }
 
         // PUT: api/appeals/5/decide
-        // Insurance Staff makes a decision on an appeal
         [HttpPut("{id}/decide")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
-        public async Task<IActionResult> DecideAppeal(int id, [FromBody] Appeal update)
+        public async Task<IActionResult> DecideAppeal(int id, [FromBody] DecideAppealDto dto)
         {
             var appeal = await _context.Appeals.FindAsync(id);
             if (appeal == null)
                 return NotFound();
 
-            // ACID: Transaction ensures Appeal update + AuditLog are saved together
+            // Get the logged-in user's ID from JWT
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                              ?? User.FindFirst("sub");
+            int decisionByUserId = int.Parse(userIdClaim!.Value);
+
+            if (!Enum.TryParse<AppealOutcome>(dto.Outcome, true, out var outcome))
+                return BadRequest($"Invalid Outcome: {dto.Outcome}. Valid: Upheld, Overturned, PartiallyUpheld");
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 appeal.Status = AppealStatus.Decided;
-                appeal.Outcome = update.Outcome;
+                appeal.Outcome = outcome;
                 appeal.DecisionAt = DateTime.UtcNow;
-                appeal.DecisionByID = update.DecisionByID;
+                appeal.DecisionByID = decisionByUserId;
 
                 _context.AuditLogs.Add(new AuditLog
                 {
-                    UserID = update.DecisionByID ?? 0,
+                    UserID = decisionByUserId,
                     Action = "DecideAppeal",
                     ResourceType = "Appeal",
                     ResourceID = id.ToString(),
-                    DetailsJSON = $"{{\"Outcome\":\"{update.Outcome}\"}}",
+                    DetailsJSON = $"{{\"Outcome\":\"{dto.Outcome}\"}}",
                     Timestamp = DateTime.UtcNow
                 });
 
@@ -158,3 +221,4 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
     }
 }
+
