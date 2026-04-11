@@ -1,6 +1,7 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,167 +14,69 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [Authorize(Roles = "Admin")]
     public class UsersController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUserService _service;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(IUserService service)
         {
-            _context = context;
+            _service = service;
         }
 
         // GET: api/users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
-            var users = await _context.Users.ToListAsync();
-
-            var response = users.Select(u => new UserResponseDto
-            {
-                UserID = u.UserID,
-                Name = u.Name,
-                Role = u.Role.ToString(),
-                Email = u.Email,
-                Phone = u.Phone,
-                Department = u.Department,
-                MFAEnabled = u.MFAEnabled,
-                Status = u.Status.ToString(),
-                CreatedAt = u.CreatedAt
-            });
-
-            return Ok(response);
+            var users = await _service.GetAllAsync();
+            return Ok(users);
         }
 
         // GET: api/users/5
         [HttpGet("{id}")]
         public async Task<ActionResult<UserResponseDto>> GetUser(int id)
         {
-            var user = await _context.Users.FindAsync(id);
-
+            var user = await _service.GetByIdAsync(id);
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
-            var response = new UserResponseDto
-            {
-                UserID = user.UserID,
-                Name = user.Name,
-                Role = user.Role.ToString(),
-                Email = user.Email,
-                Phone = user.Phone,
-                Department = user.Department,
-                MFAEnabled = user.MFAEnabled,
-                Status = user.Status.ToString(),
-                CreatedAt = user.CreatedAt
-            };
-
-            return Ok(response);
+            return Ok(user);
         }
 
         // GET: api/users/role/InsuranceStaff
         [HttpGet("role/{role}")]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
-            var users = await _context.Users
-                .Where(u => u.Role == role && u.Status == AccountStatus.Active)
-                .ToListAsync();
-
-            var response = users.Select(u => new UserResponseDto
-            {
-                UserID = u.UserID,
-                Name = u.Name,
-                Role = u.Role.ToString(),
-                Email = u.Email,
-                Phone = u.Phone,
-                Department = u.Department,
-                MFAEnabled = u.MFAEnabled,
-                Status = u.Status.ToString(),
-                CreatedAt = u.CreatedAt
-            });
-
-            return Ok(response);
+            var users = await _service.GetByRoleAsync(role);
+            return Ok(users);
         }
 
         // POST: api/users
         [HttpPost]
         public async Task<ActionResult<UserResponseDto>> CreateUser(CreateUserDto dto)
         {
-            bool emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
-            if (emailExists)
-                return Conflict("A user with this email already exists.");
+            var result = await _service.CreateAsync(dto);
 
-            if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
-                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
-
-            var user = new User
+            if (!result.Success)
             {
-                Name = dto.Name,
-                Role = role,
-                Email = dto.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Phone = dto.Phone,
-                Department = dto.Department,
-                MFAEnabled = dto.MFAEnabled,
-                Status = AccountStatus.Active,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
-
-                _context.AuditLogs.Add(new AuditLog
-                {
-                    UserID = user.UserID,
-                    Action = "CreateUser",
-                    ResourceType = "User",
-                    ResourceID = user.UserID.ToString(),
-                    Timestamp = DateTime.UtcNow
-                });
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
+                if (result.Error.Contains("already exists"))
+                    return Conflict(result.Error);
+                return BadRequest(result.Error);
             }
 
-            var response = new UserResponseDto
-            {
-                UserID = user.UserID,
-                Name = user.Name,
-                Role = user.Role.ToString(),
-                Email = user.Email,
-                Phone = user.Phone,
-                Department = user.Department,
-                MFAEnabled = user.MFAEnabled,
-                Status = user.Status.ToString(),
-                CreatedAt = user.CreatedAt
-            };
-
-            return CreatedAtAction(nameof(GetUser), new { id = user.UserID }, response);
+            return CreatedAtAction(nameof(GetUser), new { id = result.User!.UserID }, result.User);
         }
 
         // PUT: api/users/5
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(int id, User updatedUser)
         {
-            if (id != updatedUser.UserID)
-                return BadRequest("ID in URL does not match ID in body.");
+            var result = await _service.UpdateAsync(id, updatedUser);
 
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-                return NotFound($"User with ID {id} not found.");
+            if (!result.Success)
+            {
+                if (result.Error.Contains("not found"))
+                    return NotFound(result.Error);
+                return BadRequest(result.Error);
+            }
 
-            user.Name = updatedUser.Name;
-            user.Phone = updatedUser.Phone;
-            user.Department = updatedUser.Department;
-            user.MFAEnabled = updatedUser.MFAEnabled;
-            user.Status = updatedUser.Status;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -181,14 +84,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-                return NotFound($"User with ID {id} not found.");
+            var result = await _service.DeleteAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            user.Status = AccountStatus.Inactive;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }
