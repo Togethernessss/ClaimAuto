@@ -78,16 +78,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         public async Task<EligibilityResponseDto?> CheckEligibilityAsync(int memberId)
         {
-            // ── Step 1: Find the member with their policy ────────────────
-            var member = await _db.Members
-                .Include(m => m.Policy)
-                .FirstOrDefaultAsync(m => m.MemberID == memberId);
-
-            if (member == null) return null;
-
-            // ── Step 2: Check for cached result within TTL ───────────────
             var now = DateTime.UtcNow;
 
+            // ── Step 1: Check for cached result within TTL ───────────────────
+            
             var cachedCheck = await _db.EligibilityChecks
                 .Where(e => e.MemberID == memberId
                          && e.TTL != null
@@ -95,16 +89,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .OrderByDescending(e => e.CheckedAt)
                 .FirstOrDefaultAsync();
 
-            // If valid cache exists, return it without creating a new row
             if (cachedCheck != null)
             {
+                var cachedMember = await _db.Members
+                    .Include(m => m.Policy)
+                    .FirstOrDefaultAsync(m => m.MemberID == memberId);
+
+                if (cachedMember == null) return null;
+
                 return new EligibilityResponseDto
                 {
                     MemberID = memberId,
-                    PolicyID = member.PolicyID,
-                    Status = member.Status.ToString(),
-                    RemainingBenefit = CalculateRemainingBenefit(member),
-                    DeductibleMet = CalculateDeductibleMet(member),
+                    PolicyID = cachedMember.PolicyID,
+                    Status = cachedMember.Status.ToString(),
+                    RemainingBenefit = cachedCheck.TTL.HasValue
+                                        ? ExtractRemainingBenefitFromCache(cachedCheck.ResultJSON)
+                                        : 0m,
+                    DeductibleMet = ExtractDeductibleMetFromCache(cachedCheck.ResultJSON),
                     PreAuthRequired = false,
                     CheckedAt = cachedCheck.CheckedAt,
                     Source = "Cached",
@@ -112,16 +113,43 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
             }
 
-            // ── Step 3: Run fresh eligibility check ──────────────────────
+            // ── Step 2: Load member + policy + claims in ONE query ───────────
+            
+            var member = await _db.Members
+                .Include(m => m.Policy)
+                .FirstOrDefaultAsync(m => m.MemberID == memberId);
+
+            if (member == null) return null;
+
+            // ── Step 3: Load claims for this member in ONE query ────────────
+           
+            var memberClaims = await _db.Claims
+                .Where(c => c.MemberID == memberId
+                         && (c.Status == ClaimStatus.Adjudicated
+                          || c.Status == ClaimStatus.Paid))
+                .Select(c => c.TotalBilledAmount)  // only fetch the amount — nothing else needed
+                .ToListAsync();
+
+            // ── Step 4: Calculate both values in MEMORY using the loaded list
+            
+            var totalPaid = memberClaims.Sum();    // sum all approved/paid claim amounts
+
+            var policyMax = member.Policy.OutOfPocketMax ?? 0m;
+            var deductible = member.Policy.DeductibleAmount ?? 0m;
+
+            // RemainingBenefit = PolicyMax - TotalPaid (minimum 0)
+            var remainingBenefit = Math.Max(policyMax - totalPaid, 0m);
+
+            // DeductibleMet = how much of deductible has been used (capped at full deductible)
+            var deductibleMet = Math.Min(totalPaid, deductible);
+
+            // ── Step 5: Check eligibility conditions ────────────────────────
             var isEligible = member.Status == MemberStatus.Active
                           && member.Policy.Status == PolicyStatus.Active
                           && member.CoverageStart <= now
                           && (member.CoverageEnd == null || member.CoverageEnd >= now);
 
-            var remainingBenefit = CalculateRemainingBenefit(member);
-            var deductibleMet = CalculateDeductibleMet(member);
-
-            // ── Step 4: Save the result to EligibilityChecks table ───────
+            // ── Step 6: Save fresh result to EligibilityChecks table ────────
             var resultJson = $"{{" +
                 $"\"IsEligible\":{isEligible.ToString().ToLower()}," +
                 $"\"MemberStatus\":\"{member.Status}\"," +
@@ -137,13 +165,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CheckedAt = now,
                 Source = "API",
                 ResultJSON = resultJson,
-                TTL = 300     // 5 minutes cache
+                TTL = 300
             };
 
             _db.EligibilityChecks.Add(check);
             await _db.SaveChangesAsync();
 
-            // ── Step 5: Return the response ──────────────────────────────
+            // ── Step 7: Return the response ──────────────────────────────────
             return new EligibilityResponseDto
             {
                 MemberID = memberId,
@@ -157,6 +185,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 TTL = 300
             };
         }
+
+
+        
 
         // ══════════════════════════════════════════════════════════════════
         //  CHECK IF MEMBER NUMBER EXISTS — duplicate detection
@@ -324,33 +355,56 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         //  PRIVATE HELPERS — calculate benefit and deductible values
         // ══════════════════════════════════════════════════════════════════
 
-        private decimal CalculateRemainingBenefit(Member member)
+        private decimal ExtractRemainingBenefitFromCache(string? resultJson)
         {
-            // Total policy limit (OutOfPocketMax)
-            var policyMax = member.Policy.OutOfPocketMax ?? 0m;
+            // Safely parse RemainingBenefit from stored JSON string
+            // Example JSON: {"IsEligible":true,"RemainingBenefit":95000,"DeductibleMet":5000}
+            if (string.IsNullOrEmpty(resultJson)) return 0m;
 
-            // Sum of all approved/paid claims for this member
-            var totalPaid = _db.Claims
-                .Where(c => c.MemberID == member.MemberID
-                         && (c.Status == ClaimStatus.Adjudicated || c.Status == ClaimStatus.Paid))
-                .Sum(c => (decimal?)c.TotalBilledAmount) ?? 0m;
+            try
+            {
+                // Find "RemainingBenefit": and read the number after it
+                var key = "\"RemainingBenefit\":";
+                var start = resultJson.IndexOf(key);
+                if (start == -1) return 0m;
 
-            var remaining = policyMax - totalPaid;
-            return remaining > 0 ? remaining : 0m;
+                start += key.Length;
+                var end = resultJson.IndexOfAny(new[] { ',', '}' }, start);
+                if (end == -1) return 0m;
+
+                var valueStr = resultJson.Substring(start, end - start).Trim();
+                return decimal.TryParse(valueStr, out var value) ? value : 0m;
+            }
+            catch
+            {
+                return 0m;
+            }
         }
 
-        private decimal CalculateDeductibleMet(Member member)
+        private decimal ExtractDeductibleMetFromCache(string? resultJson)
         {
-            // How much the member has already paid toward their deductible
-            var deductible = member.Policy.DeductibleAmount ?? 0m;
+            // Same pattern — parse DeductibleMet from stored JSON string
+            if (string.IsNullOrEmpty(resultJson)) return 0m;
 
-            var totalPaid = _db.Claims
-                .Where(c => c.MemberID == member.MemberID
-                         && (c.Status == ClaimStatus.Adjudicated || c.Status == ClaimStatus.Paid))
-                .Sum(c => (decimal?)c.TotalBilledAmount) ?? 0m;
+            try
+            {
+                var key = "\"DeductibleMet\":";
+                var start = resultJson.IndexOf(key);
+                if (start == -1) return 0m;
 
-            // Return whichever is smaller — what they've paid or the full deductible
-            return totalPaid >= deductible ? deductible : totalPaid;
+                start += key.Length;
+                var end = resultJson.IndexOfAny(new[] { ',', '}' }, start);
+                if (end == -1) return 0m;
+
+                var valueStr = resultJson.Substring(start, end - start).Trim();
+                return decimal.TryParse(valueStr, out var value) ? value : 0m;
+            }
+            catch
+            {
+                return 0m;
+            }
         }
+
+
     }
 }
