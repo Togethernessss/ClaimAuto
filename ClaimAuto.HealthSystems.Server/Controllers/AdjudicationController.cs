@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/adjudication")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class AdjudicationController : ControllerBase
+    public class AdjudicationController : BaseController
     {
         // POST /api/adjudication/auto/{claimId}
         // Runs the rule engine on the claim automatically.

@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/appeals")]
     [Authorize]   // Any authenticated user can file — role filtering inside
-    public class AppealsController : ControllerBase
+    public class AppealsController : BaseController
     {
         // GET /api/appeals
         // Policyholder sees only their own appeals.

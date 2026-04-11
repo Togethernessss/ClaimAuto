@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/reports")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class ReportsController : ControllerBase
+    public class ReportsController : BaseController
     {
         // GET /api/reports
         // Returns all reports. Filter by Scope.

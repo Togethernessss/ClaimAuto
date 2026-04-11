@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/members")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class MembersController : ControllerBase
+    public class MembersController : BaseController
     {
         // GET /api/members
         // Returns all members. Filter by PolicyID, Status.
