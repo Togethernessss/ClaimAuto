@@ -1,5 +1,9 @@
 
 using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Repository.Implementations;
+using ClaimAuto.HealthSystems.Server.Repository.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Implementations;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -89,6 +93,42 @@ namespace ClaimAuto.HealthSystems.Server
                     }
                 });
             });
+
+
+
+            // ── Repositories (AddScoped = one instance per HTTP request) ──
+            builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+            builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+            builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
+            builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+            builder.Services.AddScoped<IAppealRepository, AppealRepository>();
+            builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
+            builder.Services.AddScoped<IFraudRepository, FraudRepository>();
+            builder.Services.AddScoped<IRuleRepository, RuleRepository>();
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+            builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+            builder.Services.AddScoped<IReportRepository, ReportRepository>();
+            builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
+            // ── Services ──────────────────────────────────────────────────
+            builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IClaimService, ClaimService>();
+            builder.Services.AddScoped<IMemberService, MemberService>();
+            builder.Services.AddScoped<IPolicyService, PolicyService>();
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<IAppealService, AppealService>();
+            builder.Services.AddScoped<IAdjudicationService, AdjudicationService>();
+            builder.Services.AddScoped<IFraudService, FraudService>();
+            builder.Services.AddScoped<IRuleService, RuleService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<ITaskService, TaskService>();
+            builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+
+
 
 
             var app = builder.Build();

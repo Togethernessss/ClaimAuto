@@ -1,6 +1,7 @@
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,115 +12,46 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     public class NotificationsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly INotificationService _service;
 
-        public NotificationsController(ApplicationDbContext context)
+        public NotificationsController(INotificationService service)
         {
-            _context = context;
+            _service = service;
         }
 
         // GET: api/notifications
         [HttpGet]
         public async Task<ActionResult<IEnumerable<NotificationResponseDto>>> GetAllNotifications()
         {
-            var notifications = await _context.Notifications
-                .Include(n => n.Claim)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-
-            var response = notifications.Select(n => new NotificationResponseDto
-            {
-                NotificationID = n.NotificationID,
-                UserID = n.UserID,
-                ClaimID = n.ClaimID,
-                Message = n.Message,
-                Category = n.Category.ToString(),
-                Severity = n.Severity.ToString(),
-                Status = n.Status.ToString(),
-                CreatedAt = n.CreatedAt,
-                ReadAt = n.ReadAt
-            });
-
-            return Ok(response);
+            var notifications = await _service.GetAllAsync();
+            return Ok(notifications);
         }
 
         // GET: api/notifications/user/5
         [HttpGet("user/{userId}")]
         public async Task<ActionResult<IEnumerable<NotificationResponseDto>>> GetByUser(int userId)
         {
-            var notifications = await _context.Notifications
-                .Where(n => n.UserID == userId)
-                .Include(n => n.Claim)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-
-            var response = notifications.Select(n => new NotificationResponseDto
-            {
-                NotificationID = n.NotificationID,
-                UserID = n.UserID,
-                ClaimID = n.ClaimID,
-                Message = n.Message,
-                Category = n.Category.ToString(),
-                Severity = n.Severity.ToString(),
-                Status = n.Status.ToString(),
-                CreatedAt = n.CreatedAt,
-                ReadAt = n.ReadAt
-            });
-
-            return Ok(response);
+            var notifications = await _service.GetByUserAsync(userId);
+            return Ok(notifications);
         }
 
         // GET: api/notifications/user/5/unread
         [HttpGet("user/{userId}/unread")]
         public async Task<ActionResult<IEnumerable<NotificationResponseDto>>> GetUnreadByUser(int userId)
         {
-            var notifications = await _context.Notifications
-                .Where(n => n.UserID == userId && n.Status == NotificationStatus.Unread)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-
-            var response = notifications.Select(n => new NotificationResponseDto
-            {
-                NotificationID = n.NotificationID,
-                UserID = n.UserID,
-                ClaimID = n.ClaimID,
-                Message = n.Message,
-                Category = n.Category.ToString(),
-                Severity = n.Severity.ToString(),
-                Status = n.Status.ToString(),
-                CreatedAt = n.CreatedAt,
-                ReadAt = n.ReadAt
-            });
-
-            return Ok(response);
+            var notifications = await _service.GetUnreadByUserAsync(userId);
+            return Ok(notifications);
         }
 
         // GET: api/notifications/5
         [HttpGet("{id}")]
         public async Task<ActionResult<NotificationResponseDto>> GetNotification(int id)
         {
-            var notification = await _context.Notifications
-                .Include(n => n.User)
-                .Include(n => n.Claim)
-                .FirstOrDefaultAsync(n => n.NotificationID == id);
+            var result = await _service.GetByIdAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            if (notification == null)
-                return NotFound($"Notification with ID {id} not found.");
-
-            var response = new NotificationResponseDto
-            {
-                NotificationID = notification.NotificationID,
-                UserID = notification.UserID,
-                ClaimID = notification.ClaimID,
-                Message = notification.Message,
-                Category = notification.Category.ToString(),
-                Severity = notification.Severity.ToString(),
-                Status = notification.Status.ToString(),
-                CreatedAt = notification.CreatedAt,
-                ReadAt = notification.ReadAt
-            };
-
-            return Ok(response);
+            return Ok(result.Notification);
         }
 
         // POST: api/notifications
@@ -127,55 +59,22 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<ActionResult<NotificationResponseDto>> CreateNotification(CreateNotificationDto dto)
         {
-            if (!Enum.TryParse<NotificationCategory>(dto.Category, true, out var category))
-                return BadRequest($"Invalid Category: {dto.Category}");
-
-            if (!Enum.TryParse<NotificationSeverity>(dto.Severity, true, out var severity))
-                return BadRequest($"Invalid Severity: {dto.Severity}");
-
-            var notification = new Notification
-            {
-                UserID = dto.UserID,
-                ClaimID = dto.ClaimID,
-                Message = dto.Message,
-                Category = category,
-                Severity = severity,
-                CreatedAt = DateTime.UtcNow,
-                Status = NotificationStatus.Unread
-            };
-
-            _context.Notifications.Add(notification);
-            await _context.SaveChangesAsync();
-
-            var response = new NotificationResponseDto
-            {
-                NotificationID = notification.NotificationID,
-                UserID = notification.UserID,
-                ClaimID = notification.ClaimID,
-                Message = notification.Message,
-                Category = notification.Category.ToString(),
-                Severity = notification.Severity.ToString(),
-                Status = notification.Status.ToString(),
-                CreatedAt = notification.CreatedAt,
-                ReadAt = notification.ReadAt
-            };
+            var result = await _service.CreateAsync(dto);
+            if (!result.Success)
+                return BadRequest(result.Error);
 
             return CreatedAtAction(nameof(GetNotification),
-                new { id = notification.NotificationID }, response);
+                new { id = result.Notification!.NotificationID }, result.Notification);
         }
 
         // PUT: api/notifications/5/read
         [HttpPut("{id}/read")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
-            var notification = await _context.Notifications.FindAsync(id);
-            if (notification == null)
-                return NotFound($"Notification with ID {id} not found.");
+            var result = await _service.MarkAsReadAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            notification.Status = NotificationStatus.Read;
-            notification.ReadAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -183,13 +82,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPut("{id}/dismiss")]
         public async Task<IActionResult> Dismiss(int id)
         {
-            var notification = await _context.Notifications.FindAsync(id);
-            if (notification == null)
-                return NotFound($"Notification with ID {id} not found.");
+            var result = await _service.DismissAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            notification.Status = NotificationStatus.Dismissed;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -198,12 +94,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteNotification(int id)
         {
-            var notification = await _context.Notifications.FindAsync(id);
-            if (notification == null)
-                return NotFound($"Notification with ID {id} not found.");
+            var result = await _service.DeleteAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            _context.Notifications.Remove(notification);
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }

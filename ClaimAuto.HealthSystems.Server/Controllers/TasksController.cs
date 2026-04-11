@@ -1,6 +1,7 @@
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,217 +13,80 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [Authorize(Roles = "Admin,InsuranceStaff")]  // ← Only Admin & Staff manage tasks
     public class TasksController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ITaskService _service;
 
-        public TasksController(ApplicationDbContext context)
+        public TasksController(ITaskService service)
         {
-            _context = context;
+            _service = service;
         }
 
         // GET: api/tasks
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskResponseDto>>> GetAllTasks()
         {
-            var tasks = await _context.Tasks
-                .Include(t => t.AssignedToUser)
-                .Include(t => t.Claim)
-                .OrderBy(t => t.Priority)
-                .ThenBy(t => t.DueDate)
-                .ToListAsync();
-
-            var response = tasks.Select(t => new TaskResponseDto
-            {
-                TaskID = t.TaskID,
-                AssignedTo = t.AssignedTo,
-                AssignedToName = t.AssignedToUser?.Name ?? "",
-                ClaimID = t.ClaimID,
-                Description = t.Description,
-                DueDate = t.DueDate,
-                Priority = t.Priority.ToString(),
-                Status = t.Status.ToString(),
-                CreatedAt = t.CreatedAt,
-                CompletedAt = t.CompletedAt
-            });
-
-            return Ok(response);
+            var tasks = await _service.GetAllAsync();
+            return Ok(tasks);
         }
 
         // GET: api/tasks/5
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskResponseDto>> GetTask(int id)
         {
-            var task = await _context.Tasks
-                .Include(t => t.AssignedToUser)
-                .Include(t => t.Claim)
-                .FirstOrDefaultAsync(t => t.TaskID == id);
+            var result = await _service.GetByIdAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            if (task == null)
-                return NotFound($"Task with ID {id} not found.");
-
-            var response = new TaskResponseDto
-            {
-                TaskID = task.TaskID,
-                AssignedTo = task.AssignedTo,
-                AssignedToName = task.AssignedToUser?.Name ?? "",
-                ClaimID = task.ClaimID,
-                Description = task.Description,
-                DueDate = task.DueDate,
-                Priority = task.Priority.ToString(),
-                Status = task.Status.ToString(),
-                CreatedAt = task.CreatedAt,
-                CompletedAt = task.CompletedAt
-            };
-
-            return Ok(response);
+            return Ok(result.Task);
         }
 
         // GET: api/tasks/user/5
         [HttpGet("user/{userId}")]
         public async Task<ActionResult<IEnumerable<TaskResponseDto>>> GetTasksByUser(int userId)
         {
-            var tasks = await _context.Tasks
-                .Where(t => t.AssignedTo == userId)
-                .Include(t => t.AssignedToUser)
-                .Include(t => t.Claim)
-                .OrderBy(t => t.Priority)
-                .ThenBy(t => t.DueDate)
-                .ToListAsync();
-
-            var response = tasks.Select(t => new TaskResponseDto
-            {
-                TaskID = t.TaskID,
-                AssignedTo = t.AssignedTo,
-                AssignedToName = t.AssignedToUser?.Name ?? "",
-                ClaimID = t.ClaimID,
-                Description = t.Description,
-                DueDate = t.DueDate,
-                Priority = t.Priority.ToString(),
-                Status = t.Status.ToString(),
-                CreatedAt = t.CreatedAt,
-                CompletedAt = t.CompletedAt
-            });
-
-            return Ok(response);
+            var tasks = await _service.GetByUserAsync(userId);
+            return Ok(tasks);
         }
 
         // GET: api/tasks/status/Pending
         [HttpGet("status/{status}")]
         public async Task<ActionResult<IEnumerable<TaskResponseDto>>> GetTasksByStatus(Model.TaskStatus status)
         {
-            var tasks = await _context.Tasks
-                .Where(t => t.Status == status)
-                .Include(t => t.AssignedToUser)
-                .Include(t => t.Claim)
-                .OrderBy(t => t.Priority)
-                .ToListAsync();
-
-            var response = tasks.Select(t => new TaskResponseDto
-            {
-                TaskID = t.TaskID,
-                AssignedTo = t.AssignedTo,
-                AssignedToName = t.AssignedToUser?.Name ?? "",
-                ClaimID = t.ClaimID,
-                Description = t.Description,
-                DueDate = t.DueDate,
-                Priority = t.Priority.ToString(),
-                Status = t.Status.ToString(),
-                CreatedAt = t.CreatedAt,
-                CompletedAt = t.CompletedAt
-            });
-
-            return Ok(response);
+            var tasks = await _service.GetByStatusAsync(status);
+            return Ok(tasks);
         }
 
         // GET: api/tasks/overdue
         [HttpGet("overdue")]
         public async Task<ActionResult<IEnumerable<TaskResponseDto>>> GetOverdueTasks()
         {
-            var tasks = await _context.Tasks
-                .Where(t => t.DueDate < DateTime.UtcNow
-                         && t.Status != Model.TaskStatus.Completed)
-                .Include(t => t.AssignedToUser)
-                .Include(t => t.Claim)
-                .ToListAsync();
-
-            foreach (var task in tasks)
-                task.Status = Model.TaskStatus.Overdue;
-
-            await _context.SaveChangesAsync();
-
-            var response = tasks.Select(t => new TaskResponseDto
-            {
-                TaskID = t.TaskID,
-                AssignedTo = t.AssignedTo,
-                AssignedToName = t.AssignedToUser?.Name ?? "",
-                ClaimID = t.ClaimID,
-                Description = t.Description,
-                DueDate = t.DueDate,
-                Priority = t.Priority.ToString(),
-                Status = t.Status.ToString(),
-                CreatedAt = t.CreatedAt,
-                CompletedAt = t.CompletedAt
-            });
-
-            return Ok(response);
+            var tasks = await _service.GetOverdueAsync();
+            return Ok(tasks);
         }
 
         // POST: api/tasks
         [HttpPost]
         public async Task<ActionResult<TaskResponseDto>> CreateTask(CreateTaskDto dto)
         {
-            if (!Enum.TryParse<TaskPriority>(dto.Priority, true, out var priority))
-                return BadRequest($"Invalid Priority: {dto.Priority}. Valid: Low, Medium, High");
+            var result = await _service.CreateAsync(dto);
+            if (!result.Success)
+                return BadRequest(result.Error);
 
-            var task = new Tasks
-            {
-                AssignedTo = dto.AssignedTo,
-                ClaimID = dto.ClaimID,
-                Description = dto.Description,
-                DueDate = dto.DueDate,
-                Priority = priority,
-                CreatedAt = DateTime.UtcNow,
-                Status = Model.TaskStatus.Pending
-            };
-
-            _context.Tasks.Add(task);
-            await _context.SaveChangesAsync();
-
-            await _context.Entry(task).Reference(t => t.AssignedToUser).LoadAsync();
-
-            var response = new TaskResponseDto
-            {
-                TaskID = task.TaskID,
-                AssignedTo = task.AssignedTo,
-                AssignedToName = task.AssignedToUser?.Name ?? "",
-                ClaimID = task.ClaimID,
-                Description = task.Description,
-                DueDate = task.DueDate,
-                Priority = task.Priority.ToString(),
-                Status = task.Status.ToString(),
-                CreatedAt = task.CreatedAt,
-                CompletedAt = task.CompletedAt
-            };
-
-            return CreatedAtAction(nameof(GetTask), new { id = task.TaskID }, response);
+            return CreatedAtAction(nameof(GetTask), new { id = result.Task!.TaskID }, result.Task);
         }
 
         // PUT: api/tasks/5
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto dto)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null)
-                return NotFound($"Task with ID {id} not found.");
+            var result = await _service.UpdateAsync(id, dto);
 
-            if (!Enum.TryParse<TaskPriority>(dto.Priority, true, out var priority))
-                return BadRequest($"Invalid Priority: {dto.Priority}. Valid: Low, Medium, High");
+            if (!result.Success)
+            {
+                if (result.Error.Contains("not found"))
+                    return NotFound(result.Error);
+                return BadRequest(result.Error);
+            }
 
-            task.Description = dto.Description;
-            task.DueDate = dto.DueDate;
-            task.Priority = priority;
-            task.AssignedTo = dto.AssignedTo;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -230,14 +94,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPut("{id}/complete")]
         public async Task<IActionResult> CompleteTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null)
-                return NotFound($"Task with ID {id} not found.");
+            var result = await _service.CompleteAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            task.Status = Model.TaskStatus.Completed;
-            task.CompletedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
@@ -245,12 +105,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null)
-                return NotFound($"Task with ID {id} not found.");
+            var result = await _service.DeleteAsync(id);
+            if (!result.Success)
+                return NotFound(result.Error);
 
-            _context.Tasks.Remove(task);
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }
