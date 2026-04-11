@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/fraud")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class FraudController : ControllerBase
+    public class FraudController : BaseController
     {
         // GET /api/fraud/scores/{claimId}
         // Returns the fraud score for a specific claim.

@@ -15,7 +15,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     
     [ApiController]
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+    public class AuthController : BaseController
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;

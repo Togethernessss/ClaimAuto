@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/payments")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class PaymentsController : ControllerBase
+    public class PaymentsController : BaseController
     {
         // GET /api/payments
         // Returns all payments. Filter by Status, ClaimID.

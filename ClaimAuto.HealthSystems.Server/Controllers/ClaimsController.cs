@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/claims")]
     [Authorize]   // Any authenticated user — role filtering done inside methods
-    public class ClaimsController : ControllerBase
+    public class ClaimsController : BaseController
     {
         // GET /api/claims
         // Hospital sees only their own claims.

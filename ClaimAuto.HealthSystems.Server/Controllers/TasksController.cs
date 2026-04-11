@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/tasks")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class TasksController : ControllerBase
+    public class TasksController : BaseController
     {
         // GET /api/tasks
         // Returns tasks. Filter by AssignedTo, Status, Priority.
