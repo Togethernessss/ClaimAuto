@@ -12,7 +12,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/users")]
     [Authorize(Roles = "Admin")]
-    public class UsersController : ControllerBase
+    public class UsersController : BaseController
     {
 
         // ✅ Now depends on the INTERFACE — not the database directly

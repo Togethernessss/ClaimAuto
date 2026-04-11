@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/rules")]
     [Authorize(Roles = "Admin")]   // Admin only — manages business rules
-    public class RulesController : ControllerBase
+    public class RulesController : BaseController
     {
         // GET /api/rules
         // Returns all rules. Filter by Status, RuleType.

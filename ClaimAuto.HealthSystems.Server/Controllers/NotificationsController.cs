@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/notifications")]
     [Authorize]   // FIX APPLIED — was missing auth in teammate's version
-    public class NotificationsController : ControllerBase
+    public class NotificationsController : BaseController
     {
         // GET /api/notifications
         // Returns notifications for the logged-in user only.

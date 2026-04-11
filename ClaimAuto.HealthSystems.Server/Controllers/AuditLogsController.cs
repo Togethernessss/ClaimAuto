@@ -7,7 +7,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/auditlogs")]
     [Authorize(Roles = "Admin")]
-    public class AuditLogsController : ControllerBase
+    public class AuditLogsController : BaseController
     {
         [HttpGet]
         public async Task<IActionResult> GetAuditLogs(
