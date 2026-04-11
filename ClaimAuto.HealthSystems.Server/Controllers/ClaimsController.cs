@@ -218,3 +218,4 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
     }
+}
