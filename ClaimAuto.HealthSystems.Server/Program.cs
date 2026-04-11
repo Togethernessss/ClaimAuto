@@ -23,6 +23,7 @@ namespace ClaimAuto.HealthSystems.Server
             // Register Repository with DI — Scoped means one instance per HTTP request
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
+            builder.Services.AddScoped<IMemberRepository, MemberRepository>();
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
