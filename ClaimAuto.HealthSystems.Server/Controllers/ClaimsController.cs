@@ -79,7 +79,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // Staff updates claim status or priority
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
-        public async Task<IActionResult> UpdateClaim(int id, [FromBody] CreateClaimDto dto)
+        public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
         {
             var userId = GetLoggedInUserId();
             if (userId == null)
@@ -119,7 +119,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost("{id}/lines")]
         public async Task<IActionResult> AddClaimLine(int id, [FromBody] AddClaimLineDto dto)
         {
-            var created = await _claimRepo.AddClaimLineAsync(id, dto);
+            // FIX 3: Get userId — needed for AuditLog in repository
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            var created = await _claimRepo.AddClaimLineAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found.");
 

@@ -254,7 +254,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  UPDATE CLAIM — staff updates status or priority
         // ══════════════════════════════════════════════════════════════════
-        public async Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, CreateClaimDto dto, int updatedByUserId)
+        public async Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId)
         {
             var claim = await _db.Claims
                 .Include(c => c.Provider)
@@ -266,7 +266,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var changes = new List<string>();
 
-            // Update Status if provided and different
+            // Update Priority if provided and different
             if (!string.IsNullOrEmpty(dto.Priority))
             {
                 if (Enum.TryParse<ClaimPriority>(dto.Priority, out var newPriority)
@@ -274,6 +274,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 {
                     changes.Add($"Priority: '{claim.Priority}' → '{dto.Priority}'");
                     claim.Priority = newPriority;
+                }
+            }
+
+            // Update Status if provided and different
+            // Only InsuranceStaff/Admin can change status — enforced by controller [Authorize]
+            if (!string.IsNullOrEmpty(dto.Status))
+            {
+                if (Enum.TryParse<ClaimStatus>(dto.Status, out var newStatus)
+                    && newStatus != claim.Status)
+                {
+                    changes.Add($"Status: '{claim.Status}' → '{dto.Status}'");
+                    claim.Status = newStatus;
                 }
             }
 
@@ -285,7 +297,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Action = "UpdateClaim",
                     ResourceType = "Claim",
                     ResourceID = claimId.ToString(),
-                    DetailsJSON = $"{{\"changes\": [{string.Join(", ", changes.Select(c => $"\"{c}\""))}]}}",
+                    DetailsJSON = $"{{\"changes\": " +
+                                   $"[{string.Join(", ", changes.Select(c => $"\"{c}\""))}]}}",
                     Timestamp = DateTime.UtcNow
                 };
                 _db.AuditLogs.Add(audit);
@@ -309,7 +322,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 SubmittedAt = claim.SubmittedAt
             };
         }
-
         // ══════════════════════════════════════════════════════════════════
         //  DELETE CLAIM — only Rejected claims can be deleted
         // ══════════════════════════════════════════════════════════════════
@@ -351,9 +363,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  ADD CLAIM LINE — adds a service line item to a claim
         // ══════════════════════════════════════════════════════════════════
-        public async Task<ClaimLineResponseDto?> AddClaimLineAsync(int claimId, AddClaimLineDto dto)
+        public async Task<ClaimLineResponseDto?> AddClaimLineAsync(int claimId, AddClaimLineDto dto, int addedByUserId)
         {
-            // Check if the claim exists
             var claim = await _db.Claims.FindAsync(claimId);
             if (claim == null) return null;
 
@@ -371,6 +382,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
 
             _db.ClaimLines.Add(line);
+
+            // FIX 3: AuditLog for every line added
+            var audit = new AuditLog
+            {
+                UserID = addedByUserId,
+                Action = "AddClaimLine",
+                ResourceType = "ClaimLine",
+                ResourceID = "PENDING",
+                DetailsJSON = $"{{\"claimID\":{claimId}," +
+                               $"\"serviceCode\":\"{dto.ServiceCode}\"," +
+                               $"\"amount\":{dto.LineBilledAmount}}}",
+                Timestamp = DateTime.UtcNow
+            };
+            _db.AuditLogs.Add(audit);
+
+            await _db.SaveChangesAsync();
+
+            // Update ResourceID with actual LineID
+            audit.ResourceID = line.LineID.ToString();
             await _db.SaveChangesAsync();
 
             return new ClaimLineResponseDto
@@ -386,7 +416,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 LineStatus = line.LineStatus.ToString()
             };
         }
-
         // ══════════════════════════════════════════════════════════════════
         //  GET CLAIM LINES — returns all line items for a claim
         // ══════════════════════════════════════════════════════════════════
