@@ -30,7 +30,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: PUT /api/claims/{id}
         // Staff updates claim status or priority
         // Returns null if claim not found
-        Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, CreateClaimDto dto, int updatedByUserId);
+        Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId);
+
 
         // Used by: DELETE /api/claims/{id}
         // Admin deletes a claim — only allowed for Rejected claims
@@ -42,7 +43,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: POST /api/claims/{id}/lines
         // Adds a line item to an existing claim
         // Returns null if claim not found
-        Task<ClaimLineResponseDto?> AddClaimLineAsync(int claimId, AddClaimLineDto dto);
+        Task<ClaimLineResponseDto?> AddClaimLineAsync(int claimId, AddClaimLineDto dto, int addedByUserId);
 
         // Used by: GET /api/claims/{id}/lines
         // Returns all line items for a claim
