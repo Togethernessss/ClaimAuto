@@ -30,4 +30,22 @@
         public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }
+
+    public class MfaSetupResponseDto
+    {
+        public string SecretKey { get; set; } = string.Empty;
+        public string QrCodeUri { get; set; } = string.Empty;
+    }
+
+    public class MfaVerifyDto
+    {
+        public string Code { get; set; } = string.Empty;
+    }
+
+    public class MfaLoginVerifyDto
+    {
+        public string MfaToken { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+    }
 }
+

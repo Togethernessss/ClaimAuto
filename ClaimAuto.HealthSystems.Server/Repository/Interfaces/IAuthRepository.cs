@@ -8,5 +8,9 @@ namespace ClaimAuto.HealthSystems.Server.Repository.Interfaces
         Task<User?> GetByEmailAsync(string email);
         Task CreateUserWithAuditAsync(User user, AuditLog log);
         Task AddAuditLogAsync(AuditLog log);
+
+        // ── NEW: MFA ──────────────────────
+        Task<User?> GetByIdAsync(int userId);
+        Task SaveChangesAsync();
     }
 }

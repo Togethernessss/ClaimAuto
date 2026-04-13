@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Repository.Implementations
 {
-    public class AuthRepository: IAuthRepository
+    public class AuthRepository : IAuthRepository
     {
         private readonly ApplicationDbContext _context;
 
@@ -49,6 +49,16 @@ namespace ClaimAuto.HealthSystems.Server.Repository.Implementations
         public async Task AddAuditLogAsync(AuditLog log)
         {
             _context.AuditLogs.Add(log);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<User?> GetByIdAsync(int userId)
+        {
+            return await _context.Users.FindAsync(userId);
+        }
+
+        public async Task SaveChangesAsync()
+        {
             await _context.SaveChangesAsync();
         }
     }
