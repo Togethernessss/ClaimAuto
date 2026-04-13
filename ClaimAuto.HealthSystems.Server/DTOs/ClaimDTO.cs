@@ -102,4 +102,11 @@
         public DateTime UploadedAt { get; set; }
         public string Status { get; set; } = string.Empty;        // "Pending","Verified","Rejected"
     }
+
+    // ── UpdateClaimDto 
+    public class UpdateClaimDto
+    {
+        public string? Status { get; set; }    // "Validated","Adjudicated","Rejected"
+        public string? Priority { get; set; } // "Normal","High","Urgent"
+    }
 }
