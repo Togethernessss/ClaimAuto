@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using ClaimAuto.HealthSystems.Server.Repositories;
+
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -25,6 +27,8 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
             builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+            builder.Services.AddScoped<ITotpRepository, TotpRepository>();
+
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>

@@ -29,6 +29,14 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         public bool MFAEnabled { get; set; } = false;
 
+        [MaxLength(128)]
+        public string? MFASecretKey { get; set; }         
+
+        public DateTime? MFACodeExpiry { get; set; }      
+
+        public int MFAFailedAttempts { get; set; } = 0;   
+
+
         [Required]
         public AccountStatus Status { get; set; }
 
