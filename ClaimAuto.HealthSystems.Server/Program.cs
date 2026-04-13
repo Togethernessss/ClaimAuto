@@ -1,12 +1,13 @@
 
+using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -25,6 +26,10 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
             builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+            builder.Services.AddScoped<IRuleRepository, RuleRepository>();
+            // Add these lines with your other service registrations
+            builder.Services.AddScoped<AdjudicationService>();
+            builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>

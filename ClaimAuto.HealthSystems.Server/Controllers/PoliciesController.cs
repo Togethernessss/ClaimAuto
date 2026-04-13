@@ -20,6 +20,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // ── GET /api/policies/active ─────────────────────────────────────────────
         [HttpGet("active")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         public async Task<IActionResult> GetActivePolicies()
         {
             var policies = await _policyRepo.GetActivePoliciesAsync();
