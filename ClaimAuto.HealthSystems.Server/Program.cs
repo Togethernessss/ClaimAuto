@@ -24,6 +24,8 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+            builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
