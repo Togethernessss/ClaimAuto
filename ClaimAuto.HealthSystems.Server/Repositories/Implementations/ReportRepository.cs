@@ -15,8 +15,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
 
-        // Gets all reports from DB
-        // Filters by scope if provided
         public async Task<List<Report>> GetAllReportsAsync(
             string? scope)
         {
@@ -37,8 +35,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        // Gets single report by ID
-        // Returns null if not found
+
         public async Task<Report?> GetReportByIdAsync(int id)
         {
             return await _context.Reports
@@ -46,9 +43,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync(r => r.ReportID == id);
         }
 
-        // Generates a new report
-        // Reads from Claims, Payments, AdjudicationRecords
-        // Computes metrics and saves to DB
         public async Task<Report> GenerateReportAsync(
             GenerateReportDto dto,
             int generatedById)
@@ -73,7 +67,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return report;
         }
 
-        // Computes metrics based on report scope
         private async Task<string> ComputeMetricsAsync(
             ReportScope scope)
         {
@@ -172,12 +165,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
-        // Gets all KPIs
-        // Calculates CurrentValue LIVE from database
-        // Updates automatically when claims are processed
         public async Task<List<KPI>> GetAllKPIsAsync()
         {
-            // Get all KPIs from DB
             var kpis = await _context.KPIs.ToListAsync();
 
             // Get total claims for rate calculations
@@ -185,7 +174,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (totalClaims > 0)
             {
-                // ── KPI 1 — Auto-Adjudication Rate ──────────
+                // ── KPI 1 — Auto-Adjudication Rate 
                 // % of claims auto-processed without human review
                 var autoPaid = await _context.AdjudicationRecords
                     .CountAsync(a =>
@@ -195,7 +184,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 var autoAdjRate = Math.Round(
                     (double)autoPaid / totalClaims * 100, 2);
 
-                // ── KPI 2 — Average TAT ──────────────────────
+                // ── KPI 2 — Average TAT 
                 // Average hours from submission to adjudication
                 var adjRecords = await _context.AdjudicationRecords
                     .Include(a => a.Claim)
@@ -207,7 +196,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                             a.Claim.SubmittedAt).TotalHours), 2)
                     : 0;
 
-                // ── KPI 3 — Denial Rate ──────────────────────
+                // ── KPI 3 — Denial Rate 
                 // % of claims denied
                 var denied = await _context.AdjudicationRecords
                     .CountAsync(a =>
@@ -216,7 +205,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 var denialRate = Math.Round(
                     (double)denied / totalClaims * 100, 2);
 
-                // ── KPI 4 — Fraud Flag Rate ──────────────────
+                // ── KPI 4 — Fraud Flag Rate 
                 // % of claims flagged with high fraud score
                 var fraudFlagged = await _context.FraudScores
                     .CountAsync(f => f.ScoreValue >= 70);
@@ -247,15 +236,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     }
                 }
 
-                // Save updated CurrentValues to DB
                 await _context.SaveChangesAsync();
             }
 
             return kpis;
         }
 
-        // Admin updates KPI target or current value
-        // Returns null if KPI not found
+
         public async Task<KPI?> UpdateKPIAsync(
             int id,
             UpdateKPIDto dto)
@@ -280,8 +267,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return kpi;
         }
 
-        // Gets all audit packages
-        // Newest first
+
         public async Task<List<AuditPackage>>
             GetAllAuditPackagesAsync()
         {
@@ -290,8 +276,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        // Generates new audit package for a period
-        // Reads AuditLogs + AdjudicationRecords + Reports
+
         public async Task<AuditPackage>
             GenerateAuditPackageAsync(
                 DateTime periodStart,

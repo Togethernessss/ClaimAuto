@@ -15,7 +15,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
 
-        // ── Method 1 — GetAllPaymentsAsync ───────────────────
         public async Task<List<Payment>> GetAllPaymentsAsync(
             string? status, int? claimId)
         {
@@ -45,7 +44,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        // ── Method 2 — GetPaymentByIdAsync ───────────────────
+
         public async Task<Payment?> GetPaymentByIdAsync(
             int id)
         {
@@ -57,10 +56,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     p => p.PaymentID == id);
         }
 
-        // ── Method 3 — CreatePaymentAsync ────────────────────
-        // ACID Transaction:
-        // Payment + Remittance saved together
-        // or neither saves
+        // Payment + Remittance saved together or neither saves
         public async Task<Payment> CreatePaymentAsync(
             Payment payment)
         {
@@ -68,15 +64,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .BeginTransactionAsync();
             try
             {
-                // Set server controlled fields
+
                 payment.CreatedAt = DateTime.UtcNow;
                 payment.Status = PaymentStatus.Pending;
 
-                // Step 1 — Save Payment
+
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                // Step 2 — Auto create Remittance
                 var remittance = new Remittance
                 {
                     PaymentID = payment.PaymentID,
@@ -86,20 +81,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _context.Remittances.Add(remittance);
                 await _context.SaveChangesAsync();
 
-                // Commit both together
                 await transaction.CommitAsync();
 
                 return payment;
             }
             catch
             {
-                // If anything fails roll back both
+
                 await transaction.RollbackAsync();
                 throw;
             }
         }
 
-        // ── Method 4 — AuthorizePaymentAsync ─────────────────
         public async Task<Payment?> AuthorizePaymentAsync(
             int id)
         {
@@ -110,7 +103,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment == null)
                 return null;
 
-            // Only Pending payments can be authorized
             if (payment.Status != PaymentStatus.Pending)
                 return null;
 
@@ -121,10 +113,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payment;
         }
 
-        // ── Method 5 — ExecutePaymentAsync ───────────────────
-        // Stamps ExecutedAt + ReferenceNumber
-        // Updates Claim.Status → Paid
-        // Updates Remittance.Status → Sent
+
         public async Task<Payment?> ExecutePaymentAsync(
             int id, string referenceNumber)
         {
@@ -137,22 +126,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment == null)
                 return null;
 
-            // Only Authorized payments can be executed
             if (payment.Status != PaymentStatus.Authorized)
                 return null;
 
-            // Update payment
             payment.Status = PaymentStatus.Executed;
             payment.ExecutedAt = DateTime.UtcNow;
             payment.ReferenceNumber = referenceNumber;
 
-            // Update Claim status to Paid
             if (payment.Claim != null)
                 payment.Claim.Status = ClaimStatus.Paid;
 
-            // Update Remittance status to Sent
-            // Now that payment is done
-            // remittance is sent to hospital
             if (payment.Remittance != null)
             {
                 payment.Remittance.Status =
@@ -166,7 +149,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payment;
         }
 
-        // ── Method 6 — HoldPaymentAsync ──────────────────────
         public async Task<Payment?> HoldPaymentAsync(int id)
         {
             var payment = await _context.Payments
@@ -176,7 +158,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment == null)
                 return null;
 
-            // Only Pending or Authorized can be held
             if (payment.Status != PaymentStatus.Pending
                 && payment.Status !=
                     PaymentStatus.Authorized)
@@ -189,7 +170,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payment;
         }
 
-        // ── Method 7 — GetRemittanceByPaymentIdAsync ─────────
+
         public async Task<Remittance?>
             GetRemittanceByPaymentIdAsync(int paymentId)
         {
@@ -199,7 +180,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     r => r.PaymentID == paymentId);
         }
 
-        // ── Method 8 — GetReconciliationsAsync ───────────────
+
         public async Task<List<Reconciliation>>
             GetReconciliationsAsync()
         {
@@ -209,13 +190,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        // ── Method 9 — CreateReconciliationAsync ─────────────
+
         public async Task<Reconciliation>
             CreateReconciliationAsync(
                 CreateReconciliationDto dto,
                 int performedById)
         {
-            // Get all payments in the period
             var paymentsInPeriod = await _context.Payments
                 .Where(p =>
                     p.CreatedAt >= dto.PeriodStart
@@ -250,7 +230,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     items = new List<object>()
                 });
 
-            // Build Reconciliation model
+            // Reconciliation model
             var reconciliation = new Reconciliation
             {
                 PeriodStart = dto.PeriodStart,
@@ -268,9 +248,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return reconciliation;
         }
 
-        // ── Method 10 — AcknowledgeRemittanceAsync ───────────
-        // Rahul acknowledges remittance
-        // Sent → Acknowledged
+
+
         public async Task<Remittance?>
             AcknowledgeRemittanceAsync(int paymentId)
         {
@@ -281,11 +260,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (remittance == null)
                 return null;
 
-            // Only Sent remittances can be acknowledged
+
             if (remittance.Status != RemittanceStatus.Sent)
                 return null;
 
-            // Update status
             remittance.Status =
                 RemittanceStatus.Acknowledged;
             remittance.SentToProviderAt = DateTime.UtcNow;
