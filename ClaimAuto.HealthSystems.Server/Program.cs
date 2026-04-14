@@ -25,16 +25,13 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
-<<<<<<< HEAD
             builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
             builder.Services.AddScoped<IReportRepository, ReportRepository>();
-=======
             builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
             builder.Services.AddScoped<IRuleRepository, RuleRepository>();
-            // Add these lines with your other service registrations
             builder.Services.AddScoped<AdjudicationService>();
             builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
->>>>>>> DevelopmentBackup
+
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
