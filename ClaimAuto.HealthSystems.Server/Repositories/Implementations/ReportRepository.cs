@@ -20,11 +20,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<List<Report>> GetAllReportsAsync(
             string? scope)
         {
-            // Start with base query
             var query = _context.Reports.AsQueryable();
 
-            // Apply scope filter if provided
-            // e.g. "Operational", "Financial", "Fraud"
             if (!string.IsNullOrEmpty(scope))
             {
                 if (Enum.TryParse<ReportScope>(
@@ -35,7 +32,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // Return newest reports first
             return await query
                 .OrderByDescending(r => r.GeneratedAt)
                 .ToListAsync();
@@ -57,13 +53,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             GenerateReportDto dto,
             int generatedById)
         {
-            // Parse scope string to enum
             Enum.TryParse<ReportScope>(
                 dto.Scope, true, out var scopeEnum);
 
-            // Compute metrics based on scope
             var metrics = await ComputeMetricsAsync(scopeEnum);
-
 
             var report = new Report
             {
@@ -74,16 +67,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 GeneratedAt = DateTime.UtcNow
             };
 
-
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
 
             return report;
         }
 
-        // ── Helper — ComputeMetricsAsync ─────────────────────
         // Computes metrics based on report scope
-        // Reads from relevant tables
         private async Task<string> ComputeMetricsAsync(
             ReportScope scope)
         {
@@ -119,7 +109,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         });
 
                 case ReportScope.Financial:
-                    // Read from Payments
                     var totalPayments = await _context.Payments
                         .CountAsync();
 
@@ -141,7 +130,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         });
 
                 case ReportScope.Fraud:
-                    // Read from FraudScores + FraudCases
                     var totalScored = await _context.FraudScores
                         .CountAsync();
 
@@ -165,7 +153,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         });
 
                 case ReportScope.Regulatory:
-                    // Read from AuditLogs
                     var totalLogs = await _context.AuditLogs
                         .CountAsync();
 
@@ -185,10 +172,86 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
-        
+        // Gets all KPIs
+        // Calculates CurrentValue LIVE from database
+        // Updates automatically when claims are processed
         public async Task<List<KPI>> GetAllKPIsAsync()
         {
-            return await _context.KPIs.ToListAsync();
+            // Get all KPIs from DB
+            var kpis = await _context.KPIs.ToListAsync();
+
+            // Get total claims for rate calculations
+            var totalClaims = await _context.Claims.CountAsync();
+
+            if (totalClaims > 0)
+            {
+                // ── KPI 1 — Auto-Adjudication Rate ──────────
+                // % of claims auto-processed without human review
+                var autoPaid = await _context.AdjudicationRecords
+                    .CountAsync(a =>
+                        a.Decision == AdjDecision.Paid
+                        && a.PerformedByID == null);
+
+                var autoAdjRate = Math.Round(
+                    (double)autoPaid / totalClaims * 100, 2);
+
+                // ── KPI 2 — Average TAT ──────────────────────
+                // Average hours from submission to adjudication
+                var adjRecords = await _context.AdjudicationRecords
+                    .Include(a => a.Claim)
+                    .ToListAsync();
+
+                var avgTAT = adjRecords.Any()
+                    ? Math.Round(adjRecords
+                        .Average(a => (a.ExecutedAt -
+                            a.Claim.SubmittedAt).TotalHours), 2)
+                    : 0;
+
+                // ── KPI 3 — Denial Rate ──────────────────────
+                // % of claims denied
+                var denied = await _context.AdjudicationRecords
+                    .CountAsync(a =>
+                        a.Decision == AdjDecision.Denied);
+
+                var denialRate = Math.Round(
+                    (double)denied / totalClaims * 100, 2);
+
+                // ── KPI 4 — Fraud Flag Rate ──────────────────
+                // % of claims flagged with high fraud score
+                var fraudFlagged = await _context.FraudScores
+                    .CountAsync(f => f.ScoreValue >= 70);
+
+                var fraudRate = Math.Round(
+                    (double)fraudFlagged / totalClaims * 100, 2);
+
+                // ── Update CurrentValue for each KPI ────────
+                foreach (var kpi in kpis)
+                {
+                    switch (kpi.Name)
+                    {
+                        case "Auto-Adjudication Rate":
+                            kpi.CurrentValue = (decimal)autoAdjRate;
+                            break;
+
+                        case "Average TAT":
+                            kpi.CurrentValue = (decimal)avgTAT;
+                            break;
+
+                        case "Denial Rate":
+                            kpi.CurrentValue = (decimal)denialRate;
+                            break;
+
+                        case "Fraud Flag Rate":
+                            kpi.CurrentValue = (decimal)fraudRate;
+                            break;
+                    }
+                }
+
+                // Save updated CurrentValues to DB
+                await _context.SaveChangesAsync();
+            }
+
+            return kpis;
         }
 
         // Admin updates KPI target or current value
@@ -197,16 +260,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             int id,
             UpdateKPIDto dto)
         {
-            // Find KPI by ID
             var kpi = await _context.KPIs
                 .FirstOrDefaultAsync(k => k.KPIID == id);
 
-            // Not found → return null
             if (kpi == null)
                 return null;
 
-            // Update only provided fields
-            // If null → keep existing value
             if (dto.Target.HasValue)
                 kpi.Target = dto.Target.Value;
 
@@ -216,7 +275,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (!string.IsNullOrEmpty(dto.ReportingPeriod))
                 kpi.ReportingPeriod = dto.ReportingPeriod;
 
-            // Save changes
             await _context.SaveChangesAsync();
 
             return kpi;
@@ -234,27 +292,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         // Generates new audit package for a period
         // Reads AuditLogs + AdjudicationRecords + Reports
-        // Bundles summary into ContentsJSON
         public async Task<AuditPackage>
             GenerateAuditPackageAsync(
                 DateTime periodStart,
                 DateTime periodEnd,
                 int generatedById)
         {
-            // Count AuditLogs in period
             var auditLogCount = await _context.AuditLogs
                 .CountAsync(a =>
                     a.Timestamp >= periodStart
                     && a.Timestamp <= periodEnd);
 
-            // Count AdjudicationRecords in period
             var adjRecordCount = await _context
                 .AdjudicationRecords
                 .CountAsync(a =>
                     a.ExecutedAt >= periodStart
                     && a.ExecutedAt <= periodEnd);
 
-            // Get Report IDs generated in period
             var reportIds = await _context.Reports
                 .Where(r =>
                     r.GeneratedAt >= periodStart
@@ -262,7 +316,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Select(r => r.ReportID)
                 .ToListAsync();
 
-            // Build ContentsJSON
             var contents = System.Text.Json.JsonSerializer
                 .Serialize(new
                 {
@@ -275,7 +328,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         .ToString("yyyy-MM-dd")
                 });
 
-            // Build AuditPackage model
             var package = new AuditPackage
             {
                 PeriodStart = periodStart,
