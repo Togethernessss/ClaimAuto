@@ -1,4 +1,6 @@
-﻿namespace ClaimAuto.HealthSystems.Server.DTOs
+﻿using ClaimAuto.HealthSystems.Server.Model;
+
+namespace ClaimAuto.HealthSystems.Server.DTOs
 {
     // ── CreateTaskDto 
      public class CreateTaskDto
@@ -13,6 +15,8 @@
     // ── UpdateTaskDto 
     public class UpdateTaskDto
     {
+        internal TaskPriority parsedPriority;
+
         public string? Description { get; set; }
         public int? AssignedTo { get; set; }                     // can be reassigned
         public DateTime? DueDate { get; set; }
