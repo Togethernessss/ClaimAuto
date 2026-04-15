@@ -1,7 +1,8 @@
 ﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using ClaimAuto.HealthSystems.Server.Model;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -10,76 +11,192 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [Authorize(Roles = "Admin,InsuranceStaff")]
     public class ReportsController : BaseController
     {
-        // GET /api/reports
-        // Returns all reports. Filter by Scope.
+        private readonly IReportRepository _reportRepository;
+
+        public ReportsController(IReportRepository reportRepository)
+        {
+            _reportRepository = reportRepository;
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetAllReports(
             [FromQuery] string? scope)
         {
-            throw new NotImplementedException();
+            var reports = await _reportRepository
+                .GetAllReportsAsync(scope);
+
+            var response = reports.Select(r =>
+                new ReportResponseDto
+                {
+                    ReportID = r.ReportID,
+                    Scope = r.Scope.ToString(),
+                    ParametersJSON = r.ParametersJSON,
+                    MetricsJSON = r.MetricsJSON,
+                    GeneratedByName = r.GeneratedByUser?.Name
+                        ?? "System",
+                    GeneratedAt = r.GeneratedAt,
+                    ReportURI = r.ReportURI
+                }).ToList();
+
+            return Ok(response);
         }
 
-        // GET /api/reports/{id}
-        // Returns single report.
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetReportById(int id) 
+        public async Task<IActionResult> GetReportById(int id)
         {
-            throw new NotImplementedException();
+            var report = await _reportRepository
+                .GetReportByIdAsync(id);
+
+            if (report == null)
+                return NotFound($"Report {id} not found.");
+
+            var response = new ReportResponseDto
+            {
+                ReportID = report.ReportID,
+                Scope = report.Scope.ToString(),
+                ParametersJSON = report.ParametersJSON,
+                MetricsJSON = report.MetricsJSON,
+                GeneratedByName = report.GeneratedByUser?.Name
+                    ?? "System",
+                GeneratedAt = report.GeneratedAt,
+                ReportURI = report.ReportURI
+            };
+
+            return Ok(response);
         }
 
-        // POST /api/reports
-        // Generates a new report. GeneratedBy from JWT token.
         [HttpPost]
         public async Task<IActionResult> GenerateReport(
             [FromBody] GenerateReportDto dto)
         {
-            throw new NotImplementedException(); 
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token.");
+
+            if (string.IsNullOrEmpty(dto.Scope))
+                return BadRequest("Scope is required.");
+
+            if (!Enum.TryParse<ReportScope>(
+                dto.Scope, true, out _))
+                return BadRequest(
+                    "Invalid scope. Use: Operational, Regulatory, Financial, Fraud");
+
+            var report = await _reportRepository
+                .GenerateReportAsync(dto, userId.Value);
+
+            var response = new ReportResponseDto
+            {
+                ReportID = report.ReportID,
+                Scope = report.Scope.ToString(),
+                ParametersJSON = report.ParametersJSON,
+                MetricsJSON = report.MetricsJSON,
+                GeneratedByName = "System",
+                GeneratedAt = report.GeneratedAt,
+                ReportURI = report.ReportURI
+            };
+
+            return CreatedAtAction(
+                nameof(GetReportById),
+                new { id = report.ReportID },
+                response);
         }
 
-        // NOTE: No DELETE — reports are immutable for compliance.
-        // A regulator might request a report that was previously generated.
-        // Deleting it would be a compliance violation.
-
-        // ── KPI sub-routes ────────────────────────────────────────
-
-        // GET /api/reports/kpis
-        // Returns all KPIs — live dashboard data.
         [HttpGet("kpis")]
-        public async Task<IActionResult> GetAllKPIs() 
+        public async Task<IActionResult> GetAllKPIs()
         {
-            throw new NotImplementedException();
+            var kpis = await _reportRepository
+                .GetAllKPIsAsync();
+
+            var response = kpis.Select(k =>
+                new KPIResponseDto
+                {
+                    KPIID = k.KPIID,
+                    Name = k.Name,
+                    Definition = k.Definition,
+                    Target = k.Target,
+                    CurrentValue = k.CurrentValue,
+                    ReportingPeriod = k.ReportingPeriod
+                }).ToList();
+
+            return Ok(response);
         }
 
-        // PUT /api/reports/kpis/{id}
-        // Admin updates KPI target or current value.
         [HttpPut("kpis/{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateKPI(int id,
             [FromBody] UpdateKPIDto dto)
         {
-            throw new NotImplementedException();
+            var kpi = await _reportRepository
+                .UpdateKPIAsync(id, dto);
+
+            if (kpi == null)
+                return NotFound($"KPI {id} not found.");
+
+            var response = new KPIResponseDto
+            {
+                KPIID = kpi.KPIID,
+                Name = kpi.Name,
+                Definition = kpi.Definition,
+                Target = kpi.Target,
+                CurrentValue = kpi.CurrentValue,
+                ReportingPeriod = kpi.ReportingPeriod
+            };
+
+            return Ok(response);
         }
 
-        // ── Audit Package sub-routes ──────────────────────────────
-
-        // GET /api/reports/audit-packages
-        // Returns all audit packages.
         [HttpGet("audit-packages")]
-        public async Task<IActionResult> GetAllAuditPackages() 
+        public async Task<IActionResult> GetAllAuditPackages()
         {
-            throw new NotImplementedException();
+            var packages = await _reportRepository
+                .GetAllAuditPackagesAsync();
+
+            var response = packages.Select(p =>
+                new AuditPackageResponseDto
+                {
+                    PackageID = p.PackageID,
+                    PeriodStart = p.PeriodStart,
+                    PeriodEnd = p.PeriodEnd,
+                    ContentsJSON = p.ContentsJSON,
+                    GeneratedAt = p.GeneratedAt,
+                    PackageURI = p.PackageURI
+                }).ToList();
+
+            return Ok(response);
         }
 
-        // POST /api/reports/audit-packages
-        // Admin generates a new audit package for a period.
-        // Bundles AuditLogs + AdjudicationRecords + Reports into ZIP.
         [HttpPost("audit-packages")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GenerateAuditPackage(
             [FromQuery] DateTime periodStart,
             [FromQuery] DateTime periodEnd)
         {
-            throw new NotImplementedException(); 
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token.");
+
+            if (periodStart >= periodEnd)
+                return BadRequest(
+                    "PeriodStart must be before PeriodEnd.");
+
+            var package = await _reportRepository
+                .GenerateAuditPackageAsync(
+                    periodStart, periodEnd, userId.Value);
+
+            var response = new AuditPackageResponseDto
+            {
+                PackageID = package.PackageID,
+                PeriodStart = package.PeriodStart,
+                PeriodEnd = package.PeriodEnd,
+                ContentsJSON = package.ContentsJSON,
+                GeneratedAt = package.GeneratedAt,
+                PackageURI = package.PackageURI
+            };
+
+            return CreatedAtAction(
+                nameof(GetAllAuditPackages),
+                new { id = package.PackageID },
+                response);
         }
     }
 }
