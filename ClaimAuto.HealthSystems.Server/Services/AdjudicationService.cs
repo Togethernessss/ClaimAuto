@@ -5,10 +5,6 @@ using System.Text.Json;
 
 namespace ClaimAuto.HealthSystems.Server.Services
 {
-    // This service contains ONLY rule evaluation logic
-    // It does NOT save anything to the database
-    // It takes a claim + rules and returns a decision
-    // The repository uses this service and handles all DB operations
 
     public class AdjudicationService
     {
@@ -19,25 +15,15 @@ namespace ClaimAuto.HealthSystems.Server.Services
             _db = db;
         }
 
-        // ── MAIN ENGINE METHOD ───────────────────────────────────────────────────
-        // Takes a claim and list of active rules
-        // Returns an AdjudicationResult containing the decision and all details
-        // Does NOT touch the database — only reads and evaluates
         public async Task<AdjudicationResult> EvaluateClaimAsync(Claim claim, List<Rule> activeRules)
         {
             var result = new AdjudicationResult();
             var ruleTraces = new List<RuleTrace>();
             bool shouldDeny = false;
             bool routeToManual = false;
-
-            // Start with full billed amount as payable
-            // Rules will reduce this amount as they fire
             decimal payableAmount = claim.TotalBilledAmount;
             decimal deductibleApplied = 0;
 
-            // ── EVALUATE EACH RULE IN PRIORITY ORDER ─────────────────────────────
-            // Rules come in already ordered by Priority from the repository
-            // R001 (Priority 1) runs first, R005 (Priority 5) runs last
             foreach (var rule in activeRules)
             {
                 var trace = new RuleTrace
@@ -47,14 +33,10 @@ namespace ClaimAuto.HealthSystems.Server.Services
                     RuleType = rule.RuleType.ToString()
                 };
 
-                // Each rule is evaluated by its name
-                // This is a simple pattern matching approach
-                // In a production system you'd use a proper expression evaluator
-                // For MVP this is clean, readable, and fully functional
                 switch (rule.Name)
                 {
-                    // ── R001: POLICY ACTIVE CHECK ─────────────────────────────────
                     case "Policy Active Check":
+
                         var policy = await _db.Policies
                             .FindAsync(claim.PolicyID);
 
@@ -67,20 +49,18 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         {
                             trace.Result = "FAIL";
                             trace.Reason = "Policy is not Active or not found.";
-                            shouldDeny = true; // hard stop — deny immediately
+                            shouldDeny = true;
                         }
                         break;
 
-                    // ── R002: IN-NETWORK CHECK ────────────────────────────────────
                     case "In-Network Check":
-                        // Simplified for MVP — all providers considered in-network
-                        // In a real system you'd check a ProviderNetwork table
+
                         trace.Result = "PASS";
                         trace.Reason = "Provider is in-network (MVP: all providers accepted).";
                         break;
 
-                    // ── R003: AMOUNT THRESHOLD ────────────────────────────────────
                     case "Amount Threshold":
+
                         if (claim.TotalBilledAmount <= 500000)
                         {
                             trace.Result = "PASS";
@@ -94,13 +74,9 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         }
                         break;
 
-                    // ── R004: DUPLICATE DETECTION ─────────────────────────────────
                     case "Duplicate Detection":
                         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-                        // Check: does a claim already exist for the same
-                        // member + provider + submitted within last 7 days?
-                        // Exclude the current claim itself from the check
                         var duplicate = await _db.Claims
                             .AnyAsync(c =>
                                 c.MemberID == claim.MemberID &&
@@ -122,18 +98,12 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         }
                         break;
 
-                    // ── R005: DEDUCTIBLE APPLIED ──────────────────────────────────
                     case "Deductible Applied":
                         var policyForDeductible = await _db.Policies
                             .FindAsync(claim.PolicyID);
 
                         if (policyForDeductible?.DeductibleAmount > 0)
                         {
-                            // MVP: Apply the full deductible amount directly
-                            // In a full implementation you would calculate
-                            // how much deductible the member has already met
-                            // this year by parsing CalculationsJSON from past records
-                            // For now we always apply the full policy deductible
                             var remainingDeductible = policyForDeductible.DeductibleAmount.Value;
                             deductibleApplied = remainingDeductible;
                             payableAmount = Math.Max(0, payableAmount - remainingDeductible);
@@ -149,10 +119,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         }
                         break;
 
-                    // ── UNKNOWN RULE ──────────────────────────────────────────────
                     default:
-                        // Rule exists in DB but engine doesn't know how to evaluate it
-                        // Skip it and log — don't crash the entire adjudication
                         trace.Result = "SKIPPED";
                         trace.Reason = $"Rule '{rule.Name}' is not implemented in engine v1.";
                         break;
@@ -160,12 +127,9 @@ namespace ClaimAuto.HealthSystems.Server.Services
 
                 ruleTraces.Add(trace);
 
-                // EARLY EXIT — if a hard denial rule fired, stop evaluating
-                // No point running remaining rules if claim is already denied
                 if (shouldDeny) break;
             }
 
-            // ── DETERMINE FINAL DECISION ──────────────────────────────────────────
             if (shouldDeny)
             {
                 result.Decision = AdjDecision.Denied;
@@ -174,16 +138,14 @@ namespace ClaimAuto.HealthSystems.Server.Services
             else if (routeToManual)
             {
                 result.Decision = AdjDecision.PendingReview;
-                result.PayableAmount = 0; // no payment until human decides
+                result.PayableAmount = 0; 
             }
             else
             {
-                // All rules passed — approve the claim
                 result.Decision = AdjDecision.Paid;
                 result.PayableAmount = payableAmount;
             }
 
-            // ── BUILD CALCULATIONS JSON ───────────────────────────────────────────
             result.CalculationsJSON = JsonSerializer.Serialize(new
             {
                 billed = claim.TotalBilledAmount,
@@ -193,7 +155,6 @@ namespace ClaimAuto.HealthSystems.Server.Services
                 payable = result.PayableAmount
             });
 
-            // ── BUILD APPLIED RULES JSON ──────────────────────────────────────────
             result.AppliedRulesJSON = JsonSerializer.Serialize(
                 ruleTraces.Select(t => new
                 {
@@ -209,10 +170,6 @@ namespace ClaimAuto.HealthSystems.Server.Services
         }
     }
 
-    // ── HELPER CLASSES ────────────────────────────────────────────────────────────
-    // These are internal result objects used only within this service
-    // They never go to the database or the client directly
-    // The repository maps them into proper entities and DTOs
 
     public class AdjudicationResult
     {
