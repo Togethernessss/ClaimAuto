@@ -17,11 +17,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _claimRepo = claimRepo;
         }
 
-        // ── GET /api/claims ──────────────────────────────────────────────
-        // Hospital sees only their own claims
-        // Policyholder sees only their own claims
-        // InsuranceStaff and Admin see all claims
-        // Optional filters: ?status=Submitted&priority=High
         [HttpGet]
         public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
@@ -34,8 +29,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claims);
         }
 
-        // ── GET /api/claims/{id} ─────────────────────────────────────────
-        // Returns full claim detail — lines, documents, adjudication
         [HttpGet("{id}")]
         public async Task<IActionResult> GetClaimById(int id)
         {
@@ -45,19 +38,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claim);
         }
 
-        // ── POST /api/claims ─────────────────────────────────────────────
-        // Hospital submits a new claim
-        // Validates: ProviderID, MemberID, PolicyID must exist
-        // Checks for duplicate ExternalClaimRef
         [HttpPost]
         public async Task<IActionResult> SubmitClaim([FromBody] CreateClaimDto dto)
         {
-            // Step 1: Get logged-in user from JWT token
             var userId = GetLoggedInUserId();
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // Step 2: Check for duplicate ExternalClaimRef
             if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
                 var exists = await _claimRepo.ExternalClaimRefExistsAsync(dto.ExternalClaimRef);
@@ -65,18 +52,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     return Conflict($"A claim with ExternalClaimRef '{dto.ExternalClaimRef}' already exists.");
             }
 
-            // Step 3: Submit the claim
             var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value);
             if (created == null)
                 return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
                                   "MemberID, and PolicyID (must be Active) all exist and are valid.");
 
-            // Step 4: Return 201 Created
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
-        // ── PUT /api/claims/{id} ─────────────────────────────────────────
-        // Staff updates claim status or priority
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
@@ -92,8 +75,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        // ── DELETE /api/claims/{id} ──────────────────────────────────────
-        // Admin deletes a claim — only allowed for Rejected claims
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClaim(int id)
@@ -113,13 +94,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
         }
 
-        // ── POST /api/claims/{id}/lines ──────────────────────────────────
-        // Adds a line item to an existing claim
-        // ClaimID comes from the URL, not from the body
         [HttpPost("{id}/lines")]
         public async Task<IActionResult> AddClaimLine(int id, [FromBody] AddClaimLineDto dto)
         {
-            // FIX 3: Get userId — needed for AuditLog in repository
             var userId = GetLoggedInUserId();
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
@@ -131,8 +108,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimLines), new { id = id }, created);
         }
 
-        // ── GET /api/claims/{id}/lines ───────────────────────────────────
-        // Returns all line items for a claim
         [HttpGet("{id}/lines")]
         public async Task<IActionResult> GetClaimLines(int id)
         {
@@ -140,9 +115,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(lines);
         }
 
-        // ── POST /api/claims/{id}/documents ──────────────────────────────
-        // Uploads a supporting document for a claim
-        // SHA256 hash sent by client for tamper detection
         [HttpPost("{id}/documents")]
         public async Task<IActionResult> UploadDocument(int id, [FromBody] UploadDocumentDto dto)
         {
@@ -157,8 +129,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimDocuments), new { id = id }, created);
         }
 
-        // ── GET /api/claims/{id}/documents ───────────────────────────────
-        // Returns all documents for a claim
         [HttpGet("{id}/documents")]
         public async Task<IActionResult> GetClaimDocuments(int id)
         {
