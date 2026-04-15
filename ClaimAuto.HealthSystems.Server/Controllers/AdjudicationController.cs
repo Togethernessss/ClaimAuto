@@ -24,16 +24,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             var result = await _adjRepo.AutoAdjudicateAsync(claimId);
 
-            // STEP 2 — Null means claim doesn't exist
             if (result == null)
                 return NotFound($"Claim with ID {claimId} was not found.");
 
-            // STEP 3 — Check if claim was already processed
             if (result.Decision == "AlreadyProcessed")
                 return BadRequest(result.Notes);
 
-            // STEP 4 — Return result based on decision
-            // PendingReview = routed to manual queue — tell staff what happened
             if (result.Decision == "PendingReview")
                 return Ok(new
                 {
@@ -43,7 +39,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     adjudication = result
                 });
 
-            // STEP 5 — Decision made (Paid or Denied) → return full result
             return Ok(result);
         }
 
