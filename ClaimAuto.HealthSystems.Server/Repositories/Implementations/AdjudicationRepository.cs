@@ -33,7 +33,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Include(c => c.Provider)
                 .FirstOrDefaultAsync(c => c.ClaimID == claimId);
 
-            // Claim doesn't exist → controller returns 404
             if (claim == null) return null;
 
             if (claim.Status != ClaimStatus.Submitted &&
@@ -64,7 +63,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 AppliedRulesJSON = engineResult.AppliedRulesJSON,
                 Notes = $"Auto-adjudicated. Decision: {engineResult.Decision}. " +
                                    $"Payable: ₹{engineResult.PayableAmount}.",
-                PerformedByID = null  // null = system auto-adjudicated
+                PerformedByID = null
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
@@ -120,8 +119,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PerformedByName = "System (Auto)" 
             };
         }
-
-        // ── MANUAL ADJUDICATE ────────────────────────────────────────────────────
 
         public async Task<AdjudicationResponseDto?> ManualAdjudicateAsync(
             ManualAdjudicateDto dto, int performedByUserId)
@@ -205,9 +202,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
             _db.AuditLogs.Add(audit);
 
-
             await _db.SaveChangesAsync();
-
 
             await SendAdjudicationNotificationsAsync(
                 claim,
@@ -276,7 +271,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
             }
             if (string.IsNullOrEmpty(record.AppliedRulesJSON))
-                return new List<RuleTraceDto>(); // empty — no rules ran
+                return new List<RuleTraceDto>();
 
             try
             {

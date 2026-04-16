@@ -33,6 +33,10 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<AdjudicationService>();
             builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
             builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+            builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+            builder.Services.AddScoped<ITotpRepository, TotpRepository>();
+            
+
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
