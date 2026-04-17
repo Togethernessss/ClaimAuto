@@ -46,6 +46,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                user.CreatedAt = DateTime.UtcNow; 
+                user.UpdatedAt = DateTime.UtcNow;
+
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
@@ -65,7 +68,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             catch
             {
                 await transaction.RollbackAsync();
-                throw; // re-throw so controller can handle it
+                throw;
             }
 
             return user;

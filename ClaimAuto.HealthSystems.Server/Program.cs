@@ -1,30 +1,42 @@
-
+﻿using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 namespace ClaimAuto.HealthSystems.Server
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(builder.Configuration.GetConnectionString("DBConnection")));
+            options.UseSqlServer(builder.Configuration
+                .GetConnectionString("DBConnection")));
 
-            // Register Repository with DI � Scoped means one instance per HTTP request
+            // Register Repository with DI
+            // Scoped means one instance per HTTP request
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+            builder.Services.AddScoped<IReportRepository, ReportRepository>();
             builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+            builder.Services.AddScoped<IRuleRepository, RuleRepository>();
+            builder.Services.AddScoped<AdjudicationService>();
+            builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
+            builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+            builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+            builder.Services.AddScoped<ITotpRepository, TotpRepository>();
+            
+
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
@@ -32,10 +44,9 @@ namespace ClaimAuto.HealthSystems.Server
                 options.JsonSerializerOptions.ReferenceHandler =
                     System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 
-                    options.JsonSerializerOptions.Converters.Add(
-                new System.Text.Json.Serialization.JsonStringEnumConverter());
+                options.JsonSerializerOptions.Converters.Add(
+                    new System.Text.Json.Serialization.JsonStringEnumConverter());
             });
-
 
             var jwtKey = builder.Configuration["Jwt:Key"]!;
 
@@ -54,12 +65,13 @@ namespace ClaimAuto.HealthSystems.Server
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = builder.Configuration["Jwt:Issuer"],
                     ValidAudience = builder.Configuration["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(jwtKey))
                 };
             });
 
             builder.Services.AddAuthorization();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
@@ -69,7 +81,6 @@ namespace ClaimAuto.HealthSystems.Server
                     Version = "v1"
                 });
 
-                // Add JWT Authentication to Swagger UI
                 options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Name = "Authorization",
@@ -98,10 +109,13 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();
 
+            // ── Seed Data ─────────────────────────────────────
+            await DbSeeder.SeedAsync(app);
+            // ──────────────────────────────────────────────────
+
             app.UseDefaultFiles();
             app.UseStaticFiles();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -110,7 +124,6 @@ namespace ClaimAuto.HealthSystems.Server
 
             app.UseAuthentication();
             app.UseAuthorization();
-
 
             app.MapControllers();
 
