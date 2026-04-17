@@ -15,10 +15,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
 
-        public async Task<List<Report>> GetAllReportsAsync(
+        public async Task<List<ReportResponseDto>> GetAllReportsAsync(
             string? scope)
         {
-            var query = _context.Reports.AsQueryable();
+            var query = _context.Reports
+                .Include(r => r.GeneratedByUser)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(scope))
             {
@@ -30,20 +32,44 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            return await query
+            var reports = await query
                 .OrderByDescending(r => r.GeneratedAt)
                 .ToListAsync();
+
+            return reports.Select(r => new ReportResponseDto
+            {
+                ReportID = r.ReportID,
+                Scope = r.Scope.ToString(),
+                ParametersJSON = r.ParametersJSON,
+                MetricsJSON = r.MetricsJSON,
+                GeneratedByName = r.GeneratedByUser?.Name ?? "System",
+                GeneratedAt = r.GeneratedAt,
+                ReportURI = r.ReportURI
+            }).ToList();
         }
 
-
-        public async Task<Report?> GetReportByIdAsync(int id)
+        public async Task<ReportResponseDto?> GetReportByIdAsync(int id)
         {
-            return await _context.Reports
+            var report = await _context.Reports
                 .Include(r => r.GeneratedByUser)
                 .FirstOrDefaultAsync(r => r.ReportID == id);
+
+            if (report == null)
+                return null;
+
+            return new ReportResponseDto
+            {
+                ReportID = report.ReportID,
+                Scope = report.Scope.ToString(),
+                ParametersJSON = report.ParametersJSON,
+                MetricsJSON = report.MetricsJSON,
+                GeneratedByName = report.GeneratedByUser?.Name ?? "System",
+                GeneratedAt = report.GeneratedAt,
+                ReportURI = report.ReportURI
+            };
         }
 
-        public async Task<Report> GenerateReportAsync(
+        public async Task<ReportResponseDto> GenerateReportAsync(
             GenerateReportDto dto,
             int generatedById)
         {
@@ -51,6 +77,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 dto.Scope, true, out var scopeEnum);
 
             var metrics = await ComputeMetricsAsync(scopeEnum);
+
+            var generatedByName = await _context.Users
+                .Where(u => u.UserID == generatedById)
+                .Select(u => u.Name)
+                .FirstOrDefaultAsync() ?? "System";
 
             var report = new Report
             {
@@ -64,7 +95,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
 
-            return report;
+            return new ReportResponseDto
+            {
+                ReportID = report.ReportID,
+                Scope = report.Scope.ToString(),
+                ParametersJSON = report.ParametersJSON,
+                MetricsJSON = report.MetricsJSON,
+                GeneratedByName = generatedByName,
+                GeneratedAt = report.GeneratedAt,
+                ReportURI = report.ReportURI
+            };
         }
 
         private async Task<string> ComputeMetricsAsync(
@@ -165,17 +205,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
-        public async Task<List<KPI>> GetAllKPIsAsync()
+        public async Task<List<KPIResponseDto>> GetAllKPIsAsync()
         {
             var kpis = await _context.KPIs.ToListAsync();
 
-            // Get total claims for rate calculations
             var totalClaims = await _context.Claims.CountAsync();
 
             if (totalClaims > 0)
             {
-                // ── KPI 1 — Auto-Adjudication Rate 
-                // % of claims auto-processed without human review
                 var autoPaid = await _context.AdjudicationRecords
                     .CountAsync(a =>
                         a.Decision == AdjDecision.Paid
@@ -184,8 +221,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 var autoAdjRate = Math.Round(
                     (double)autoPaid / totalClaims * 100, 2);
 
-                // ── KPI 2 — Average TAT 
-                // Average hours from submission to adjudication
                 var adjRecords = await _context.AdjudicationRecords
                     .Include(a => a.Claim)
                     .ToListAsync();
@@ -196,24 +231,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                             a.Claim.SubmittedAt).TotalHours), 2)
                     : 0;
 
-                // ── KPI 3 — Denial Rate 
-                // % of claims denied
-                var denied = await _context.AdjudicationRecords
+                var deniedCount = await _context.AdjudicationRecords
                     .CountAsync(a =>
                         a.Decision == AdjDecision.Denied);
 
                 var denialRate = Math.Round(
-                    (double)denied / totalClaims * 100, 2);
+                    (double)deniedCount / totalClaims * 100, 2);
 
-                // ── KPI 4 — Fraud Flag Rate 
-                // % of claims flagged with high fraud score
                 var fraudFlagged = await _context.FraudScores
                     .CountAsync(f => f.ScoreValue >= 70);
 
                 var fraudRate = Math.Round(
                     (double)fraudFlagged / totalClaims * 100, 2);
 
-                // ── Update CurrentValue for each KPI ────────
                 foreach (var kpi in kpis)
                 {
                     switch (kpi.Name)
@@ -221,15 +251,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         case "Auto-Adjudication Rate":
                             kpi.CurrentValue = (decimal)autoAdjRate;
                             break;
-
                         case "Average TAT":
                             kpi.CurrentValue = (decimal)avgTAT;
                             break;
-
                         case "Denial Rate":
                             kpi.CurrentValue = (decimal)denialRate;
                             break;
-
                         case "Fraud Flag Rate":
                             kpi.CurrentValue = (decimal)fraudRate;
                             break;
@@ -239,11 +266,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 await _context.SaveChangesAsync();
             }
 
-            return kpis;
+            return kpis.Select(k => new KPIResponseDto
+            {
+                KPIID = k.KPIID,
+                Name = k.Name,
+                Definition = k.Definition,
+                Target = k.Target,
+                CurrentValue = k.CurrentValue,
+                ReportingPeriod = k.ReportingPeriod
+            }).ToList();
         }
 
-
-        public async Task<KPI?> UpdateKPIAsync(
+        public async Task<KPIResponseDto?> UpdateKPIAsync(
             int id,
             UpdateKPIDto dto)
         {
@@ -264,20 +298,36 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             await _context.SaveChangesAsync();
 
-            return kpi;
+            return new KPIResponseDto
+            {
+                KPIID = kpi.KPIID,
+                Name = kpi.Name,
+                Definition = kpi.Definition,
+                Target = kpi.Target,
+                CurrentValue = kpi.CurrentValue,
+                ReportingPeriod = kpi.ReportingPeriod
+            };
         }
 
-
-        public async Task<List<AuditPackage>>
+        public async Task<List<AuditPackageResponseDto>>
             GetAllAuditPackagesAsync()
         {
-            return await _context.AuditPackages
+            var packages = await _context.AuditPackages
                 .OrderByDescending(p => p.GeneratedAt)
                 .ToListAsync();
+
+            return packages.Select(p => new AuditPackageResponseDto
+            {
+                PackageID = p.PackageID,
+                PeriodStart = p.PeriodStart,
+                PeriodEnd = p.PeriodEnd,
+                ContentsJSON = p.ContentsJSON,
+                GeneratedAt = p.GeneratedAt,
+                PackageURI = p.PackageURI
+            }).ToList();
         }
 
-
-        public async Task<AuditPackage>
+        public async Task<AuditPackageResponseDto>
             GenerateAuditPackageAsync(
                 DateTime periodStart,
                 DateTime periodEnd,
@@ -324,7 +374,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context.AuditPackages.Add(package);
             await _context.SaveChangesAsync();
 
-            return package;
+            return new AuditPackageResponseDto
+            {
+                PackageID = package.PackageID,
+                PeriodStart = package.PeriodStart,
+                PeriodEnd = package.PeriodEnd,
+                ContentsJSON = package.ContentsJSON,
+                GeneratedAt = package.GeneratedAt,
+                PackageURI = package.PackageURI
+            };
         }
     }
 }
