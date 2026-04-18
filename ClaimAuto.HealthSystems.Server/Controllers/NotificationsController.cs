@@ -13,16 +13,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     {
         private readonly INotificationRepository _notificationRepository;
 
-        public NotificationsController(
-            INotificationRepository notificationRepository)
+        public NotificationsController(INotificationRepository notificationRepository)
         {
             _notificationRepository = notificationRepository;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetMyNotifications(
-            [FromQuery] string? status,
-            [FromQuery] string? category)
+        public async Task<IActionResult> GetMyNotifications([FromQuery] string? status, [FromQuery] string? category)
         {
             var userId = GetLoggedInUserId();
             if (userId == null)

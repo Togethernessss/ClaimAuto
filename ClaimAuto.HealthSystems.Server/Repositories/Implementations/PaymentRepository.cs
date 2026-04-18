@@ -9,10 +9,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class PaymentRepository : IPaymentRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationRepository _notificationRepo;
 
-        public PaymentRepository(ApplicationDbContext context)
+        public PaymentRepository(ApplicationDbContext context, INotificationRepository notificationRepo)
         {
             _context = context;
+            _notificationRepo = notificationRepo;
         }
 
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
@@ -93,7 +95,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<PaymentResponseDto> CreatePaymentAsync(
             Payment payment)
         {
-            using var transaction = await _context.Database
+            using var transaction = await _context.Database   // Transaction guarantees: BOTH succeed or NEITHER happens remittance and payment generation
                 .BeginTransactionAsync();
             try
             {
@@ -114,7 +116,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
                 await transaction.CommitAsync();
 
-                var payeeName = await _context.Users
+                var payeeName = await _context.Users     // for response
                     .Where(u => u.UserID == payment.PayeeID)
                     .Select(u => u.Name)
                     .FirstOrDefaultAsync() ?? "Unknown";
@@ -183,6 +185,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var payment = await _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
+                    .ThenInclude(c => c.Member)   // to find Arjun for notification
                 .Include(p => p.Remittance)
                 .FirstOrDefaultAsync(
                     p => p.PaymentID == id);
@@ -202,13 +205,45 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (payment.Remittance != null)
             {
-                payment.Remittance.Status =
-                    RemittanceStatus.Sent;
-                payment.Remittance.SentToProviderAt =
-                    DateTime.UtcNow;
+                payment.Remittance.Status = RemittanceStatus.Sent;
+                payment.Remittance.SentToProviderAt = DateTime.UtcNow;
             }
 
             await _context.SaveChangesAsync();
+
+            // Notify Hospital — payment sent to your account
+            await _notificationRepo.CreateAsync(new Notification
+            {
+                UserID = payment.PayeeID,
+                ClaimID = payment.ClaimID,
+                Message = $"Payment of ₹{payment.Amount} has been sent to your account. " +
+                          $"Reference: {payment.ReferenceNumber}.",
+                Category = NotificationCategory.Payment,
+                Severity = NotificationSeverity.Info
+            });
+
+            // Notify Policyholder — your claim has been paid
+            if (payment.Claim != null)
+            {
+                var memberUser = await _context.Users
+                    .Where(u => u.Name == payment.Claim.Member.Name
+                             && u.Role == UserRole.Policyholder
+                             && u.Status == AccountStatus.Active)
+                    .FirstOrDefaultAsync();
+
+                if (memberUser != null)
+                {
+                    await _notificationRepo.CreateAsync(new Notification
+                    {
+                        UserID = memberUser.UserID,
+                        ClaimID = payment.ClaimID,
+                        Message = $"₹{payment.Amount} has been paid to your provider " +
+                                  $"for your claim. Reference: {payment.ReferenceNumber}.",
+                        Category = NotificationCategory.Payment,
+                        Severity = NotificationSeverity.Info
+                    });
+                }
+            }
 
             return new PaymentResponseDto
             {
@@ -320,10 +355,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var totalAmount = paymentsInPeriod
                 .Where(p =>
                     p.Status == PaymentStatus.Executed)
-                .Sum(p => p.Amount);
+                .Sum(p => p.Amount);    // adding every amount whose status is executed
 
             var summary = System.Text.Json.JsonSerializer
-                .Serialize(new
+                .Serialize(new                      // it converts c# object to json
                 {
                     totalPayments = totalCount,
                     totalAmount = totalAmount,
@@ -333,7 +368,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         .ToString("yyyy-MM-dd")
                 });
 
-            var discrepancies = System.Text.Json
+            var discrepancies = System.Text.Json    // Discrepancies = MISMATCHES between your records and bank's records.
                 .JsonSerializer.Serialize(new
                 {
                     count = 0,
@@ -384,8 +419,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (remittance.Status != RemittanceStatus.Sent)
                 return null;
 
-            remittance.Status =
-                RemittanceStatus.Acknowledged;
+            remittance.Status = RemittanceStatus.Acknowledged;
             remittance.SentToProviderAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();

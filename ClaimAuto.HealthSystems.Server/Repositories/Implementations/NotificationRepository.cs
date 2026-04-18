@@ -51,6 +51,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return notifications.Select(MapToDto).ToList();
         }
 
+
         public async Task<List<NotificationResponseDto>> GetUnreadAsync(
             int userId)
         {
@@ -63,8 +64,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return notifications.Select(MapToDto).ToList();
         }
 
-        // Still accepts Notification model
-        // Utkarsh/Yogesh code unchanged
+
         public async Task<NotificationResponseDto> CreateAsync(
             Notification notification)
         {
@@ -111,8 +111,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (notification == null)
                 return null;
 
-            if (notification.Status ==
-                NotificationStatus.Dismissed)
+            if (notification.Status == NotificationStatus.Dismissed)
                 return MapToDto(notification);
 
             notification.Status = NotificationStatus.Dismissed;
