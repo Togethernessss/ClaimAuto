@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -14,22 +15,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
 
-        // Filters by status and category if provided
-        public async Task<List<Notification>> GetMyNotificationsAsync(
+        public async Task<List<NotificationResponseDto>> GetMyNotificationsAsync(
             int userId,
             string? status,
             string? category)
         {
-
             var query = _context.Notifications
                 .Where(n => n.UserID == userId)
                 .AsQueryable();
 
-            // Apply status filter if provided
-            // e.g. status = "Unread" - only unread notifications
             if (!string.IsNullOrEmpty(status))
             {
-                // Parse string "Unread" to enum NotificationStatus.Unread
                 if (Enum.TryParse<NotificationStatus>(
                     status, true, out var statusEnum))
                 {
@@ -38,11 +34,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // Apply category filter if provided
-            // e.g. category = "Payment" - only payment notifications
             if (!string.IsNullOrEmpty(category))
             {
-                // Parse string "Payment" to enum NotificationCategory.Payment
                 if (Enum.TryParse<NotificationCategory>(
                     category, true, out var categoryEnum))
                 {
@@ -51,45 +44,41 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // newest notifications appear first
-            return await query
+            var notifications = await query
                 .OrderByDescending(n => n.CreatedAt)
                 .ToListAsync();
+
+            return notifications.Select(MapToDto).ToList();
         }
 
-
-        public async Task<List<Notification>> GetUnreadAsync(
+        public async Task<List<NotificationResponseDto>> GetUnreadAsync(
             int userId)
         {
-            return await _context.Notifications
+            var notifications = await _context.Notifications
                 .Where(n => n.UserID == userId
                     && n.Status == NotificationStatus.Unread)
                 .OrderByDescending(n => n.CreatedAt)
                 .ToListAsync();
+
+            return notifications.Select(MapToDto).ToList();
         }
 
-
-        // Called by system automatically after claim events
-        // or manually by Staff/Admin
-        public async Task<Notification> CreateAsync(
+        // Still accepts Notification model
+        // Utkarsh/Yogesh code unchanged
+        public async Task<NotificationResponseDto> CreateAsync(
             Notification notification)
         {
-            // Set server-controlled fields
-            // Client never sends these
             notification.CreatedAt = DateTime.UtcNow;
             notification.Status = NotificationStatus.Unread;
             notification.ReadAt = null;
 
-
             _context.Notifications.Add(notification);
-
             await _context.SaveChangesAsync();
-            
-            return notification;
+
+            return MapToDto(notification);
         }
 
-
-        public async Task<Notification?> MarkAsReadAsync(
+        public async Task<NotificationResponseDto?> MarkAsReadAsync(
             int id, int userId)
         {
             var notification = await _context.Notifications
@@ -101,17 +90,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 return null;
 
             if (notification.Status == NotificationStatus.Read)
-                return notification;
+                return MapToDto(notification);
 
             notification.Status = NotificationStatus.Read;
             notification.ReadAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            return notification;
+            return MapToDto(notification);
         }
 
-        public async Task<Notification?> DismissAsync(
+        public async Task<NotificationResponseDto?> DismissAsync(
             int id, int userId)
         {
             var notification = await _context.Notifications
@@ -124,16 +113,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (notification.Status ==
                 NotificationStatus.Dismissed)
-                return notification;
+                return MapToDto(notification);
 
             notification.Status = NotificationStatus.Dismissed;
 
             await _context.SaveChangesAsync();
 
-            return notification;
+            return MapToDto(notification);
         }
 
-     
         public async Task<bool> DeleteAsync(int id, int userId)
         {
             var notification = await _context.Notifications
@@ -145,10 +133,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 return false;
 
             _context.Notifications.Remove(notification);
-
             await _context.SaveChangesAsync();
 
             return true;
+        }
+
+        // Private helper method to map Notification model to NotificationResponseDto
+        private NotificationResponseDto MapToDto(Notification n)
+        {
+            return new NotificationResponseDto
+            {
+                NotificationID = n.NotificationID,
+                UserID = n.UserID,
+                ClaimID = n.ClaimID,
+                Message = n.Message,
+                Category = n.Category.ToString(),
+                Severity = n.Severity.ToString(),
+                CreatedAt = n.CreatedAt,
+                ReadAt = n.ReadAt,
+                Status = n.Status.ToString()
+            };
         }
     }
 }

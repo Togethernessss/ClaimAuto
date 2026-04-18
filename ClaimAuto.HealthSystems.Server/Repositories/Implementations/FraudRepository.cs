@@ -10,30 +10,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class FraudRepository : IFraudRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationRepository _notificationRepo;
 
-        public FraudRepository(ApplicationDbContext context)
+        public FraudRepository(
+            ApplicationDbContext context,
+            INotificationRepository notificationRepo)
         {
             _context = context;
+            _notificationRepo = notificationRepo;
         }
 
-        // ══════════════════════════════════════════════════
-        // GET FRAUD SCORE BY CLAIM ID
-        // ══════════════════════════════════════════════════
         public async Task<FraudScore?> GetFraudScoreByClaimIdAsync(int claimId)
         {
             return await _context.FraudScores
                 .FirstOrDefaultAsync(fs => fs.ClaimID == claimId);
         }
 
-        // ══════════════════════════════════════════════════
-        // 4-FACTOR FRAUD SCORING ENGINE
-        // ══════════════════════════════════════════════════
-        // Factor 1: Duplicate service code           → +25
-        // Factor 2: High billing frequency (>10/30d) → +20
-        // Factor 3: Amount spike (300%+ above avg)   → +20
-        // Factor 4: Repeated procedure pattern       → +15
-        // Score 0-30 = Clean, 31-69 = Medium, 70+ = High
-        // ══════════════════════════════════════════════════
         public async Task<FraudScore> ScoreClaimAsync(int claimId)
         {
             var claim = await _context.Claims
@@ -46,7 +38,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var factors = new List<string>();
             decimal scoreValue = 0;
 
-            // ── FACTOR 1: Duplicate Service Code (+25) ──
             var thisClaimServiceCodes = claim.ClaimLines
                 .Select(cl => cl.ServiceCode)
                 .ToList();
@@ -63,7 +54,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 scoreValue += 25;
             }
 
-            // ── FACTOR 2: High Billing Frequency (+20) ──
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
 
             var providerClaimCount = await _context.Claims
@@ -77,7 +67,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 scoreValue += 20;
             }
 
-            // ── FACTOR 3: Amount Spike 300% Above Avg (+20) ──
             var providerAvg = await _context.Claims
                 .Where(c => c.ProviderID == claim.ProviderID
                     && c.ClaimID != claimId)
@@ -93,7 +82,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // ── FACTOR 4: Known Risk Indicators (+15 or 0) ──
             var providerTotalClaims = await _context.Claims
                 .Where(c => c.ProviderID == claim.ProviderID)
                 .CountAsync();
@@ -118,7 +106,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // ── Cap and Save ──
             scoreValue = Math.Min(scoreValue, 100);
 
             var fraudScore = new FraudScore
@@ -134,10 +121,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _context.SaveChangesAsync();
             return fraudScore;
         }
-
-        // ══════════════════════════════════════════════════
-        // FRAUD CASE METHODS
-        // ══════════════════════════════════════════════════
 
         public async Task<List<FraudCase>> GetAllFraudCasesAsync(
             string? status, string? priority)
@@ -179,7 +162,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return fraudCase;
         }
 
-        // ── ACID: FraudCase + Notification together ──
         public async Task<FraudCase> CreateFraudCaseWithNotificationAsync(
             FraudCase fraudCase, Notification notification)
         {
@@ -189,8 +171,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _context.FraudCases.Add(fraudCase);
                 await _context.SaveChangesAsync();
 
-                _context.Notifications.Add(notification);
-                await _context.SaveChangesAsync();
+                await _notificationRepo.CreateAsync(notification);
 
                 await transaction.CommitAsync();
                 return fraudCase;
@@ -210,7 +191,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (fraudCase == null) return null;
 
-            // Parse outcome string → enum
             if (Enum.TryParse<FraudOutcome>(dto.Outcome, true, out var parsedOutcome))
             {
                 fraudCase.Outcome = parsedOutcome;
