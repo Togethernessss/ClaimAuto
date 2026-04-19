@@ -1,68 +1,284 @@
-﻿using ClaimAuto.HealthSystems.Server.DTOs;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using System.Security.Claims;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [ApiController]
     [Route("api/fraud")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class FraudController : BaseController
+    public class FraudController : ControllerBase
     {
+        private readonly IFraudRepository _fraudRepo;
+        private readonly IClaimRepository _claimRepo;
+        private readonly IUserRepository _userRepo;
+       
+
+        public FraudController(
+            IFraudRepository fraudRepo,
+            IClaimRepository claimRepo,
+            IUserRepository userRepo)
+        {
+            _fraudRepo = fraudRepo;
+            _claimRepo = claimRepo;
+            _userRepo = userRepo;
+        }
+
+        // ══════════════════════════════════════════════════
         // GET /api/fraud/scores/{claimId}
-        // Returns the fraud score for a specific claim.
+        // ══════════════════════════════════════════════════
         [HttpGet("scores/{claimId}")]
-        public async Task<IActionResult> GetFraudScore(int claimId) 
+        public async Task<IActionResult> GetFraudScore(int claimId)
         {
-            throw new NotImplementedException();
+            var claim = await _claimRepo.GetClaimByIdAsync(claimId);
+            if (claim == null)
+                return NotFound(new { message = $"Claim {claimId} not found." });
+
+            var score = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId);
+            if (score == null)
+                return NotFound(new { message = $"No fraud score for Claim {claimId}. Run POST /api/fraud/scores/{claimId} first." });
+
+            var response = new FraudScoreResponseDto
+            {
+                ScoreID = score.ScoreID,
+                ClaimID = score.ClaimID,
+                ScoringModel = score.ScoringModel,
+                ScoreValue = score.ScoreValue,
+                FactorsJSON = score.FactorsJSON,
+                GeneratedAt = score.GeneratedAt
+            };
+
+            return Ok(response);
         }
 
+        // ══════════════════════════════════════════════════
         // POST /api/fraud/scores/{claimId}
-        // Runs the fraud scoring engine on a claim.
-        // If score >= 70: auto-creates FraudCase + Notification
-        //                 in one ACID transaction.
+        // Run 4-factor engine → if >= 70 → ACID FraudCase + Notification
+        // ══════════════════════════════════════════════════
         [HttpPost("scores/{claimId}")]
-        public async Task<IActionResult> ScoreClaim(int claimId) 
+        public async Task<IActionResult> ScoreClaim(int claimId)
         {
-            throw new NotImplementedException();
+            var claim = await _claimRepo.GetClaimByIdAsync(claimId);
+            if (claim == null)
+                return NotFound(new { message = $"Claim {claimId} not found." });
+
+            var existing = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId);
+            if (existing != null)
+                return Conflict(new { message = $"Claim {claimId} already scored. ScoreID: {existing.ScoreID}, Value: {existing.ScoreValue}" });
+
+            // Run the 4-factor scoring engine
+            var fraudScore = await _fraudRepo.ScoreClaimAsync(claimId);
+
+            // If score >= 70 → ACID: create FraudCase + Notification
+            int? caseId = null;
+            if (fraudScore.ScoreValue >= 70)
+            {
+                var fraudCase = new FraudCase
+                {
+                    ClaimID = claimId,
+                    OpenedAt = DateTime.UtcNow,
+                    OpenedBy = GetCurrentUserId(),
+                    Priority = FraudCasePriority.High,      // enum
+                    Status = FraudCaseStatus.Open,           // enum
+                    InvestigationNotes = $"Auto-opened: fraud score {fraudScore.ScoreValue}. Factors: {fraudScore.FactorsJSON}"
+                };
+
+                if (!Enum.TryParse<NotificationCategory>("Exception", true, out var cat))
+                    cat = NotificationCategory.Exception; // fallback
+
+                if (!Enum.TryParse<NotificationSeverity>("Critical", true, out var sev))
+                    sev = NotificationSeverity.Info;
+
+                if (!Enum.TryParse<NotificationStatus>("Unread", true, out var stat))
+                    stat = NotificationStatus.Unread;
+
+                var notification = new Notification
+                {
+                    UserID = GetCurrentUserId(),
+                    ClaimID = claimId,
+                    Message = $"High fraud score ({fraudScore.ScoreValue}) on Claim #{claimId}",
+                    Category = cat,
+                    Severity = sev,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = stat
+                };
+
+                var createdCase = await _fraudRepo.CreateFraudCaseWithNotificationAsync(
+                    fraudCase, notification);
+                caseId = createdCase.CaseID;
+            }
+
+            var response = new FraudScoreResponseDto
+            {
+                ScoreID = fraudScore.ScoreID,
+                ClaimID = claimId,
+                ScoringModel = fraudScore.ScoringModel,
+                ScoreValue = fraudScore.ScoreValue,
+                FactorsJSON = fraudScore.FactorsJSON,
+                GeneratedAt = fraudScore.GeneratedAt
+            };
+
+            return CreatedAtAction(nameof(GetFraudScore), new { claimId }, response);
         }
 
+        // ══════════════════════════════════════════════════
         // GET /api/fraud/cases
-        // Returns all fraud cases. Filter by Status, Priority.
+        // ══════════════════════════════════════════════════
         [HttpGet("cases")]
         public async Task<IActionResult> GetAllFraudCases(
             [FromQuery] string? status,
             [FromQuery] string? priority)
         {
-            throw new NotImplementedException(); 
+            // Pass raw strings — repository handles enum parsing
+            var cases = await _fraudRepo.GetAllFraudCasesAsync(status, priority);
+
+            var response = new List<FraudCaseResponseDto>();
+            foreach (var fc in cases)
+            {
+                var openedByUser = await _userRepo.GetUserByIdAsync(fc.OpenedBy);
+
+                response.Add(new FraudCaseResponseDto
+                {
+                    CaseID = fc.CaseID,
+                    ClaimID = fc.ClaimID,
+                    OpenedAt = fc.OpenedAt,
+                    OpenedByName = openedByUser?.Name ?? "Unknown",
+                    Priority = fc.Priority.ToString(),       // enum → string
+                    Status = fc.Status.ToString(),           // enum → string
+                    InvestigationNotes = fc.InvestigationNotes,
+                    EvidenceURIsJSON = fc.EvidenceURIsJSON,
+                    ResolvedAt = fc.ResolvedAt,
+                    Outcome = fc.Outcome?.ToString()          // nullable enum → string or null
+                });
+            }
+
+            return Ok(response);
         }
 
+        // ══════════════════════════════════════════════════
         // GET /api/fraud/cases/{id}
-        // Returns single fraud case with full details.
+        // ══════════════════════════════════════════════════
         [HttpGet("cases/{id}")]
-        public async Task<IActionResult> GetFraudCaseById(int id) 
+        public async Task<IActionResult> GetFraudCaseById(int id)
         {
-            throw new NotImplementedException();
+            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
+            if (fc == null)
+                return NotFound(new { message = $"Fraud case {id} not found." });
+
+            var openedByUser = await _userRepo.GetUserByIdAsync(fc.OpenedBy);
+
+            var response = new FraudCaseResponseDto
+            {
+                CaseID = fc.CaseID,
+                ClaimID = fc.ClaimID,
+                OpenedAt = fc.OpenedAt,
+                OpenedByName = openedByUser?.Name ?? "Unknown",
+                Priority = fc.Priority.ToString(),
+                Status = fc.Status.ToString(),
+                InvestigationNotes = fc.InvestigationNotes,
+                EvidenceURIsJSON = fc.EvidenceURIsJSON,
+                ResolvedAt = fc.ResolvedAt,
+                Outcome = fc.Outcome?.ToString()
+            };
+
+            return Ok(response);
         }
 
-        // POST /api/fraud/cases
-        // Manually opens a fraud case. OpenedBy from JWT token.
+        // ══════════════════════════════════════════════════
+        // POST /api/fraud/cases — manually open a case
+        // ══════════════════════════════════════════════════
         [HttpPost("cases")]
-        public async Task<IActionResult> CreateFraudCase(
-            [FromBody] CreateFraudCaseDto dto)
+        public async Task<IActionResult> CreateFraudCase([FromBody] CreateFraudCaseDto dto)
         {
-            throw new NotImplementedException(); 
+            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
+            if (claim == null)
+                return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
+
+            var existingCase = await _fraudRepo.GetFraudCaseByClaimIdAsync(dto.ClaimID);
+            if (existingCase != null)
+                return Conflict(new { message = $"Fraud case already exists for Claim {dto.ClaimID}. CaseID: {existingCase.CaseID}" });
+
+            // Parse Priority string → enum
+            if (!Enum.TryParse<FraudCasePriority>(dto.Priority, true, out var parsedPriority))
+                return BadRequest(new { message = $"Invalid Priority '{dto.Priority}'. Must be one of: {string.Join(", ", Enum.GetNames<FraudCasePriority>())}" });
+
+            var fraudCase = new FraudCase
+            {
+                ClaimID = dto.ClaimID,
+                OpenedAt = DateTime.UtcNow,
+                OpenedBy = GetCurrentUserId(),
+                Priority = parsedPriority,                  // enum, not string
+                Status = FraudCaseStatus.Open,              // enum
+                InvestigationNotes = dto.InvestigationNotes
+            };
+
+            var created = await _fraudRepo.CreateFraudCaseAsync(fraudCase);
+
+            var user = await _userRepo.GetUserByIdAsync(GetCurrentUserId());
+
+            var response = new FraudCaseResponseDto
+            {
+                CaseID = created.CaseID,
+                ClaimID = dto.ClaimID,
+                OpenedAt = created.OpenedAt,
+                OpenedByName = user?.Name ?? "Unknown",
+                Priority = created.Priority.ToString(),
+                Status = created.Status.ToString(),
+                InvestigationNotes = dto.InvestigationNotes,
+                Outcome = null
+            };
+
+            return CreatedAtAction(nameof(GetFraudCaseById), new { id = created.CaseID }, response);
         }
 
+        // ══════════════════════════════════════════════════
         // PUT /api/fraud/cases/{id}/resolve
-        // Vikram resolves a fraud case.
-        // Sets Status to Resolved, stamps ResolvedAt.
+        // ══════════════════════════════════════════════════
         [HttpPut("cases/{id}/resolve")]
-        public async Task<IActionResult> ResolveFraudCase(int id,
-            [FromBody] ResolveFraudCaseDto dto)
+        public async Task<IActionResult> ResolveFraudCase(int id, [FromBody] ResolveFraudCaseDto dto)
         {
-            throw new NotImplementedException();
+            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
+            if (fc == null)
+                return NotFound(new { message = $"Fraud case {id} not found." });
+
+            if (fc.Status == FraudCaseStatus.Resolved)
+                return BadRequest(new { message = $"Fraud case {id} is already resolved." });
+
+            // Validate Outcome string → enum
+            if (!Enum.TryParse<FraudOutcome>(dto.Outcome, true, out var parsedOutcome))
+                return BadRequest(new { message = $"Invalid Outcome '{dto.Outcome}'. Must be one of: {string.Join(", ", Enum.GetNames<FraudOutcome>())}" });
+
+            var resolved = await _fraudRepo.ResolveFraudCaseAsync(id, dto);
+
+            // If fraud CONFIRMED → reject the claim
+            if (parsedOutcome == FraudOutcome.Confirmed)
+            {
+                var claim = await _claimRepo.GetClaimByIdAsync(fc.ClaimID);
+                if (claim != null)
+                {
+                    // Use the repository's UpdateClaimAsync method (existing in IClaimRepository)
+                    var updateDto = new UpdateClaimDto
+                    {
+                        Status = "Rejected"
+                    };
+
+                    await _claimRepo.UpdateClaimAsync(fc.ClaimID, updateDto, GetCurrentUserId());
+                }
+            }
+
+            
+            return Ok(new { message = $"Fraud case {id} resolved as '{dto.Outcome}'.", caseId = id });
+        }
+
+        // ── Helper ──
+        private int GetCurrentUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("UserID")?.Value;
+            return int.Parse(userIdClaim ?? "0");
         }
     }
 }
