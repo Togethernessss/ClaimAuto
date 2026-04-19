@@ -127,10 +127,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         .CountAsync(a =>
                             a.Decision == AdjDecision.Denied);
 
-                    var denialRate = totalClaims > 0
-                        ? Math.Round(
-                            (double)denied / totalClaims * 100, 2)
-                        : 0;
+                    var denialRate = totalClaims > 0 ? Math.Round(
+                            (double)denied / totalClaims * 100, 2) : 0;
 
                     return System.Text.Json.JsonSerializer
                         .Serialize(new
@@ -309,8 +307,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        public async Task<List<AuditPackageResponseDto>>
-            GetAllAuditPackagesAsync()
+        public async Task<List<AuditPackageResponseDto>> GetAllAuditPackagesAsync()
         {
             var packages = await _context.AuditPackages
                 .OrderByDescending(p => p.GeneratedAt)
