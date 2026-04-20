@@ -5,20 +5,18 @@ namespace ClaimAuto.HealthSystems.Server.Data
 {
     public static class DbSeeder
     {
-        public static async Task SeedAsync(
-            WebApplication app)
+        public static async Task SeedAsync(WebApplication app)
         {
-            using var scope = app.Services
+            using var scope = app.Services     // creates the instance for One instance per request/scope
                 .CreateScope();
 
             var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
+                .GetRequiredService<ApplicationDbContext>(); // fetching the appdbcontext to use it
 
             await SeedKPIsAsync(context);
         }
 
-        private static async Task SeedKPIsAsync(
-            ApplicationDbContext context)
+        private static async Task SeedKPIsAsync(ApplicationDbContext context)
         {
             // Only seed if KPIs table is empty
             if (!context.KPIs.Any())

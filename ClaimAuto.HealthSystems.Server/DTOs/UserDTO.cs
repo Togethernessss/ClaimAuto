@@ -53,4 +53,33 @@
         public string Role { get; set; } = string.Empty;
         public DateTime Expiry { get; set; }
     }
+
+    // ── MFA Setup Response (QR code data for Authenticator app)
+    public class MfaSetupResponseDto
+    {
+        public string SecretKey { get; set; } = string.Empty;      // Manual entry key
+        public string QrCodeUri { get; set; } = string.Empty;      // otpauth:// URI for QR
+        public string Message { get; set; } = "Scan the QR code in Microsoft Authenticator, then confirm with a code.";
+    }
+
+    // ── MFA Confirm Setup
+    public class MfaConfirmDto
+    {
+        public string Code { get; set; } = string.Empty;           // 6-digit code from app
+    }
+
+    // ── MFA Login Response (returned when MFA is required)
+    public class MfaLoginResponseDto
+    {
+        public bool RequiresMFA { get; set; } = true;
+        public string MfaToken { get; set; } = string.Empty;
+        public string Message { get; set; } = "Enter the verification code from your Authenticator app.";
+    }
+
+    // ── MFA Verify (login step 2)
+    public class VerifyMfaDto
+    {
+        public string MfaToken { get; set; } = string.Empty;       // Temporary token from login
+        public string Code { get; set; } = string.Empty;           // 6-digit code from app
+    }
 }
