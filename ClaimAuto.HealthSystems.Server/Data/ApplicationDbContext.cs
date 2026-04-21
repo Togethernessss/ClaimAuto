@@ -48,11 +48,12 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<ClaimTasks> ClaimTasks { get; set; }
 
-        protected override void OnModelCreating(ModelBuilder mb)
+        protected override void OnModelCreating(ModelBuilder mb)   // ModelBuilder — tool for configuring database rules
+
         {
             base.OnModelCreating(mb);
 
-            // ── Unique Constraints ──────────────────────────
+            // ── Unique Constraints 
             mb.Entity<User>()
                 .HasIndex(u => u.Email).IsUnique();
 
@@ -68,7 +69,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Payment>()
                 .HasIndex(p => p.ReferenceNumber).IsUnique();
 
-            // ── Performance Indexes ─────────────────────────
+            // ── Performance Indexes 
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.Status, c.SubmittedAt });
 
@@ -78,7 +79,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
 
-            // ── Restrict all secondary FK paths to avoid cascade cycles ──
+            // ── Restrict all secondary FK paths to avoid cascade cycles 
             // Claim → Provider (User) — already has Claim → Member → User path
             mb.Entity<Claim>()
                 .HasOne(c => c.Provider)
@@ -190,13 +191,13 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(r => r.GeneratedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Remittance 1-to-1 with Payment ─────────────
+            // ── Remittance 1-to-1 with Payment 
             mb.Entity<Remittance>()
                 .HasOne(r => r.Payment)
                 .WithOne(p => p.Remittance)
                 .HasForeignKey<Remittance>(r => r.PaymentID);
 
-            // ── Enum → string storage (readable columns) ───
+            // ── Enum → string storage (readable columns) 
             mb.Entity<User>().Property(u => u.Role).HasConversion<string>();
             mb.Entity<User>().Property(u => u.Status).HasConversion<string>();
             mb.Entity<Claim>().Property(c => c.ClaimType).HasConversion<string>();
