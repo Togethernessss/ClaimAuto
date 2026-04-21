@@ -100,11 +100,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // ──────────────────────────────────────────────────────────
+       
         // POST: api/auth/login
         // If MFA enabled → returns mfaToken (user must call verify-mfa)
         // If MFA disabled → returns JWT directly
-        // ──────────────────────────────────────────────────────────
+      
         [HttpPost("login")]
         public async Task<ActionResult> Login(LoginDto dto)
         {
@@ -148,7 +148,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            // ── No MFA — issue JWT directly ─────────────────────
+            //No MFA — issue JWT directly 
             string token = GenerateJwtToken(user);
 
             _context.AuditLogs.Add(new AuditLog
