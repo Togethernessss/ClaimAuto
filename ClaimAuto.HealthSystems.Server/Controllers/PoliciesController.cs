@@ -32,8 +32,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllPolicies()
         {
             var policies = await _policyRepo.GetAllPoliciesAsync();
-            if (policies == null)
-                return StatusCode(500, "Something went wrong fetching policies.");
+            //if (policies == null)
+            //    return StatusCode(500, "Something went wrong fetching policies.");
             return Ok(policies);
         }
 

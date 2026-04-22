@@ -86,7 +86,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        // PUT /api/rules/{id}/activate
+        // PUT /api/rules/{id}/deactivate
         // Changes Status from Draft/Inactive to Active.
         // Rule starts being used in adjudication immediately.
         [HttpPut("{id}/deactivate")]
@@ -110,7 +110,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
         }
 
-        // PUT /api/rules/{id}/deactivate
+        // PUT /api/rules/{id}/activate
         // Changes Status to Inactive.
         // Rule stops being used in adjudication immediately.
         [HttpPut("{id}/activate")]

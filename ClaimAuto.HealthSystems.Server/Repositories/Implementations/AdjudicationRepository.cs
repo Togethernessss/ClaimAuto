@@ -88,7 +88,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var audit = new AuditLog
             {
-                UserID = 1, 
                 Action = "AutoAdjudicate",
                 ResourceType = "Claim",
                 ResourceID = claimId.ToString(),
