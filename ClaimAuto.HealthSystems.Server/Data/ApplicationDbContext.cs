@@ -5,8 +5,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-            : base(options) { }
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { } // CONSTRUCTOR
 
         // Module 1
         public DbSet<User> Users { get; set; }
@@ -68,8 +67,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
             mb.Entity<Payment>()
                 .HasIndex(p => p.ReferenceNumber).IsUnique();
-
-            // ── Performance Indexes 
+            
+            // ── Performance Indexes // Composite index 
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.Status, c.SubmittedAt });
 
@@ -194,7 +193,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
             // ── Remittance 1-to-1 with Payment 
             mb.Entity<Remittance>()
                 .HasOne(r => r.Payment)
-                .WithOne(p => p.Remittance)
+                .WithOne(p => p.Remittance)  // One Payment has ONE Remittance
                 .HasForeignKey<Remittance>(r => r.PaymentID);
 
             // ── Enum → string storage (readable columns) 

@@ -16,13 +16,12 @@ namespace ClaimAuto.HealthSystems.Server
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // Add services to the container
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration
                 .GetConnectionString("DBConnection")));
 
             // Register Repository with DI
-            // Scoped means one instance per HTTP request
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
@@ -105,9 +104,8 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();
 
-            // ── Seed Data ─────────────────────────────────────
+            // ── Seed Data 
             await DbSeeder.SeedAsync(app);
-            // ──────────────────────────────────────────────────
 
             app.UseDefaultFiles();
             app.UseStaticFiles();
@@ -121,7 +119,7 @@ namespace ClaimAuto.HealthSystems.Server
             app.UseAuthentication();
             app.UseAuthorization();
 
-            app.MapControllers();
+            app.MapControllers();  // enables attribute routing
 
             app.MapFallbackToFile("/index.html");
 

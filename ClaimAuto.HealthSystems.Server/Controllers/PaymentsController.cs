@@ -1,5 +1,4 @@
-﻿using ClaimAuto.HealthSystems.Server.Controllers;
-using ClaimAuto.HealthSystems.Server.DTOs;
+﻿using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
