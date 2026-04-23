@@ -48,11 +48,12 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<ClaimTasks> ClaimTasks { get; set; }
 
-        protected override void OnModelCreating(ModelBuilder mb)
+        //What is Fluent API? It is a way to configure the model using code instead of data annotations. It allows for more complex configurations and is done in the OnModelCreating method of the DbContext.
+        protected override void OnModelCreating(ModelBuilder mb)// Fluent API configurations
         {
             base.OnModelCreating(mb);
 
-            // ── Unique Constraints ──────────────────────────
+            // Unique Constraints
             mb.Entity<User>()
                 .HasIndex(u => u.Email).IsUnique();
 
@@ -68,7 +69,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Payment>()
                 .HasIndex(p => p.ReferenceNumber).IsUnique();
 
-            // ── Performance Indexes ─────────────────────────
+            // Performance Indexes
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.Status, c.SubmittedAt });
 
@@ -78,7 +79,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
 
-            // ── Restrict all secondary FK paths to avoid cascade cycles ──
+            //Restrict all secondary FK paths to avoid cascade cycles
             // Claim → Provider (User) — already has Claim → Member → User path
             mb.Entity<Claim>()
                 .HasOne(c => c.Provider)
@@ -178,11 +179,11 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Tasks → AssignedTo (User) — already has Claims → Tasks path from User
-            mb.Entity<ClaimTasks>()
+            mb.Entity<ClaimTasks>()// Task entity with AssignedTo FK to User
                 .HasOne(t => t.AssignedToUser)
                 .WithMany()
                 .HasForeignKey(t => t.AssignedTo)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Restrict);// AssignedTo is optional FK to User
 
             mb.Entity<Report>()
                 .HasOne(r => r.GeneratedByUser)
@@ -196,8 +197,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .WithOne(p => p.Remittance)
                 .HasForeignKey<Remittance>(r => r.PaymentID);
 
-            // ── Enum → string storage (readable columns) ───
-            mb.Entity<User>().Property(u => u.Role).HasConversion<string>();
+            // Enum → string storage (readable columns) 
+            mb.Entity<User>().Property(u => u.Role).HasConversion<string>();// UserRole enum stored as string
             mb.Entity<User>().Property(u => u.Status).HasConversion<string>();
             mb.Entity<Claim>().Property(c => c.ClaimType).HasConversion<string>();
             mb.Entity<Claim>().Property(c => c.Status).HasConversion<string>();
@@ -227,6 +228,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Notification>().Property(n => n.Status).HasConversion<string>();
             mb.Entity<ClaimTasks>().Property(t => t.Priority).HasConversion<string>();
             mb.Entity<ClaimTasks>().Property(t => t.Status).HasConversion<string>();
+
+            
         }
     }
 }

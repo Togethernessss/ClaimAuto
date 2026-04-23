@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;// for [Table], [Column], etc.
 
 namespace ClaimAuto.HealthSystems.Server.Model
 {
@@ -47,6 +47,6 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
-        public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+        public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>(); // 1-to-many with AuditLog
     }
 }

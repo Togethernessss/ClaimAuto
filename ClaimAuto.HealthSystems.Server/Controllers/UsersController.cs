@@ -42,7 +42,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 CreatedAt = u.CreatedAt
             });
 
-            return Ok(response);
+            return Ok(response);//400
         }
 
         // GET: api/users/{id}
@@ -68,7 +68,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET: api/users/role/{role}
-        [HttpGet("role/{role}")]
+        [HttpGet("role/{role}")]      //"role" --> Just a text(static) while {role} is a variable that will be passed in the URL
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
             var users = await _userRepository.GetUsersByRoleAsync(role);
@@ -95,10 +95,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             bool emailExists = await _userRepository.EmailExistsAsync(dto.Email);
             if (emailExists)
-                return Conflict("A user with this email already exists.");
+                return Conflict("A user with this email already exists.");//409
 
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
-                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
+                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");//400
 
             var user = new User
             {
@@ -130,7 +130,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 CreatedAt = createdUser.CreatedAt
             };
 
-            return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);
+            return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);//201
         }
 
         // PUT: api/users/{id}
@@ -156,11 +156,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var success = await _userRepository.SoftDeleteUserAsync(id);
+            var success = await _userRepository.SoftDeleteUserAsync(id);//Making User inactive by setting Status = Inactive, not removing from DB
             if (!success)
-                return NotFound($"User with ID {id} not found.");
+                return NotFound($"User with ID {id} not found.");//404
 
-            return NoContent();
+            return NoContent();//204
         }
     }
 }
