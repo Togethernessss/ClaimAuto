@@ -74,7 +74,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetMemberById), new { id = created.MemberID }, created);
         }
 
-        /
+        
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateMember(int id, [FromBody] UpdateMemberDto dto)
         {
