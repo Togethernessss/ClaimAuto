@@ -27,9 +27,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepo = userRepo;
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/fraud/scores/{claimId}
-        // ══════════════════════════════════════════════════
         [HttpGet("scores/{claimId}")]
         public async Task<IActionResult> GetFraudScore(int claimId)
         {
@@ -54,10 +52,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/fraud/scores/{claimId}
         // Run 4-factor engine → if >= 70 → ACID FraudCase + Notification
-        // ══════════════════════════════════════════════════
+
         [HttpPost("scores/{claimId}")]
         public async Task<IActionResult> ScoreClaim(int claimId)
         {
@@ -124,15 +121,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetFraudScore), new { claimId }, response);
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/fraud/cases
-        // ══════════════════════════════════════════════════
+
         [HttpGet("cases")]
         public async Task<IActionResult> GetAllFraudCases(
             [FromQuery] string? status,
             [FromQuery] string? priority)
         {
-            // Pass raw strings — repository handles enum parsing
+           
             var cases = await _fraudRepo.GetAllFraudCasesAsync(status, priority);
 
             var response = new List<FraudCaseResponseDto>();
@@ -146,21 +142,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     ClaimID = fc.ClaimID,
                     OpenedAt = fc.OpenedAt,
                     OpenedByName = openedByUser?.Name ?? "Unknown",
-                    Priority = fc.Priority.ToString(),       // enum → string
-                    Status = fc.Status.ToString(),           // enum → string
+                    Priority = fc.Priority.ToString(),   
+                    Status = fc.Status.ToString(),         
                     InvestigationNotes = fc.InvestigationNotes,
                     EvidenceURIsJSON = fc.EvidenceURIsJSON,
                     ResolvedAt = fc.ResolvedAt,
-                    Outcome = fc.Outcome?.ToString()          // nullable enum → string or null
+                    Outcome = fc.Outcome?.ToString()       
                 });
             }
 
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/fraud/cases/{id}
-        // ══════════════════════════════════════════════════
         [HttpGet("cases/{id}")]
         public async Task<IActionResult> GetFraudCaseById(int id)
         {
@@ -187,9 +181,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/fraud/cases — manually open a case
-        // ══════════════════════════════════════════════════
         [HttpPost("cases")]
         public async Task<IActionResult> CreateFraudCase([FromBody] CreateFraudCaseDto dto)
         {
@@ -210,8 +202,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 ClaimID = dto.ClaimID,
                 OpenedAt = DateTime.UtcNow,
                 OpenedBy = GetCurrentUserId(),
-                Priority = parsedPriority,                  // enum, not string
-                Status = FraudCaseStatus.Open,              // enum
+                Priority = parsedPriority,                 
+                Status = FraudCaseStatus.Open,              
                 InvestigationNotes = dto.InvestigationNotes
             };
 
@@ -234,9 +226,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetFraudCaseById), new { id = created.CaseID }, response);
         }
 
-        // ══════════════════════════════════════════════════
         // PUT /api/fraud/cases/{id}/resolve
-        // ══════════════════════════════════════════════════
         [HttpPut("cases/{id}/resolve")]
         public async Task<IActionResult> ResolveFraudCase(int id, [FromBody] ResolveFraudCaseDto dto)
         {

@@ -5,11 +5,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 {
     public interface IFraudRepository
     {
-        // ── Fraud Scores ──
         Task<FraudScore?> GetFraudScoreByClaimIdAsync(int claimId);
         Task<FraudScore> ScoreClaimAsync(int claimId);
-
-        // ── Fraud Cases ──
         Task<List<FraudCase>> GetAllFraudCasesAsync(string? status, string? priority);
         Task<FraudCase?> GetFraudCaseByIdAsync(int id);
         Task<FraudCase?> GetFraudCaseByClaimIdAsync(int claimId);

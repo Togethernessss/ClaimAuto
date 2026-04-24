@@ -35,8 +35,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<Appeal?> GetAppealByIdAsync(int id)
         {
             return await _context.Appeals
-                .Include(a => a.DecisionBy)      // loads the User object
-                .Include(a => a.FiledByUser)     // if you have this navigation too
+                .Include(a => a.DecisionBy)     
+                .Include(a => a.FiledByUser)     
                 .FirstOrDefaultAsync(a => a.AppealID == id);
         }
 
@@ -72,8 +72,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = appeal.ClaimID,
                         Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
                         DueDate = DateTime.UtcNow.AddDays(7),
-                        Priority = TaskPriority.High,          // enum
-                        Status = TaskStatus.Pending,           // enum
+                        Priority = TaskPriority.High,          
+                        Status = TaskStatus.Pending,          
                         CreatedAt = DateTime.UtcNow
                     };
 

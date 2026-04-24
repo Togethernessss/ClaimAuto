@@ -28,10 +28,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepo = userRepo;
             _notifRepo = notifRepo;
         }
-
-        // ══════════════════════════════════════════════════
         // GET /api/appeals
-        // ══════════════════════════════════════════════════
         [HttpGet]
         public async Task<IActionResult> GetAllAppeals()
         {
@@ -64,10 +61,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             return Ok(response);
         }
-
-        // ══════════════════════════════════════════════════
         // GET /api/appeals/{id}
-        // ══════════════════════════════════════════════════
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAppealById(int id)
         {
@@ -100,9 +94,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/appeals — File an appeal
-        // ══════════════════════════════════════════════════
         [HttpPost]
         public async Task<IActionResult> FileAppeal([FromBody] CreateAppealDto dto)
         {
@@ -110,8 +102,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (claim == null)
                 return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
 
-            // ── FIX: Compare enum to enum, not enum to string ──
-            // OLD: claim.Status.ToString() != "Rejected"
             if (!Enum.TryParse<ClaimStatus>(claim.Status, true, out var claimStatus)
                 || (claimStatus != ClaimStatus.Rejected && claimStatus != ClaimStatus.Adjudicated))
             {
@@ -140,18 +130,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
 
             var created = await _appealRepo.FileAppealAsync(appeal);
-
-            // ── FIX: Use UserRole enum, not string ──
-            // OLD: await _userRepo.GetUserByRoleAsync("ClaimsProcessor")
-            // NEW: await _userRepo.GetUserByRoleAsync(UserRole.InsuranceStaff)
-            // Your enum has "InsuranceStaff" not "ClaimsProcessor"
             var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff);
             var assignee = staffUsers.FirstOrDefault();
             if (assignee != null)
             {
-                // ── FIX: Use enums for Notification fields ──
-                // OLD: Category = "Appeal" (string)
-                // NEW: Category = NotificationCategory.Appeal (enum)
                 await _notifRepo.CreateAsync(new Notification
                 {
                     UserID = assignee.UserID,
@@ -183,12 +165,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 new { id = created.AppealID }, response);
         }
 
-        // ══════════════════════════════════════════════════
         // PUT /api/appeals/{id}/decide
-        // ══════════════════════════════════════════════════
         [HttpPut("{id}/decide")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
-        // ── FIX: Your enum has "InsuranceStaff", not "ClaimsProcessor" ──
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] DecideAppealDto dto)
         {
             var appeal = await _appealRepo.GetAppealByIdAsync(id);
@@ -203,32 +182,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             int deciderId = GetCurrentUserId();
             var decided = await _appealRepo.DecideAppealAsync(id, dto.Outcome, deciderId);
-
-            // ── FIX: If Overturned → reset claim using enum ──
-            // OLD: claim.Status = "Submitted"; (string to enum = error)
-            // OLD: await _claimRepo.UpdateClaimAsync(fc.ClaimID, ...) (fc doesn't exist)
-            // NEW: Set enum directly on the claim object and save
             if (parsedOutcome == AppealOutcome.Overturned)
             {
                 var claim = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID);
                 if (claim != null)
                 {
-                    // Build an UpdateClaimDto according to your DTO definition.
-                    var updateDto = new UpdateClaimDto
-                    {
-                        // If UpdateClaimDto has an enum property:
-                        // Status = ClaimStatus.Submitted
-                        // If it expects a string:
-                        // Status = ClaimStatus.Submitted.ToString()
-                        // Set any other required properties here.
-                    };
-
-                    // Use the required signature: (int claimId, UpdateClaimDto dto, int updatedByUserId)
+                    var updateDto = new UpdateClaimDto { };
                     await _claimRepo.UpdateClaimAsync(appeal.ClaimID, updateDto, deciderId);
                 }
             }
-
-            // ── FIX: Notification with enums ──
             await _notifRepo.CreateAsync(new Notification
             {
                 UserID = appeal.FiledBy,
@@ -242,9 +204,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(new { message = $"Appeal {id} decided as '{dto.Outcome}'.", appealId = id });
         }
 
-        // ══════════════════════════════════════════════════
         // PUT /api/appeals/{id}/withdraw
-        // ══════════════════════════════════════════════════
         [HttpPut("{id}/withdraw")]
         public async Task<IActionResult> WithdrawAppeal(int id)
         {
@@ -262,9 +222,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(new { message = $"Appeal {id} withdrawn successfully." });
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/appeals/subrogation
-        // ══════════════════════════════════════════════════
         [HttpPost("subrogation")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> CreateSubrogation([FromBody] CreateSubrogationDto dto)
@@ -293,9 +251,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/appeals/subrogation
-        // ══════════════════════════════════════════════════
         [HttpGet("subrogation")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         public async Task<IActionResult> GetSubrogations()
@@ -321,8 +277,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         private bool IsStaffRole(string role)
         {
-            // ── FIX: Match your actual UserRole enum names ──
-            // Your enum has: Admin, InsuranceStaff, Policyholder, Hospital
             var staffRoles = new[] { "Admin", "InsuranceStaff" };
             return staffRoles.Contains(role);
         }

@@ -25,13 +25,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
            ;
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/tasks
-        // ══════════════════════════════════════════════════
-        // Query params: ?assignedTo=5&status=Pending&priority=High
-        // Status and Priority are passed as STRINGS from the URL.
-        // The REPOSITORY parses them into enums using Enum.TryParse.
-        // ══════════════════════════════════════════════════
         [HttpGet]
         public async Task<IActionResult> GetAllTasks(
             [FromQuery] int? assignedTo,
@@ -40,8 +34,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             int userId = GetCurrentUserId();
             string role = GetCurrentUserRole();
-
-            // Pass raw strings — your repository handles enum parsing
             var tasks = await _taskRepo.GetAllTasksAsync(
                 assignedTo, status, priority, userId, role);
 
@@ -58,8 +50,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     ClaimID = t.ClaimID,
                     Description = t.Description,
                     DueDate = t.DueDate,
-                    Priority = t.Priority.ToString(),    // enum → string for JSON
-                    Status = t.Status.ToString(),        // enum → string for JSON
+                    Priority = t.Priority.ToString(),  
+                    Status = t.Status.ToString(),        
                     CreatedAt = t.CreatedAt,
                     CompletedAt = t.CompletedAt
                 });
@@ -68,9 +60,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/tasks/overdue
-        // ══════════════════════════════════════════════════
         [HttpGet("overdue")]
         public async Task<IActionResult> GetOverdueTasks()
         {
@@ -99,9 +89,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // GET /api/tasks/{id}
-        // ══════════════════════════════════════════════════
         [HttpGet("{id}")]
         public async Task<IActionResult> GetTaskById(int id)
         {
@@ -133,49 +121,29 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/tasks
-        // ══════════════════════════════════════════════════
-        // Client sends Priority as a STRING like "High".
-        // We parse it into the TaskPriority enum before saving.
-        // Status is always TaskStatus.Pending — server-controlled.
-        // ══════════════════════════════════════════════════
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto dto)
         {
-            // Validate assignee exists
             var assignee = await _userRepo.GetUserByIdAsync(dto.AssignedTo);
             if (assignee == null)
                 return NotFound(new { message = $"User {dto.AssignedTo} not found." });
 
-            // Parse Priority string → TaskPriority enum
             if (!Enum.TryParse<TaskPriority>(dto.Priority, true, out var parsedPriority))
                 return BadRequest(new { message = $"Invalid Priority '{dto.Priority}'. Must be one of: {string.Join(", ", Enum.GetNames<TaskPriority>())}" });
-            // Enum.TryParse<TaskPriority>("High", true, out var result)
-            //   "High" → tries to match against TaskPriority.High
-            //   true   → case-insensitive ("high" also works)
-            //   out var parsedPriority → if successful, stores the enum value
-            //   returns true if parsing succeeded, false if not
-            //
-            // Enum.GetNames<TaskPriority>() returns: ["Low", "Medium", "High"]
-            // This shows the user what valid values are if they send garbage.
-
+           
             var task = new ClaimTasks
             {
                 AssignedTo = dto.AssignedTo,
                 ClaimID = dto.ClaimID,
                 Description = dto.Description,
                 DueDate = dto.DueDate,
-                Priority = parsedPriority,           // ENUM value, not string
-                Status = TaskStatus.Pending,         // ENUM — server-controlled
-                CreatedAt = DateTime.UtcNow           // server-controlled
+                Priority = parsedPriority,           
+                Status = TaskStatus.Pending,         
+                CreatedAt = DateTime.UtcNow          
             };
 
             var created = await _taskRepo.CreateTaskAsync(task);
-
-            // Audit log
-            
-
             var response = new TaskResponseDto
             {
                 TaskID = created.TaskID,
@@ -184,8 +152,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 ClaimID = created.ClaimID,
                 Description = created.Description,
                 DueDate = created.DueDate,
-                Priority = created.Priority.ToString(),   // enum → string
-                Status = created.Status.ToString(),       // "Pending"
+                Priority = created.Priority.ToString(),  
+                Status = created.Status.ToString(),      
                 CreatedAt = created.CreatedAt,
                 CompletedAt = null
             };
@@ -194,13 +162,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 new { id = created.TaskID }, response);
         }
 
-        // ══════════════════════════════════════════════════
         // PUT /api/tasks/{id}
-        // ══════════════════════════════════════════════════
-        // Partial update — only provided fields change.
-        // Priority comes as string, repository parses to enum.
-        // Status is NOT in UpdateTaskDto — only via /complete.
-        // ══════════════════════════════════════════════════
+        
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(
             int id, [FromBody] UpdateTaskDto dto)
@@ -209,17 +172,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
 
-            // If Priority is provided, validate it's a valid enum value
             if (dto.Priority != null)
             {
                 if (!Enum.TryParse<TaskPriority>(dto.Priority, true, out _))
                     return BadRequest(new { message = $"Invalid Priority '{dto.Priority}'. Must be one of: {string.Join(", ", Enum.GetNames<TaskPriority>())}" });
-                // "out _" means we don't need the parsed value here —
-                // the repository does its own parsing.
-                // We just validate it's a legal value before calling the repo.
             }
-
-            // If AssignedTo is provided, validate user exists
             if (dto.AssignedTo.HasValue)
             {
                 var newAssignee = await _userRepo.GetUserByIdAsync(dto.AssignedTo.Value);
@@ -229,19 +186,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             var updated = await _taskRepo.UpdateTaskAsync(id, dto);
 
-            // Audit log
-           
-
             return Ok(new { message = $"Task {id} updated.", taskId = id });
         }
 
-        // ══════════════════════════════════════════════════
         // PUT /api/tasks/{id}/complete
-        // ══════════════════════════════════════════════════
-        // The ONLY way to set Status = Completed.
-        // Repository sets both Status and CompletedAt together.
-        // Ownership: staff can only complete their own tasks.
-        // ══════════════════════════════════════════════════
         [HttpPut("{id}/complete")]
         public async Task<IActionResult> CompleteTask(int id)
         {
@@ -249,11 +197,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
 
-            // Already completed
             if (task.Status == TaskStatus.Completed)
                 return BadRequest(new { message = $"Task {id} is already completed." });
 
-            // Ownership check
             int userId = GetCurrentUserId();
             string role = GetCurrentUserRole();
 
@@ -261,9 +207,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return Forbid();
 
             var completed = await _taskRepo.CompleteTaskAsync(id, userId);
-
-            // Audit log
-           
+                      
             return Ok(new
             {
                 message = $"Task {id} completed.",
@@ -273,11 +217,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // ══════════════════════════════════════════════════
         // DELETE /api/tasks/{id}
-        // ══════════════════════════════════════════════════
-        // Admin only. Only Pending tasks can be deleted.
-        // ══════════════════════════════════════════════════
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteTask(int id)
