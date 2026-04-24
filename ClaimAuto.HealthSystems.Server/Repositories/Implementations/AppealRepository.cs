@@ -20,7 +20,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var query = _context.Appeals.AsQueryable();
 
-            var staffRoles = new[] { "Admin", "ClaimsProcessor", "FraudAnalyst", "PaymentOfficer" };
+            var staffRoles = new[] { "Admin", "InsuranceStaff" };
             if (!staffRoles.Contains(role))
             {
                 query = query.Where(a => a.FiledBy == userId);
@@ -58,7 +58,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 await _context.SaveChangesAsync();
 
                 // Step 2 — Auto-create Task for staff
-                var staffRoles = new[] { "ClaimsProcessor", "Admin" };
+                var staffRoles = new[] { "InsuranceStaff", "Admin" };
                 var staffUser = await _context.Users
     .FirstOrDefaultAsync(u =>
         (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)

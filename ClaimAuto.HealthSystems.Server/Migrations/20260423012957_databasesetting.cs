@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     /// <inheritdoc />
-    public partial class mgr11 : Migration
+    public partial class databasesetting : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -51,7 +51,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                 {
                     PolicyID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    PlanCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    PlanCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     PlanName = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
                     CoverageRulesJSON = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DeductibleAmount = table.Column<decimal>(type: "decimal(12,2)", nullable: true),
@@ -74,9 +74,13 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Role = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Email = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     Department = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     MFAEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    MFASecretKey = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    MFACodeExpiry = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    MFAFailedAttempts = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
@@ -183,7 +187,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         column: x => x.GeneratedBy,
                         principalTable: "Users",
                         principalColumn: "UserID",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -493,7 +497,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     NotificationID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UserID = table.Column<int>(type: "int", nullable: false),
-                    ClaimID = table.Column<int>(type: "int", nullable: false),
+                    ClaimID = table.Column<int>(type: "int", nullable: true),
                     Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Category = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Severity = table.Column<string>(type: "nvarchar(max)", nullable: false),
@@ -509,7 +513,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         column: x => x.ClaimID,
                         principalTable: "Claims",
                         principalColumn: "ClaimID",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Notifications_Users_UserID",
                         column: x => x.UserID,
@@ -782,8 +786,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                 name: "IX_Policies_PlanCode",
                 table: "Policies",
                 column: "PlanCode",
-                unique: true,
-                filter: "[PlanCode] IS NOT NULL");
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Reconciliations_PerformedByID",

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260409110602_JWTsettedup")]
-    partial class JWTsettedup
+    [Migration("20260423012957_databasesetting")]
+    partial class databasesetting
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -945,8 +945,18 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<DateTime?>("MFACodeExpiry")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("MFAEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<int>("MFAFailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MFASecretKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("Name")
                         .IsRequired()

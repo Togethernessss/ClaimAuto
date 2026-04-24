@@ -86,8 +86,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
             }
 
+            var systemUserId = await _db.Users
+                .Where(u => u.Role == UserRole.Admin && u.Status == AccountStatus.Active)
+                .Select(u => u.UserID)
+                .FirstOrDefaultAsync();
+
             var audit = new AuditLog
             {
+                UserID = systemUserId > 0 ? systemUserId : claim.ProviderID,
                 Action = "AutoAdjudicate",
                 ResourceType = "Claim",
                 ResourceID = claimId.ToString(),
