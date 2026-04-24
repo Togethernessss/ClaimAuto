@@ -17,9 +17,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _memberRepo = memberRepo;
         }
 
-        // ── GET /api/members ─────────────────────────────────────────────
-        // Returns all members with optional filters
-        // Example: /api/members?policyId=1&status=Active
+        
         [HttpGet]
         public async Task<IActionResult> GetAllMembers(
             [FromQuery] int? policyId,
@@ -29,8 +27,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(members);
         }
 
-        // ── GET /api/members/{id} ────────────────────────────────────────
-        // Returns single member with PolicyName resolved
+        
         [HttpGet("{id}")]
         public async Task<IActionResult> GetMemberById(int id)
         {
@@ -40,9 +37,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(member);
         }
 
-        // ── GET /api/members/{id}/eligibility ────────────────────────────
-        // Checks eligibility with TTL-based caching (300 seconds)
-        // Returns cached result if within TTL, otherwise runs fresh check
+        
+        
         [HttpGet("{id}/eligibility")]
         public async Task<IActionResult> CheckEligibility(int id)
         {
@@ -52,9 +48,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
-        // ── POST /api/members ────────────────────────────────────────────
-        // Creates a new member under a policy
-        // Validates: PolicyID must exist, MemberNumber must be unique
+        
         [HttpPost]
         public async Task<IActionResult> CreateMember([FromBody] CreateMemberDto dto)
         {
@@ -80,9 +74,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetMemberById), new { id = created.MemberID }, created);
         }
 
-        // ── PUT /api/members/{id} ────────────────────────────────────────
-        // Updates only mutable fields: Name, ContactInfoJSON, CoverageEnd, Status
-        // DOB, Gender, PolicyID cannot be changed after creation
+        /
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateMember(int id, [FromBody] UpdateMemberDto dto)
         {

@@ -54,7 +54,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             var jwtKey = builder.Configuration["Jwt:Key"]!;
 
-            builder.Services.AddAuthentication(options =>
+            builder.Services.AddAuthentication(options =>//Configure jwt authentication
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;

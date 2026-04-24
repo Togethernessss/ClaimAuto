@@ -198,9 +198,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .AnyAsync(m => m.MemberNumber == memberNumber);
         }
 
-        // ══════════════════════════════════════════════════════════════════
-        //  CREATE MEMBER — enroll under a policy
-        // ══════════════════════════════════════════════════════════════════
+        
         public async Task<MemberResponseDto?> CreateMemberAsync(CreateMemberDto dto, int createdByUserId)
         {
             // Validate that the Policy exists and is active
@@ -260,9 +258,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        // ══════════════════════════════════════════════════════════════════
-        //  UPDATE MEMBER — only mutable fields
-        // ══════════════════════════════════════════════════════════════════
+       
         public async Task<MemberResponseDto?> UpdateMemberAsync(int memberId, UpdateMemberDto dto, int updatedByUserId)
         {
             var member = await _db.Members
@@ -351,19 +347,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        // ══════════════════════════════════════════════════════════════════
-        //  PRIVATE HELPERS — calculate benefit and deductible values
-        // ══════════════════════════════════════════════════════════════════
 
         private decimal ExtractRemainingBenefitFromCache(string? resultJson)
         {
-            // Safely parse RemainingBenefit from stored JSON string
-            // Example JSON: {"IsEligible":true,"RemainingBenefit":95000,"DeductibleMet":5000}
+           
             if (string.IsNullOrEmpty(resultJson)) return 0m;
 
             try
             {
-                // Find "RemainingBenefit": and read the number after it
+                
                 var key = "\"RemainingBenefit\":";
                 var start = resultJson.IndexOf(key);
                 if (start == -1) return 0m;
@@ -383,7 +375,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         private decimal ExtractDeductibleMetFromCache(string? resultJson)
         {
-            // Same pattern — parse DeductibleMet from stored JSON string
+           
             if (string.IsNullOrEmpty(resultJson)) return 0m;
 
             try

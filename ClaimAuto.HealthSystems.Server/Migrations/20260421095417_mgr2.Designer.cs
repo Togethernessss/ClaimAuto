@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260405192826_mgr12")]
-    partial class mgr12
+    [Migration("20260421095417_mgr2")]
+    partial class mgr2
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -345,6 +345,50 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("ClaimLines");
                 });
 
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimTasks", b =>
+                {
+                    b.Property<int>("TaskID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TaskID"));
+
+                    b.Property<int>("AssignedTo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClaimID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("TaskID");
+
+                    b.HasIndex("AssignedTo");
+
+                    b.HasIndex("ClaimID");
+
+                    b.ToTable("Tasks");
+                });
+
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.EligibilityCheck", b =>
                 {
                     b.Property<int>("CheckID")
@@ -557,7 +601,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ClaimID")
+                    b.Property<int?>("ClaimID")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -670,6 +714,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<string>("PlanCode")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -685,8 +730,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("PolicyID");
 
                     b.HasIndex("PlanCode")
-                        .IsUnique()
-                        .HasFilter("[PlanCode] IS NOT NULL");
+                        .IsUnique();
 
                     b.ToTable("Policies");
                 });
@@ -881,50 +925,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("Subrogations");
                 });
 
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Tasks", b =>
-                {
-                    b.Property<int>("TaskID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TaskID"));
-
-                    b.Property<int>("AssignedTo")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ClaimID")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("TaskID");
-
-                    b.HasIndex("AssignedTo");
-
-                    b.HasIndex("ClaimID");
-
-                    b.ToTable("Tasks");
-                });
-
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.User", b =>
                 {
                     b.Property<int>("UserID")
@@ -945,13 +945,27 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<DateTime?>("MFACodeExpiry")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("MFAEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<int>("MFAFailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MFASecretKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
@@ -1095,6 +1109,25 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Navigation("Claim");
                 });
 
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimTasks", b =>
+                {
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "AssignedToUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedTo")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Claim", "Claim")
+                        .WithMany("Tasks")
+                        .HasForeignKey("ClaimID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedToUser");
+
+                    b.Navigation("Claim");
+                });
+
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.EligibilityCheck", b =>
                 {
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Member", "Member")
@@ -1167,8 +1200,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Claim", "Claim")
                         .WithMany("Notifications")
                         .HasForeignKey("ClaimID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "User")
                         .WithMany()
@@ -1226,7 +1258,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "GeneratedByUser")
                         .WithMany()
                         .HasForeignKey("GeneratedBy")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("GeneratedByUser");
@@ -1250,25 +1282,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasForeignKey("ClaimID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Claim");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Tasks", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "AssignedToUser")
-                        .WithMany()
-                        .HasForeignKey("AssignedTo")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Claim", "Claim")
-                        .WithMany("Tasks")
-                        .HasForeignKey("ClaimID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("AssignedToUser");
 
                     b.Navigation("Claim");
                 });

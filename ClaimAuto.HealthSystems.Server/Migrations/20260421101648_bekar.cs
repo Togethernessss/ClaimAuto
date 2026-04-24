@@ -5,7 +5,7 @@
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     /// <inheritdoc />
-    public partial class mgr12 : Migration
+    public partial class bekar : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

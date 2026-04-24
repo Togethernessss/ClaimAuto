@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
-    public class ClaimRepository : IClaimRepository
+    public class ClaimRepository : IClaimRepository//Db context injected through constructor
     {
         private readonly ApplicationDbContext _db;
 

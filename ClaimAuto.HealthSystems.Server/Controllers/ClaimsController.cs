@@ -7,12 +7,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [ApiController]
     [Route("api/claims")]
-    [Authorize]
-    public class ClaimsController : BaseController
+    [Authorize]//filters
+    public class ClaimsController : BaseController//Abstract base class providing jwt helpers that al controller use
     {
         private readonly IClaimRepository _claimRepo;
 
-        public ClaimsController(IClaimRepository claimRepo)
+        public ClaimsController(IClaimRepository claimRepo)//constructor DI
         {
             _claimRepo = claimRepo;
         }
@@ -41,7 +41,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> SubmitClaim([FromBody] CreateClaimDto dto)
         {
-            var userId = GetLoggedInUserId();
+            var userId = GetLoggedInUserId();//from BaseController
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 

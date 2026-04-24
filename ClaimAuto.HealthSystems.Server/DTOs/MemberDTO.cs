@@ -48,6 +48,6 @@
         public bool PreAuthRequired { get; set; }
         public DateTime CheckedAt { get; set; }
         public string Source { get; set; } = string.Empty;      // "RealTimeAPI","Cached","Manual"
-        public int? TTL { get; set; }                            // cache validity in seconds
+        public int? TTL { get; set; }                            // cache validity in seconds(how long this result shoulf be considered valid)                        
     }
 }
