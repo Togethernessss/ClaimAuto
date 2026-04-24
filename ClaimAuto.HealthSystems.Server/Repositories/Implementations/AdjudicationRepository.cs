@@ -124,8 +124,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             ManualAdjudicateDto dto, int performedByUserId)
         {
             var claim = await _db.Claims
-                .Include(c => c.ClaimLines)
-                .FirstOrDefaultAsync(c => c.ClaimID == dto.ClaimID);
+                        .Include(c => c.ClaimLines)
+                        .Include(c => c.Member)
+                        .Include(c => c.Provider)
+                        .Include(c => c.Policy)
+                        .FirstOrDefaultAsync(c => c.ClaimID == dto.ClaimID);
 
             if (claim == null) return null;
 

@@ -10,7 +10,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [ApiController]
     [Route("api/tasks")]
-    [Authorize(Roles = "Admin,ClaimsProcessor,FraudAnalyst,PaymentOfficer")]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
     public class TasksController : ControllerBase
     {
         private readonly ITaskRepository _taskRepo;

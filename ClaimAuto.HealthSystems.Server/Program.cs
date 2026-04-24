@@ -14,16 +14,16 @@ namespace ClaimAuto.HealthSystems.Server
     {
         public static async Task Main(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var builder = WebApplication.CreateBuilder(args);//Create a WebApplicationBuilder instance to configure the application and its services.
 
             // Add services to the container.
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration
                 .GetConnectionString("DBConnection")));
 
-            // Register Repository with DI
+            
             // Scoped means one instance per HTTP request
-            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();//Added this line to register IUserRepository with its implementation UserRepository
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
             builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
@@ -42,7 +42,7 @@ namespace ClaimAuto.HealthSystems.Server
 
 
 
-            builder.Services.AddControllers()
+            builder.Services.AddControllers()//Added this line to register controllers with the dependency injection container, enabling the application to handle HTTP requests using controller classes.
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.ReferenceHandler =
@@ -56,8 +56,8 @@ namespace ClaimAuto.HealthSystems.Server
 
             builder.Services.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;//Added this line to set the default authentication, which means that the application will use JWT tokens for authentication by default.
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme; //Added this line to set the default challenge scheme, which means that if authentication fails, the application will challenge the client using JWT tokens.
             })
             .AddJwtBearer(options =>
             {
@@ -111,29 +111,28 @@ namespace ClaimAuto.HealthSystems.Server
                 });
             });
 
-            var app = builder.Build();
+            var app = builder.Build();//Build the application using the configured services and middleware.
 
-            // ── Seed Data ─────────────────────────────────────
-            await DbSeeder.SeedAsync(app);
-            // ──────────────────────────────────────────────────
 
-            app.UseDefaultFiles();
-            app.UseStaticFiles();
+            await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
+        
 
-            if (app.Environment.IsDevelopment())
+           
+
+            if (app.Environment.IsDevelopment())//Added this condition to check if the application is running in the development environment, and if so, it enables Swagger for API documentation and testing.
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwagger();//Added this line to enable the generation of Swagger documentation for the API, which allows developers to understand and interact with the API endpoints.
+                app.UseSwaggerUI();//Added this line to enable the Swagger UI, which provides a user-friendly interface for testing and exploring the API endpoints defined in the Swagger documentation.
             }
 
-            app.UseAuthentication();
+            app.UseAuthentication();//Added this line to enable authentication middleware, which allows the application to authenticate users based on the configured authentication scheme (in this case, JWT tokens).
             app.UseAuthorization();
 
             app.MapControllers();
 
-            app.MapFallbackToFile("/index.html");
+            app.MapFallbackToFile("/index.html");//Added this line to configure a fallback route that serves the index.html file for any requests that do not match existing routes, which is useful for single-page applications (SPAs) that rely on client-side routing.
 
-            app.Run();
+            app.Run();//Added this line to start the application and listen for incoming HTTP requests, effectively running the web server and making the API available to clients.
         }
     }
 }

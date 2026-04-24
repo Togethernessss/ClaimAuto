@@ -1,8 +1,6 @@
 ﻿namespace ClaimAuto.HealthSystems.Server.DTOs
 {
-    public class AuditLogDTO
-    {
-    }
+    
     // ── AuditLogResponseDto 
     public class AuditLogResponseDto
     {

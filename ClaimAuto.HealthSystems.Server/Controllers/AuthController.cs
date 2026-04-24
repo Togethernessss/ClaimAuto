@@ -1,15 +1,15 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+﻿using System.IdentityModel.Tokens.Jwt;// for JwtSecurityToken, JwtSecurityTokenHandler, etc.
+using System.Security.Claims;// for Claim, ClaimTypes, etc.
+using System.Text;// for Encoding.UTF8.GetBytes, etc.
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Repositories;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;// for [Authorize] attribute
+using Microsoft.AspNetCore.Mvc;// for ControllerBase, ApiController, Route, HttpPost, etc.
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.Tokens;// for SymmetricSecurityKey, SigningCredentials, TokenValidationParameters, etc.
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -34,9 +34,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _totpService = totpService;
         }
 
-        // ──────────────────────────────────────────────────────────
+    
         // POST: api/auth/register  (unchanged from your current code)
-        // ──────────────────────────────────────────────────────────
+   
         [HttpPost("register")]
         public async Task<ActionResult<UserResponseDto>> Register(CreateUserDto dto)
         {
@@ -97,14 +97,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = user.MFAEnabled,
                 Status = user.Status.ToString(),
                 CreatedAt = user.CreatedAt
-            });
+            }); // 201 Created with user details (excluding password)
         }
 
-        // ──────────────────────────────────────────────────────────
+       
         // POST: api/auth/login
         // If MFA enabled → returns mfaToken (user must call verify-mfa)
         // If MFA disabled → returns JWT directly
-        // ──────────────────────────────────────────────────────────
+      
         [HttpPost("login")]
         public async Task<ActionResult> Login(LoginDto dto)
         {
@@ -117,7 +117,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
             if (!isPasswordValid)
-                return Unauthorized("Invalid email or password.");
+                return Unauthorized("Invalid email or password.");// Status code 401 with message
 
             // ── MFA required ────────────────────────────────────
             if (user.MFAEnabled && !string.IsNullOrEmpty(user.MFASecretKey))
@@ -148,7 +148,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            // ── No MFA — issue JWT directly ─────────────────────
+            //No MFA — issue JWT directly 
             string token = GenerateJwtToken(user);
 
             _context.AuditLogs.Add(new AuditLog
@@ -181,10 +181,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // ──────────────────────────────────────────────────────────
+ 
         // POST: api/auth/verify-mfa
         // Step 2 of login — verify TOTP code from Authenticator app
-        // ──────────────────────────────────────────────────────────
+      
         [HttpPost("verify-mfa")]
         public async Task<ActionResult> VerifyMfa(VerifyMfaDto dto)
         {
@@ -226,7 +226,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return Unauthorized($"Invalid verification code. {remaining} attempt(s) remaining.");
             }
 
-            // ── Code verified — clear lockout and issue JWT ─────
+            //Code verified — clear lockout and issue JWT
             user.MFAFailedAttempts = 0;
             user.MFACodeExpiry = null;
             user.UpdatedAt = DateTime.UtcNow;
@@ -264,11 +264,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // ──────────────────────────────────────────────────────────
+
         // POST: api/auth/mfa/setup  [Authorized]
         // Generates a TOTP secret and returns QR code URI
         // User must be logged in to set up MFA
-        // ──────────────────────────────────────────────────────────
+
         [Authorize]
         [HttpPost("mfa/setup")]
         public async Task<ActionResult<MfaSetupResponseDto>> SetupMfa()
@@ -309,10 +309,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // ──────────────────────────────────────────────────────────
+     
         // POST: api/auth/mfa/confirm  [Authorized]
         // User enters 6-digit code from Authenticator to confirm setup
-        // ──────────────────────────────────────────────────────────
+      
         [Authorize]
         [HttpPost("mfa/confirm")]
         public async Task<ActionResult> ConfirmMfa(MfaConfirmDto dto)
@@ -332,7 +332,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!_totpService.VerifyCode(user.MFASecretKey, dto.Code))
                 return BadRequest("Invalid code. Make sure you scanned the correct QR code and try again.");
 
-            // ── Code valid — activate MFA ────────────────────────
+            //Code valid — activate MFA
             user.MFAEnabled = true;
             user.MFAFailedAttempts = 0;
             user.MFACodeExpiry = null;
@@ -352,10 +352,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(new { Message = "MFA has been enabled successfully. You will need your Authenticator app for future logins." });
         }
 
-        // ──────────────────────────────────────────────────────────
+        
         // POST: api/auth/mfa/disable  [Authorized]
         // Disables MFA for the logged-in user (requires current TOTP code)
-        // ──────────────────────────────────────────────────────────
+   
         [Authorize]
         [HttpPost("mfa/disable")]
         public async Task<ActionResult> DisableMfa(MfaConfirmDto dto)
@@ -393,8 +393,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(new { Message = "MFA has been disabled." });
         }
 
-        // ── Private Helpers ─────────────────────────────────────
-
+        //Private Helpers
         private string GenerateMfaToken(User user)
         {
             var jwtKey = _configuration["Jwt:Key"]!;
@@ -436,9 +435,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
                 };
 
-                var principal = tokenHandler.ValidateToken(mfaToken, parameters, out _);
+                var principal = tokenHandler.ValidateToken(mfaToken, parameters, out _);//ValidateToken -> returns ClaimsPrincipal
 
-                if (principal.FindFirst("purpose")?.Value != "mfa_verification")
+                if (principal.FindFirst("purpose")?.Value != "mfa_verification")// Ensure this token is specifically for MFA verification
                     return null;
 
                 var userIdClaim = principal.FindFirst("mfa_user_id")?.Value;
@@ -474,7 +473,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 signingCredentials: credentials
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new JwtSecurityTokenHandler().WriteToken(token);// WriteToken -> serializes the token to a string
         }
     }
 }

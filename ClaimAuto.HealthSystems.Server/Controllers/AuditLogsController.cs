@@ -1,7 +1,7 @@
 ﻿using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;// for ControllerBase, ApiController, Route, HttpGet, etc.
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -19,7 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _auditLogRepository = auditLogRepository;
         }
 
-        // ── GET /api/auditlogs ──────────────────────────────────────────
+        // GET /api/auditlogs 
         // Returns all audit logs — newest first
         // Optional filters via query params:
         //   ?userId=3            → only logs by user ID 3
@@ -43,7 +43,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(logs);
         }
 
-        // ── GET /api/auditlogs/{id} ─────────────────────────────────────
+        // GET /api/auditlogs/{id} 
         // Returns one specific audit log entry by its AuditID
         // Example: GET /api/auditlogs/47
         [HttpGet("{id}")]
