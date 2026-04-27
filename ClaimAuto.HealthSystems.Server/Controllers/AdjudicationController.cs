@@ -71,6 +71,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{claimId}/trace")]
+        public async Task<IActionResult> GetRuleTrace(int claimId)
+        {
+            var trace = await _adjRepo.GetRuleTraceAsync(claimId);
+
+            if (trace == null)
+                return NotFound($"No adjudication record found for Claim {claimId}. " +
+                                $"The claim may not have been adjudicated yet.");
+
+            return Ok(trace);
+        }
+
         [HttpGet("{claimId}")]
         public async Task<IActionResult> GetAdjudication(int claimId) 
         {
@@ -82,18 +94,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                                 $"The claim may not have been adjudicated yet.");
 
             return Ok(record);
-        }
-
-        [HttpGet("{claimId}/trace")]
-        public async Task<IActionResult> GetRuleTrace(int claimId) 
-        {
-            var trace = await _adjRepo.GetRuleTraceAsync(claimId);
-
-            if (trace == null)
-                return NotFound($"No adjudication record found for Claim {claimId}. " +
-                                $"The claim may not have been adjudicated yet.");
-
-            return Ok(trace);
         }
     }
 }

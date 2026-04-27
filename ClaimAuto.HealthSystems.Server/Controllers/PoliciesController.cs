@@ -18,7 +18,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _policyRepo = policyRepo;
         }
 
-        // ── GET /api/policies/active ─────────────────────────────────────────────
+
         [HttpGet("active")]
         [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         public async Task<IActionResult> GetActivePolicies()
@@ -27,17 +27,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(policies);
         }
 
-        // ── GET /api/policies ────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetAllPolicies()
         {
             var policies = await _policyRepo.GetAllPoliciesAsync();
-            //if (policies == null)
-            //    return StatusCode(500, "Something went wrong fetching policies.");
             return Ok(policies);
         }
 
-        // ── GET /api/policies/{id} ───────────────────────────────────────────────
         [HttpGet("{id}")]
         public async Task<IActionResult> GetPolicyById(int id)
         {
@@ -47,7 +43,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(policy);
         }
 
-        // ── POST /api/policies ───────────────────────────────────────────────────
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreatePolicy([FromBody] CreatePolicyDto dto)
@@ -64,7 +59,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetPolicyById), new { id = created.PolicyID }, created);
         }
 
-        // ── PUT /api/policies/{id} ───────────────────────────────────────────────
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdatePolicy(int id, [FromBody] UpdatePolicyDto dto)
@@ -80,7 +74,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        // ── DELETE /api/policies/{id} ────────────────────────────────────────────
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeactivatePolicy(int id)

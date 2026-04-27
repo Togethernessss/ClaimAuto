@@ -6,8 +6,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
     {
         Task<AdjudicationResponseDto?> AutoAdjudicateAsync(int claimId);
 
-        Task<AdjudicationResponseDto?> ManualAdjudicateAsync(
-            ManualAdjudicateDto dto, int performedByUserId);
+        Task<AdjudicationResponseDto?> ManualAdjudicateAsync(ManualAdjudicateDto dto, int performedByUserId);
 
         Task<AdjudicationResponseDto?> GetAdjudicationAsync(int claimId);
 

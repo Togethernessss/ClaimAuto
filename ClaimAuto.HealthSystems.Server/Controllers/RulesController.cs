@@ -9,7 +9,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {
     [ApiController]
     [Route("api/rules")]
-    [Authorize(Roles = "Admin")]   // Admin only — manages business rules
+    [Authorize(Roles = "Admin")]
     public class RulesController : BaseController
     {
         private readonly IRuleRepository _ruleRepo;
@@ -19,8 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _ruleRepo = ruleRepo;
         }
 
-        // GET /api/rules
-        // Returns all rules. Filter by Status, RuleType.
+
         [HttpGet]
         public async Task<IActionResult> GetAllRules(
             [FromQuery] string? status,
@@ -30,8 +29,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(rules);
         }
 
-        // GET /api/rules/{id}
-        // Returns single rule with full details.
         [HttpGet("{id}")]
         public async Task<IActionResult> GetRuleById(int id) 
         {
@@ -43,10 +40,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(rule);
         }
 
-        // POST /api/rules
-        // Creates a new rule. Starts as Draft.
-        // Version = 1. CreatedBy from JWT token.
-        // Uses ACID transaction.
         [HttpPost]
         public async Task<IActionResult> CreateRule(
             [FromBody] CreateRuleDto dto)
@@ -67,9 +60,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 created);
         }
 
-        // PUT /api/rules/{id}
-        // Updates a rule. Auto-increments Version.
-        // Old version preserved in database for audit.
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateRule(int id,
             [FromBody] UpdateRuleDto dto)
@@ -86,9 +76,25 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        // PUT /api/rules/{id}/deactivate
-        // Changes Status from Draft/Inactive to Active.
-        // Rule starts being used in adjudication immediately.
+        [HttpPut("{id}/activate")]
+        public async Task<IActionResult> ActivateRule(int id)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            var result = await _ruleRepo.ActivateRuleAsync(id, userId.Value);
+
+            return result switch
+            {
+                "ok" => Ok($"Rule {id} has been activated. " +
+                                      $"The adjudication engine will now use this rule."),
+                "notfound" => NotFound($"Rule with ID {id} was not found."),
+                "alreadyactive" => BadRequest($"Rule {id} is already Active."),
+                _ => StatusCode(500, "Unexpected error during activation.")
+            };
+        }
+
         [HttpPut("{id}/deactivate")]
         public async Task<IActionResult> DeactivateRule(int id) 
         {
@@ -110,35 +116,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
         }
 
-        // PUT /api/rules/{id}/activate
-        // Changes Status to Inactive.
-        // Rule stops being used in adjudication immediately.
-        [HttpPut("{id}/activate")]
-        public async Task<IActionResult> ActivateRule(int id)
-        {
-            var userId = GetLoggedInUserId();
-            if (userId == null)
-                return Unauthorized("Invalid token — user ID claim missing.");
-
-            var result = await _ruleRepo.ActivateRuleAsync(id, userId.Value);
-
-            // Map result string → correct HTTP response
-            return result switch
-            {
-                "ok" => Ok($"Rule {id} has been activated. " +
-                                      $"The adjudication engine will now use this rule."),
-                "notfound" => NotFound($"Rule with ID {id} was not found."),
-                "alreadyactive" => BadRequest($"Rule {id} is already Active."),
-                _ => StatusCode(500, "Unexpected error during activation.")
-            };
-
-            // HTTP 200 OK → "Rule 6 has been activated. The adjudication engine will now use this rule."
-            // HTTP 404     → "Rule with ID 99 was not found."
-            // HTTP 400     → "Rule 6 is already Active."
-        }
-
-        // DELETE /api/rules/{id}
-        // Only allowed for Draft rules that have never been activated.
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteRule(int id) 
         {

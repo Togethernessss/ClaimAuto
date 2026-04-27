@@ -13,7 +13,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private readonly AdjudicationService _engine;
         private readonly INotificationRepository _notificationRepo;
 
-
         public AdjudicationRepository(
             ApplicationDbContext db, 
             AdjudicationService engine,
@@ -72,7 +71,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 AdjDecision.Paid => ClaimStatus.Adjudicated,
                 AdjDecision.Denied => ClaimStatus.Rejected,
                 AdjDecision.Partial => ClaimStatus.Adjudicated,
-                AdjDecision.PendingReview => ClaimStatus.Submitted, // stays in queue
+                AdjDecision.PendingReview => ClaimStatus.Submitted,
                 _ => claim.Status
             };
 
@@ -255,6 +254,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PerformedByName = record.PerformedBy?.Name ?? "System (Auto)"
             };
         }
+
         public async Task<List<RuleTraceDto>?> GetRuleTraceAsync(int claimId)
         {
             var record = await _db.AdjudicationRecords
