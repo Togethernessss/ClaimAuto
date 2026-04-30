@@ -15,7 +15,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class UsersController : BaseController
     {
 
-        // ✅ Now depends on the INTERFACE — not the database directly
+        //Now depends on the INTERFACE — not the database directly
         private readonly IUserRepository _userRepository;
 
         public UsersController(IUserRepository userRepository)

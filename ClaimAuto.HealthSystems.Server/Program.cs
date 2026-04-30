@@ -39,6 +39,8 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IFraudRepository, FraudRepository>();
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+            builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+
 
 
 
