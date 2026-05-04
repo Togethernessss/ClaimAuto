@@ -1,15 +1,8 @@
-﻿using System.IdentityModel.Tokens.Jwt;// for JwtSecurityToken, JwtSecurityTokenHandler, etc.
-using System.Security.Claims;// for Claim, ClaimTypes, etc.
-using System.Text;// for Encoding.UTF8.GetBytes, etc.
-using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
-using ClaimAuto.HealthSystems.Server.Repositories;
-using Microsoft.AspNetCore.Authorization;// for [Authorize] attribute
-using Microsoft.AspNetCore.Mvc;// for ControllerBase, ApiController, Route, HttpPost, etc.
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;// for SymmetricSecurityKey, SigningCredentials, TokenValidationParameters, etc.
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -17,74 +10,47 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [Route("api/auth")]
     public class AuthController : BaseController
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IConfiguration _configuration;
-        private readonly ITotpRepository _totpService;
+        private readonly IAuthRepository _auth;
+        private readonly IConfiguration _config;
+        private readonly ITotpRepository _totp;
 
+        // Display-only constants used in user-facing error messages.
+        // Authoritative values live in AuthRepository.
         private const int MAX_MFA_ATTEMPTS = 5;
         private const int LOCKOUT_MINUTES = 15;
 
         public AuthController(
-            ApplicationDbContext context,
-            IConfiguration configuration,
-            ITotpRepository totpService)
+            IAuthRepository auth,
+            IConfiguration config,
+            ITotpRepository totp)
         {
-            _context = context;
-            _configuration = configuration;
-            _totpService = totpService;
+            _auth = auth;
+            _config = config;
+            _totp = totp;
         }
 
-    
-        // POST: api/auth/register  (unchanged from your current code)
-   
+        // POST: api/auth/register
         [HttpPost("register")]
         public async Task<ActionResult<UserResponseDto>> Register(CreateUserDto dto)
         {
-            bool emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
-            if (emailExists)
+            if (await _auth.EmailExistsAsync(dto.Email))
                 return Conflict("A user with this email already exists.");
 
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
                 return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
-
-            string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
             var user = new User
             {
                 Name = dto.Name,
                 Role = role,
                 Email = dto.Email,
-                PasswordHash = passwordHash,
                 Phone = dto.Phone,
-                Department = dto.Department,
-                MFAEnabled = false, // MFA is enabled only after setup + confirm
-                Status = AccountStatus.Active,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                Department = dto.Department
+                // PasswordHash, MFAEnabled, Status, CreatedAt, UpdatedAt
+                // are populated inside AuthRepository.RegisterUserAsync
             };
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
-
-                _context.AuditLogs.Add(new AuditLog
-                {
-                    UserID = user.UserID,
-                    Action = "Register",
-                    ResourceType = "User",
-                    ResourceID = user.UserID.ToString(),
-                    Timestamp = DateTime.UtcNow
-                });
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            user = await _auth.RegisterUserAsync(user, dto.Password);
 
             return CreatedAtAction(nameof(Register), new UserResponseDto
             {
@@ -97,48 +63,32 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = user.MFAEnabled,
                 Status = user.Status.ToString(),
                 CreatedAt = user.CreatedAt
-            }); // 201 Created with user details (excluding password)
+            });
         }
 
-       
         // POST: api/auth/login
         // If MFA enabled → returns mfaToken (user must call verify-mfa)
         // If MFA disabled → returns JWT directly
-      
         [HttpPost("login")]
         public async Task<ActionResult> Login(LoginDto dto)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+            var user = await _auth.GetUserByEmailAsync(dto.Email);
             if (user == null)
                 return Unauthorized("Invalid email or password.");
 
             if (user.Status != AccountStatus.Active)
                 return Unauthorized("Account is inactive. Contact admin.");
 
-            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-            if (!isPasswordValid)
-                return Unauthorized("Invalid email or password.");// Status code 401 with message
+            if (!_auth.VerifyPassword(dto.Password, user.PasswordHash))
+                return Unauthorized("Invalid email or password.");
 
-            // ── MFA required ────────────────────────────────────
+            // MFA required — issue intermediate token (10 min)
             if (user.MFAEnabled && !string.IsNullOrEmpty(user.MFASecretKey))
             {
-                // Reset failed attempts on fresh login
-                user.MFAFailedAttempts = 0;
-                user.MFACodeExpiry = null;
-                user.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await _auth.ResetMfaFailedAttemptsAsync(user.UserID);
 
-                string mfaToken = GenerateMfaToken(user);
-
-                _context.AuditLogs.Add(new AuditLog
-                {
-                    UserID = user.UserID,
-                    Action = "LoginMFARequired",
-                    ResourceType = "User",
-                    ResourceID = user.UserID.ToString(),
-                    Timestamp = DateTime.UtcNow
-                });
-                await _context.SaveChangesAsync();
+                var mfaToken = _auth.GenerateMfaToken(user);
+                await _auth.LogAuthActionAsync(user.UserID, "LoginMFARequired");
 
                 return Ok(new MfaLoginResponseDto
                 {
@@ -148,24 +98,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            //No MFA — issue JWT directly 
-            string token = GenerateJwtToken(user);
-
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = user.UserID,
-                Action = "Login",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+            // No MFA — issue real JWT directly
+            var token = _auth.GenerateJwtToken(user);
+            await _auth.LogAuthActionAsync(user.UserID, "Login");
 
             return Ok(new
             {
                 Token = token,
                 Expiration = DateTime.UtcNow.AddMinutes(
-                    Convert.ToDouble(_configuration["Jwt:ExpireMinutes"])),
+                    Convert.ToDouble(_config["Jwt:ExpireMinutes"])),
                 User = new UserResponseDto
                 {
                     UserID = user.UserID,
@@ -181,43 +122,36 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
- 
         // POST: api/auth/verify-mfa
         // Step 2 of login — verify TOTP code from Authenticator app
-      
         [HttpPost("verify-mfa")]
         public async Task<ActionResult> VerifyMfa(VerifyMfaDto dto)
         {
-            int? userId = ValidateMfaToken(dto.MfaToken);
+            int? userId = _auth.ValidateMfaToken(dto.MfaToken);
             if (userId == null)
                 return Unauthorized("Invalid or expired MFA token. Please login again.");
 
-            var user = await _context.Users.FindAsync(userId.Value);
+            var user = await _auth.GetUserByIdAsync(userId.Value);
             if (user == null)
                 return Unauthorized("User not found.");
 
-            // Check lockout
+            // Active lockout
+            if (await _auth.IsLockedOutAsync(user))
+                return Unauthorized($"Account temporarily locked due to too many failed attempts. Try again after {LOCKOUT_MINUTES} minutes.");
+
+            // Lockout expired — reset counters so the user gets fresh attempts
             if (user.MFAFailedAttempts >= MAX_MFA_ATTEMPTS)
             {
-                if (user.MFACodeExpiry != null && user.MFACodeExpiry > DateTime.UtcNow)
-                    return Unauthorized($"Account temporarily locked due to too many failed attempts. Try again after {LOCKOUT_MINUTES} minutes.");
-
-                // Lockout expired — reset
+                await _auth.ClearLockoutAsync(user.UserID);
                 user.MFAFailedAttempts = 0;
                 user.MFACodeExpiry = null;
             }
 
             // Verify TOTP code
             if (string.IsNullOrEmpty(user.MFASecretKey) ||
-                !_totpService.VerifyCode(user.MFASecretKey, dto.Code))
+                !_totp.VerifyCode(user.MFASecretKey, dto.Code))
             {
-                user.MFAFailedAttempts++;
-
-                // Set lockout window if max attempts reached
-                if (user.MFAFailedAttempts >= MAX_MFA_ATTEMPTS)
-                    user.MFACodeExpiry = DateTime.UtcNow.AddMinutes(LOCKOUT_MINUTES);
-
-                await _context.SaveChangesAsync();
+                await _auth.RecordFailedMfaAttemptAsync(user);
 
                 int remaining = MAX_MFA_ATTEMPTS - user.MFAFailedAttempts;
                 if (remaining <= 0)
@@ -226,29 +160,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return Unauthorized($"Invalid verification code. {remaining} attempt(s) remaining.");
             }
 
-            //Code verified — clear lockout and issue JWT
-            user.MFAFailedAttempts = 0;
-            user.MFACodeExpiry = null;
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            string token = GenerateJwtToken(user);
-
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = user.UserID,
-                Action = "MFAVerified",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+            // Code verified — clear lockout and issue real JWT
+            await _auth.ClearLockoutAsync(user.UserID);
+            var token = _auth.GenerateJwtToken(user);
+            await _auth.LogAuthActionAsync(user.UserID, "MFAVerified");
 
             return Ok(new
             {
                 Token = token,
                 Expiration = DateTime.UtcNow.AddMinutes(
-                    Convert.ToDouble(_configuration["Jwt:ExpireMinutes"])),
+                    Convert.ToDouble(_config["Jwt:ExpireMinutes"])),
                 User = new UserResponseDto
                 {
                     UserID = user.UserID,
@@ -264,42 +185,23 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-
         // POST: api/auth/mfa/setup  [Authorized]
-        // Generates a TOTP secret and returns QR code URI
-        // User must be logged in to set up MFA
-
+        // Generates a TOTP secret and returns a QR code URI to scan
         [Authorize]
         [HttpPost("mfa/setup")]
         public async Task<ActionResult<MfaSetupResponseDto>> SetupMfa()
         {
-            var userId = GetLoggedInUserId();
-            var user = await _context.Users.FindAsync(userId);
+            if (GetLoggedInUserId() is not int userId)
+                return Unauthorized("Invalid token.");
+
+            var user = await _auth.GetUserByIdAsync(userId);
             if (user == null)
                 return NotFound("User not found.");
 
             if (user.MFAEnabled && !string.IsNullOrEmpty(user.MFASecretKey))
                 return BadRequest("MFA is already enabled. Disable it first to reconfigure.");
 
-            // Generate new TOTP secret
-            string secretKey = _totpService.GenerateSecretKey();
-            string qrCodeUri = _totpService.GenerateQrCodeUri(secretKey, user.Email);
-
-            // Store secret temporarily (MFA is NOT enabled yet — needs confirm step)
-            user.MFASecretKey = secretKey;
-            user.MFAEnabled = false; // Will be set to true after confirm
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = user.UserID,
-                Action = "MFASetupInitiated",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+            var (secretKey, qrCodeUri) = await _auth.InitiateMfaSetupAsync(userId);
 
             return Ok(new MfaSetupResponseDto
             {
@@ -309,16 +211,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-     
         // POST: api/auth/mfa/confirm  [Authorized]
-        // User enters 6-digit code from Authenticator to confirm setup
-      
+        // User enters 6-digit code from Authenticator to activate MFA
         [Authorize]
         [HttpPost("mfa/confirm")]
         public async Task<ActionResult> ConfirmMfa(MfaConfirmDto dto)
         {
-            var userId = GetLoggedInUserId();
-            var user = await _context.Users.FindAsync(userId);
+            if (GetLoggedInUserId() is not int userId)
+                return Unauthorized("Invalid token.");
+
+            var user = await _auth.GetUserByIdAsync(userId);
             if (user == null)
                 return NotFound("User not found.");
 
@@ -328,152 +230,37 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (user.MFAEnabled)
                 return BadRequest("MFA is already enabled.");
 
-            // Verify the code from Authenticator app
-            if (!_totpService.VerifyCode(user.MFASecretKey, dto.Code))
+            if (!_totp.VerifyCode(user.MFASecretKey, dto.Code))
                 return BadRequest("Invalid code. Make sure you scanned the correct QR code and try again.");
 
-            //Code valid — activate MFA
-            user.MFAEnabled = true;
-            user.MFAFailedAttempts = 0;
-            user.MFACodeExpiry = null;
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = user.UserID,
-                Action = "MFAEnabled",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+            await _auth.ConfirmMfaSetupAsync(userId);
 
             return Ok(new { Message = "MFA has been enabled successfully. You will need your Authenticator app for future logins." });
         }
 
-        
         // POST: api/auth/mfa/disable  [Authorized]
         // Disables MFA for the logged-in user (requires current TOTP code)
-   
         [Authorize]
         [HttpPost("mfa/disable")]
         public async Task<ActionResult> DisableMfa(MfaConfirmDto dto)
         {
-            var userId = GetLoggedInUserId();
-            var user = await _context.Users.FindAsync(userId);
+            if (GetLoggedInUserId() is not int userId)
+                return Unauthorized("Invalid token.");
+
+            var user = await _auth.GetUserByIdAsync(userId);
             if (user == null)
                 return NotFound("User not found.");
 
             if (!user.MFAEnabled)
                 return BadRequest("MFA is not enabled.");
 
-            // Must provide valid TOTP code to disable
             if (string.IsNullOrEmpty(user.MFASecretKey) ||
-                !_totpService.VerifyCode(user.MFASecretKey, dto.Code))
+                !_totp.VerifyCode(user.MFASecretKey, dto.Code))
                 return Unauthorized("Invalid verification code. Cannot disable MFA.");
 
-            user.MFAEnabled = false;
-            user.MFASecretKey = null;
-            user.MFAFailedAttempts = 0;
-            user.MFACodeExpiry = null;
-            user.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = user.UserID,
-                Action = "MFADisabled",
-                ResourceType = "User",
-                ResourceID = user.UserID.ToString(),
-                Timestamp = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync();
+            await _auth.DisableMfaAsync(userId);
 
             return Ok(new { Message = "MFA has been disabled." });
-        }
-
-        //Private Helpers
-        private string GenerateMfaToken(User user)
-        {
-            var jwtKey = _configuration["Jwt:Key"]!;
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-            var claims = new[]
-            {
-                new System.Security.Claims.Claim("mfa_user_id", user.UserID.ToString()),
-                new System.Security.Claims.Claim("purpose", "mfa_verification"),
-                new System.Security.Claims.Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(10),
-                signingCredentials: credentials
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        private int? ValidateMfaToken(string mfaToken)
-        {
-            try
-            {
-                var jwtKey = _configuration["Jwt:Key"]!;
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var parameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = _configuration["Jwt:Issuer"],
-                    ValidAudience = _configuration["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-                };
-
-                var principal = tokenHandler.ValidateToken(mfaToken, parameters, out _);//ValidateToken -> returns ClaimsPrincipal
-
-                if (principal.FindFirst("purpose")?.Value != "mfa_verification")// Ensure this token is specifically for MFA verification
-                    return null;
-
-                var userIdClaim = principal.FindFirst("mfa_user_id")?.Value;
-                return int.TryParse(userIdClaim, out int userId) ? userId : null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private string GenerateJwtToken(User user)
-        {
-            var jwtKey = _configuration["Jwt:Key"]!;
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-            var claims = new[]
-            {
-                new System.Security.Claims.Claim(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
-                new System.Security.Claims.Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new System.Security.Claims.Claim(ClaimTypes.Name, user.Name),
-                new System.Security.Claims.Claim(ClaimTypes.Role, user.Role.ToString()),
-                new System.Security.Claims.Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(
-                    Convert.ToDouble(_configuration["Jwt:ExpireMinutes"])),
-                signingCredentials: credentials
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);// WriteToken -> serializes the token to a string
         }
     }
 }
