@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Middleware;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Services;
@@ -115,6 +116,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();//Build the application using the configured services and middleware.
 
+            app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
 
             await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
         
