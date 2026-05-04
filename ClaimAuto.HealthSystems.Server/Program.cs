@@ -32,6 +32,16 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<AdjudicationService>();
             builder.Services.AddScoped<IAdjudicationRepository, AdjudicationRepository>();
             builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+<<<<<<< Updated upstream
+=======
+            builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+            builder.Services.AddScoped<ITotpRepository, TotpRepository>();
+            builder.Services.AddScoped<IFraudRepository, FraudRepository>();
+            builder.Services.AddScoped<IAppealRepository, AppealRepository>();
+            builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+
+
+>>>>>>> Stashed changes
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
@@ -68,7 +78,7 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddAuthorization();
 
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(options =>
+            builder.Services.AddSwaggerGen(options =>     //Authorize button
             {
                 options.SwaggerDoc("v1", new OpenApiInfo
                 {
@@ -104,11 +114,15 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();
 
+<<<<<<< Updated upstream
             // ── Seed Data 
             await DbSeeder.SeedAsync(app);
 
             app.UseDefaultFiles();
             app.UseStaticFiles();
+=======
+            await DbSeeder.SeedAsync(app);
+>>>>>>> Stashed changes
 
             if (app.Environment.IsDevelopment())
             {

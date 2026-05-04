@@ -1,25 +1,24 @@
 ﻿namespace ClaimAuto.HealthSystems.Server.DTOs
 {
-    // ── GenerateReportDto 
+
     public class GenerateReportDto
     {
         public string Scope { get; set; } = string.Empty;       // "Operational","Regulatory","Financial","Fraud"
         public string? ParametersJSON { get; set; }              // filters — period, region, etc.
     }
 
-    // ── ReportResponseDto 
+
     public class ReportResponseDto
     {
         public int ReportID { get; set; }
         public string Scope { get; set; } = string.Empty;
         public string? ParametersJSON { get; set; }
         public string? MetricsJSON { get; set; }
-        public string GeneratedByName { get; set; } = string.Empty; // resolved
+        public string GeneratedByName { get; set; } = string.Empty; 
         public DateTime GeneratedAt { get; set; }
         public string? ReportURI { get; set; }
     }
 
-    // ── KPIResponseDto 
     public class KPIResponseDto
     {
         public int KPIID { get; set; }
@@ -30,7 +29,6 @@
         public string? ReportingPeriod { get; set; }
     }
 
-    // ── UpdateKPIDto
     public class UpdateKPIDto
     {
         public decimal? Target { get; set; }
@@ -38,7 +36,7 @@
         public string? ReportingPeriod { get; set; }
     }
 
-    // ── AuditPackageResponseDto 
+
     public class AuditPackageResponseDto
     {
         public int PackageID { get; set; }

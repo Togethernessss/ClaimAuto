@@ -1,6 +1,5 @@
 ﻿namespace ClaimAuto.HealthSystems.Server.DTOs
 {
-    // ── CreateNotificationDto
     public class CreateNotificationDto
     {
         public int UserID { get; set; }                          // who receives this
@@ -10,7 +9,6 @@
         public string Severity { get; set; } = string.Empty;    // "Info","Warning","Critical"
     }
 
-    // ── NotificationResponseDto
       public class NotificationResponseDto
     {
         public int NotificationID { get; set; }
