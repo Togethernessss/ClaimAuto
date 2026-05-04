@@ -21,9 +21,8 @@ namespace ClaimAuto.HealthSystems.Server
             options.UseSqlServer(builder.Configuration
                 .GetConnectionString("DBConnection")));
 
-            
-            // Scoped means one instance per HTTP request
-            builder.Services.AddScoped<IUserRepository, UserRepository>();//Added this line to register IUserRepository with its implementation UserRepository
+            // Register Repository with DI
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
             builder.Services.AddScoped<IMemberRepository, MemberRepository>();
             builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
@@ -35,14 +34,12 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
             builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
             builder.Services.AddScoped<ITotpRepository, TotpRepository>();
-
             builder.Services.AddScoped<IFraudRepository, FraudRepository>();
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 
 
-
-            builder.Services.AddControllers()//Added this line to register controllers with the dependency injection container, enabling the application to handle HTTP requests using controller classes.
+            builder.Services.AddControllers()
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.ReferenceHandler =
@@ -113,6 +110,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();//Build the application using the configured services and middleware.
 
+            await DbSeeder.SeedAsync(app);
 
             await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
         

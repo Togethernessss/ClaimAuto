@@ -15,10 +15,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _db = db;
         }
 
+
         public async Task<List<RuleResponseDto>> GetAllRulesAsync(string? status, string? ruleType)
         {
             var query = _db.Rules
-                .Include(r => r.CreatedByUser)  // JOIN Users table to get CreatedByName
+                .Include(r => r.CreatedByUser)
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(status))
@@ -46,13 +47,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ActionExpressionJSON = r.ActionExpressionJSON,
                     Priority = r.Priority,
                     Version = r.Version,
-                    CreatedByName = r.CreatedByUser.Name, // resolved from JOIN
+                    CreatedByName = r.CreatedByUser.Name,
                     CreatedAt = r.CreatedAt,
                     Status = r.Status.ToString()
                 })
                 .ToListAsync();
         }
-
 
         public async Task<RuleResponseDto?> GetRuleByIdAsync(int ruleId)
         {
@@ -74,8 +74,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = r.Status.ToString()
                 })
                 .FirstOrDefaultAsync();
-
         }
+
         public async Task<RuleResponseDto> CreateRuleAsync(CreateRuleDto dto, int createdByUserId)
         {
             if (!Enum.TryParse<RuleType>(dto.RuleType, true, out var ruleType))
@@ -89,10 +89,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ConditionExpressionJSON = dto.ConditionExpressionJSON,
                 ActionExpressionJSON = dto.ActionExpressionJSON,
                 Priority = dto.Priority,
-                Version = 1,                  // server controlled
-                Status = RuleStatus.Draft,   // server controlled
-                CreatedBy = createdByUserId,    // from JWT token
-                CreatedAt = DateTime.UtcNow     // server controlled
+                Version = 1,
+                Status = RuleStatus.Draft,
+                CreatedBy = createdByUserId,
+                CreatedAt = DateTime.UtcNow
             };
 
             _db.Rules.Add(rule);
@@ -102,7 +102,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 UserID = createdByUserId,
                 Action = "CreateRule",
                 ResourceType = "Rule",
-                ResourceID = "PENDING",   // updated after save when we have RuleID
+                ResourceID = "PENDING",
                 DetailsJSON = $"{{\"name\":\"{dto.Name}\"," +
                                $"\"ruleType\":\"{dto.RuleType}\"," +
                                $"\"priority\":{dto.Priority}," +
@@ -130,13 +130,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ConditionExpressionJSON = rule.ConditionExpressionJSON,
                 ActionExpressionJSON = rule.ActionExpressionJSON,
                 Priority = rule.Priority,
-                Version = rule.Version,        // 1
-                CreatedByName = createdByName,       // "Ananya Singh"
+                Version = rule.Version,
+                CreatedByName = createdByName,
                 CreatedAt = rule.CreatedAt,
-                Status = rule.Status.ToString() // "Draft"
+                Status = rule.Status.ToString()
             };
         }
-
 
         public async Task<RuleResponseDto?> UpdateRuleAsync(int ruleId, UpdateRuleDto dto, int updatedByUserId)
         {
@@ -144,7 +143,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (rule == null) return null;
 
             var changes = new List<string>();
-
 
             if (!string.IsNullOrEmpty(dto.Name) && dto.Name != rule.Name)
             {
@@ -231,7 +229,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ConditionExpressionJSON = rule.ConditionExpressionJSON,
                 ActionExpressionJSON = rule.ActionExpressionJSON,
                 Priority = rule.Priority,
-                Version = rule.Version,      // now incremented
+                Version = rule.Version,
                 CreatedByName = createdByName,
                 CreatedAt = rule.CreatedAt,
                 Status = rule.Status.ToString()

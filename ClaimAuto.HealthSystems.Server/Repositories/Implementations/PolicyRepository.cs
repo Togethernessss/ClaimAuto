@@ -81,7 +81,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync();
         }
 
-        // ── CHECK IF PLANCODE EXISTS ─────────────────────────────────────────────
+        // ── CHECK IF PLANCODE EXISTS
         public async Task<bool> PlanCodeExistsAsync(string planCode)
         {
             return await _db.Policies
@@ -100,18 +100,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 OutOfPocketMax = dto.OutOfPocketMax,
                 EffectiveFrom = dto.EffectiveFrom,
                 EffectiveTo = dto.EffectiveTo,
-                Status = PolicyStatus.Active   // server sets this — always Active on creation
+                Status = PolicyStatus.Active
             };
 
             _db.Policies.Add(policy);
-
 
             var audit = new AuditLog
             {
                 UserID = createdByUserId,          
                 Action = "CreatePolicy",
                 ResourceType = "Policy",
-                ResourceID = "PENDING",                // we don't have PolicyID yet — set after save
+                ResourceID = "PENDING",
                 DetailsJSON = $"{{\"planCode\":\"{dto.PlanCode}\",\"planName\":\"{dto.PlanName}\"}}",
                 Timestamp = DateTime.UtcNow
             };
@@ -176,8 +175,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
             if (dto.Status != null)
             {
-                if (Enum.TryParse<PolicyStatus>(dto.Status, out var newStatus)
-                    && newStatus != policy.Status)
+                if (Enum.TryParse<PolicyStatus>(dto.Status, out var newStatus) && newStatus != policy.Status)
                 {
                     changes.Add($"Status: '{policy.Status}' → '{dto.Status}'");
                     policy.Status = newStatus;

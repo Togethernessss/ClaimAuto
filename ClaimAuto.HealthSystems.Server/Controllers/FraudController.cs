@@ -10,7 +10,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/fraud")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
-    public class FraudController : ControllerBase
+    public class FraudController : BaseController
     {
         private readonly IFraudRepository _fraudRepo;
         private readonly IClaimRepository _claimRepo;
