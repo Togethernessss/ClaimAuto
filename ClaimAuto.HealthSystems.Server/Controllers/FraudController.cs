@@ -7,9 +7,11 @@ using System.Security.Claims;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Manages fraud scoring and fraud case investigation. Admin and InsuranceStaff only.</summary>
     [ApiController]
     [Route("api/fraud")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
+    [Produces("application/json")]
     public class FraudController : BaseController
     {
         private readonly IFraudRepository _fraudRepo;
@@ -27,10 +29,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepo = userRepo;
         }
 
-        // ══════════════════════════════════════════════════
+        
         // GET /api/fraud/scores/{claimId}
-        // ══════════════════════════════════════════════════
+        /// <summary>Returns the fraud score for a specific claim.</summary>
+        /// <param name="claimId">The claim ID to retrieve the fraud score for.</param>
+        /// <response code="200">Returns the fraud score.</response>
+        /// <response code="404">Claim not found or no fraud score exists yet.</response>
         [HttpGet("scores/{claimId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFraudScore(int claimId)
         {
             var claim = await _claimRepo.GetClaimByIdAsync(claimId);
@@ -54,11 +61,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
         // POST /api/fraud/scores/{claimId}
         // Run 4-factor engine → if >= 70 → ACID FraudCase + Notification
-        // ══════════════════════════════════════════════════
+        /// <summary>Runs the 4-factor fraud scoring engine on a claim. If score ≥ 70, automatically opens a FraudCase and Critical notification (ACID transaction).</summary>
+        /// <param name="claimId">The claim ID to score.</param>
+        /// <response code="201">Fraud score calculated successfully.</response>
+        /// <response code="404">Claim not found.</response>
+        /// <response code="409">Claim has already been scored.</response>
         [HttpPost("scores/{claimId}")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> ScoreClaim(int claimId)
         {
             var claim = await _claimRepo.GetClaimByIdAsync(claimId);
@@ -124,10 +137,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetFraudScore), new { claimId }, response);
         }
 
-        // ══════════════════════════════════════════════════
+
         // GET /api/fraud/cases
-        // ══════════════════════════════════════════════════
+        /// <summary>Returns all fraud cases with optional filters.</summary>
+        /// <param name="status">Filter by case status (Open, Resolved).</param>
+        /// <param name="priority">Filter by priority (Low, Medium, High).</param>
+        /// <response code="200">Returns list of fraud cases.</response>
         [HttpGet("cases")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllFraudCases(
             [FromQuery] string? status,
             [FromQuery] string? priority)
@@ -158,10 +175,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
+
         // GET /api/fraud/cases/{id}
-        // ══════════════════════════════════════════════════
+        /// <summary>Returns a single fraud case by its ID.</summary>
+        /// <param name="id">The fraud case ID.</param>
+        /// <response code="200">Returns the fraud case.</response>
+        /// <response code="404">Fraud case not found.</response>
         [HttpGet("cases/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFraudCaseById(int id)
         {
             var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
@@ -187,10 +209,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // ══════════════════════════════════════════════════
+
         // POST /api/fraud/cases — manually open a case
-        // ══════════════════════════════════════════════════
+        ///<summary>Manually opens a fraud case for a claim.</summary>
+        /// <param name="dto">Fraud case details including ClaimID, priority, and investigation notes.</param>
+        /// <response code="201">Fraud case created successfully.</response>
+        /// <response code="400">Invalid priority value.</response>
+        /// <response code="404">Claim not found.</response>
+        /// <response code="409">A fraud case already exists for this claim.</response>
         [HttpPost("cases")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CreateFraudCase([FromBody] CreateFraudCaseDto dto)
         {
             var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
@@ -234,10 +265,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetFraudCaseById), new { id = created.CaseID }, response);
         }
 
-        // ══════════════════════════════════════════════════
+
         // PUT /api/fraud/cases/{id}/resolve
-        // ══════════════════════════════════════════════════
+        /// <summary>Resolves a fraud case with an outcome. If outcome is Confirmed, the linked claim is automatically rejected.</summary>
+        /// <param name="id">The fraud case ID to resolve.</param>
+        /// <param name="dto">Resolution details including outcome (Confirmed, Cleared, Referred).</param>
+        /// <response code="200">Fraud case resolved successfully.</response>
+        /// <response code="400">Invalid outcome or case already resolved.</response>
+        /// <response code="404">Fraud case not found.</response>
         [HttpPut("cases/{id}/resolve")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ResolveFraudCase(int id, [FromBody] ResolveFraudCaseDto dto)
         {
             var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);

@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Manages policy members and eligibility checks. Admin and InsuranceStaff access.</summary>
     [ApiController]
     [Route("api/members")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
+    [Produces("application/json")]
     public class MembersController : BaseController
     {
         private readonly IMemberRepository _memberRepo;
@@ -20,7 +22,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── GET /api/members ─────────────────────────────────────────────
         // Returns all members with optional filters
         // Example: /api/members?policyId=1&status=Active
+        /// <summary>Returns all members with optional filters by policy and status.</summary>
+        /// <param name="policyId">Filter by policy ID.</param>
+        /// <param name="status">Filter by member status (e.g. Active, Inactive).</param>
+        /// <response code="200">Returns list of members.</response>
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllMembers(
             [FromQuery] int? policyId,
             [FromQuery] string? status)
@@ -31,7 +38,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // ── GET /api/members/{id} ────────────────────────────────────────
         // Returns single member with PolicyName resolved
+        /// <summary>Returns a single member by ID, including resolved PolicyName.</summary>
+        /// <param name="id">The member ID.</param>
+        /// <response code="200">Returns the member.</response>
+        /// <response code="404">Member not found.</response>
         [HttpGet("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetMemberById(int id)
         {
             var member = await _memberRepo.GetMemberByIdAsync(id);
@@ -43,7 +56,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── GET /api/members/{id}/eligibility ────────────────────────────
         // Checks eligibility with TTL-based caching (300 seconds)
         // Returns cached result if within TTL, otherwise runs fresh check
+        /// <summary>Checks a member's eligibility. Results are cached for 300 seconds (TTL cache).</summary>
+        /// <param name="id">The member ID to check eligibility for.</param>
+        /// <response code="200">Returns eligibility result (cached or fresh).</response>
+        /// <response code="404">Member not found.</response>
         [HttpGet("{id}/eligibility")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CheckEligibility(int id)
         {
             var result = await _memberRepo.CheckEligibilityAsync(id);
@@ -55,7 +74,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── POST /api/members ────────────────────────────────────────────
         // Creates a new member under a policy
         // Validates: PolicyID must exist, MemberNumber must be unique
+        /// <summary>Enrolls a new member under an active policy.</summary>
+        /// <param name="dto">Member details including name, DOB, policy ID, and member number.</param>
+        /// <response code="201">Member enrolled successfully.</response>
+        /// <response code="400">Policy not found or not active.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="409">MemberNumber already exists.</response>
         [HttpPost]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CreateMember([FromBody] CreateMemberDto dto)
         {
             // Step 1: Get logged-in user from JWT token
@@ -83,7 +112,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── PUT /api/members/{id} ────────────────────────────────────────
         // Updates only mutable fields: Name, ContactInfoJSON, CoverageEnd, Status
         // DOB, Gender, PolicyID cannot be changed after creation
+        /// <summary>Updates mutable member fields: Name, ContactInfo, CoverageEnd, Status.</summary>
+        /// <param name="id">The member ID to update.</param>
+        /// <param name="dto">Fields to update (DOB, Gender, and PolicyID cannot be changed).</param>
+        /// <response code="200">Member updated successfully.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Member not found.</response>
         [HttpPut("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateMember(int id, [FromBody] UpdateMemberDto dto)
         {
             // Step 1: Get logged-in user from JWT token

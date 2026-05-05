@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
@@ -94,6 +95,10 @@ namespace ClaimAuto.HealthSystems.Server
                     Description = "Enter your JWT token. Example: eyJhbGciOiJIUzI1NiIs..."
                 });
 
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                options.IncludeXmlComments(xmlPath);
+
                 options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                     {
@@ -112,7 +117,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();//Build the application using the configured services and middleware.
 
-            await DbSeeder.SeedAsync(app);
+      
 
             await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
         

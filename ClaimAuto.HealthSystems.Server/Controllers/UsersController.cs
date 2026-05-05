@@ -8,10 +8,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
-{
+{   /// <summary>Manages user accounts. Admin only.</summary
     [ApiController]
     [Route("api/users")]
     [Authorize(Roles = "Admin")]
+    [Produces("application/json")]
     public class UsersController : BaseController
     {
 
@@ -23,8 +24,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepository = userRepository;
         }
 
-        // GET: api/users
+        // GET: api/users 
+        /// <summary>Returns all user accounts.</summary>
+        /// <response code="200">Returns list of all users.</response>
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
             var users = await _userRepository.GetAllUsersAsync();
@@ -46,7 +50,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET: api/users/{id}
+        /// <summary>Returns a single user by ID.</summary>
+        /// <param name="id">The user ID.</param>
+        /// <response code="200">Returns the user.</response>
+        /// <response code="404">User not found.</response>
         [HttpGet("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<UserResponseDto>> GetUser(int id)
         {
             var user = await _userRepository.GetUserByIdAsync(id);
@@ -68,7 +78,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET: api/users/role/{role}
+        /// <summary>Returns all users with the specified role.</summary>
+        /// <param name="role">Role to filter by: Admin, InsuranceStaff, Policyholder, Hospital.</param>
+        /// <response code="200">Returns list of users with the given role.</response>
         [HttpGet("role/{role}")]      //"role" --> Just a text(static) while {role} is a variable that will be passed in the URL
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
             var users = await _userRepository.GetUsersByRoleAsync(role);
@@ -90,7 +104,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // POST: api/users
+        /// <summary>Creates a new user account.</summary>
+        /// <param name="dto">User details including name, email, password, and role.</param>
+        /// <response code="201">User created successfully.</response>
+        /// <response code="400">Invalid role.</response>
+        /// <response code="409">Email already exists.</response>
         [HttpPost]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<ActionResult<UserResponseDto>> CreateUser(CreateUserDto dto)
         {
             bool emailExists = await _userRepository.EmailExistsAsync(dto.Email);
@@ -134,7 +156,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // PUT: api/users/{id}
+        /// <summary>Updates a user's profile fields (name, phone, department, MFA, status).</summary>
+        /// <param name="id">The user ID to update.</param>
+        /// <param name="dto">Fields to update (only provided fields are changed).</param>
+        /// <response code="204">User updated successfully.</response>
+        /// <response code="404">User not found.</response>
         [HttpPut("{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateUser(int id, UpdateUserDto dto)
         {
             var user = await _userRepository.GetUserByIdAsync(id);
@@ -153,7 +182,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // DELETE: api/users/{id} — Soft Delete
+        /// <summary>Soft-deletes a user by setting their status to Inactive.</summary>
+        /// <param name="id">The user ID to deactivate.</param>
+        /// <response code="204">User deactivated successfully.</response>
+        /// <response code="404">User not found.</response>
         [HttpDelete("{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var success = await _userRepository.SoftDeleteUserAsync(id);//Making User inactive by setting Status = Inactive, not removing from DB

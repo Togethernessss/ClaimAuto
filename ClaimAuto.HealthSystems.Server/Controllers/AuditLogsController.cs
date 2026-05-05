@@ -4,10 +4,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;// for ControllerBase, ApiController, Route, HttpGet, etc.
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
-{
+{   /// <summary>Provides read-only access to the system audit trail. Admin only.</summary>
     [ApiController]
     [Route("api/auditlogs")]
     [Authorize(Roles = "Admin")]
+    [Produces("application/json")]
     public class AuditLogsController : BaseController
     {
         private readonly IAuditLogRepository _auditLogRepository;
@@ -26,7 +27,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         //   ?resourceType=Claim  → only logs where a Claim was affected
         //   ?action=CreateRule   → only logs for CreateRule action
         //   ?limit=100           → return max 100 records (default: 500)
+        /// <summary>Returns all audit logs with optional filters. Max 1000 records per request.</summary>
+        /// <param name="userId">Filter by user ID.</param>
+        /// <param name="resourceType">Filter by resource type (e.g. Claim, User).</param>
+        /// <param name="action">Filter by action name (e.g. Login, CreateRule).</param>
+        /// <param name="limit">Max records to return (default 500, max 1000).</param>
+        /// <response code="200">Returns list of audit log entries.</response>
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAuditLogs(
             [FromQuery] int? userId,
             [FromQuery] string? resourceType,
@@ -46,7 +54,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // GET /api/auditlogs/{id} 
         // Returns one specific audit log entry by its AuditID
         // Example: GET /api/auditlogs/47
+        /// <summary>Returns a single audit log entry by its ID.</summary>
+        /// <param name="id">The AuditLog ID.</param>
+        /// <response code="200">Returns the audit log entry.</response>
+        /// <response code="404">Audit log not found.</response>
         [HttpGet("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAuditLogById(int id)
         {
             var log = await _auditLogRepository.GetByIdAsync(id);
