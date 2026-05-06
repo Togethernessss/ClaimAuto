@@ -10,7 +10,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     [ApiController]
     [Route("api/appeals")]
     [Authorize]
-    public class AppealsController : ControllerBase
+    public class AppealsController : BaseController
     {
         private readonly IAppealRepository _appealRepo;
         private readonly IClaimRepository _claimRepo;

@@ -383,7 +383,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("ClaimID");
 
-                    b.ToTable("Tasks");
+                    b.ToTable("ClaimTasks");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.EligibilityCheck", b =>

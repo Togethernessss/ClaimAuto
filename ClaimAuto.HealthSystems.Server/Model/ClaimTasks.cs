@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ClaimAuto.HealthSystems.Server.Model
 {
-    [Table("Tasks")]
+    [Table("ClaimTasks")]
     public class ClaimTasks
     {
         [Key]

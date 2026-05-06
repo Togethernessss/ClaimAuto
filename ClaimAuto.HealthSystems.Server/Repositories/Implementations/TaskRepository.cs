@@ -74,7 +74,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (dto.Priority != null)
             {
                 if (Enum.TryParse<TaskPriority>(dto.Priority, true, out var parsedPriority)) { 
-                task.Priority = dto.parsedPriority;
+                task.Priority = parsedPriority;
             }
             }
             await _context.SaveChangesAsync();  

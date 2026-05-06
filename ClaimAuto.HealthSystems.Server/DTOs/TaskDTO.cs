@@ -15,7 +15,6 @@ namespace ClaimAuto.HealthSystems.Server.DTOs
     // ── UpdateTaskDto 
     public class UpdateTaskDto
     {
-        internal TaskPriority parsedPriority;
 
         public string? Description { get; set; }
         public int? AssignedTo { get; set; }                     // can be reassigned

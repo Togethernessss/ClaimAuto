@@ -1,11 +1,11 @@
 ﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace ClaimAuto.HealthSystems.Server.Services
 {
-
     public class AdjudicationService
     {
         private readonly ApplicationDbContext _db;
@@ -18,7 +18,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
         public async Task<AdjudicationResult> EvaluateClaimAsync(Claim claim, List<Rule> activeRules)
         {
             var result = new AdjudicationResult();
-            var ruleTraces = new List<RuleTrace>();
+            var ruleTraces = new List<RuleTraceDto>();
             bool shouldDeny = false;
             bool routeToManual = false;
             decimal payableAmount = claim.TotalBilledAmount;
@@ -26,7 +26,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
 
             foreach (var rule in activeRules)
             {
-                var trace = new RuleTrace
+                var trace = new RuleTraceDto
                 {
                     RuleID = rule.RuleID,
                     RuleName = rule.Name,
@@ -70,7 +70,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         {
                             trace.Result = "ROUTE";
                             trace.Reason = $"₹{claim.TotalBilledAmount} exceeds threshold. Routed for manual review.";
-                            routeToManual = true; // don't deny — route to human
+                            routeToManual = true;
                         }
                         break;
 
@@ -149,7 +149,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
             result.CalculationsJSON = JsonSerializer.Serialize(new
             {
                 billed = claim.TotalBilledAmount,
-                allowed = claim.TotalBilledAmount,   // MVP: allowed = billed
+                allowed = claim.TotalBilledAmount,
                 deductibleApplied = deductibleApplied,
                 copay = 0,
                 payable = result.PayableAmount
@@ -170,22 +170,12 @@ namespace ClaimAuto.HealthSystems.Server.Services
         }
     }
 
-
     public class AdjudicationResult
     {
         public AdjDecision Decision { get; set; }
         public decimal PayableAmount { get; set; }
         public string CalculationsJSON { get; set; } = string.Empty;
         public string AppliedRulesJSON { get; set; } = string.Empty;
-        public List<RuleTrace> RuleTraces { get; set; } = new();
-    }
-
-    public class RuleTrace
-    {
-        public int RuleID { get; set; }
-        public string RuleName { get; set; } = string.Empty;
-        public string RuleType { get; set; } = string.Empty;
-        public string Result { get; set; } = string.Empty; // PASS, FAIL, APPLIED, ROUTE, SKIPPED
-        public string Reason { get; set; } = string.Empty;
+        public List<RuleTraceDto> RuleTraces { get; set; } = new();
     }
 }
