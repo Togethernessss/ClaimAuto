@@ -7,9 +7,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Manages claim adjudication — auto and manual decisioning. Admin and InsuranceStaff only.</summary>
     [ApiController]
     [Route("api/adjudication")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
+    [Produces("application/json")]
     public class AdjudicationController : BaseController
     {
         private readonly IAdjudicationRepository _adjRepo;
@@ -18,8 +20,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             _adjRepo = adjRepo;
         }
-        
+
+
+        /// <summary>Runs the automated adjudication engine on a claim. Claims above the threshold are routed for manual review.</summary>
+        /// <param name="claimId">The claim ID to adjudicate.</param>
+        /// <response code="200">Adjudication complete — returns decision or routes to manual review.</response>
+        /// <response code="400">Claim has already been processed.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpPost("auto/{claimId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AutoAdjudicate(int claimId) 
         {
             var result = await _adjRepo.AutoAdjudicateAsync(claimId);
@@ -42,7 +53,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
+        /// <summary>Records a manual adjudication decision (Paid, Denied, or Partial) with required notes.</summary>
+        /// <param name="dto">Adjudication details including ClaimID, Decision, and Notes.</param>
+        /// <response code="200">Manual adjudication recorded successfully.</response>
+        /// <response code="400">Invalid decision or missing notes.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpPost("manual")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ManualAdjudicate(
             [FromBody] ManualAdjudicateDto dto)
         {
@@ -71,7 +92,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
+        /// <summary>Returns the rule trace showing which adjudication rules fired on a claim.</summary>
+        /// <param name="claimId">The claim ID to get the rule trace for.</param>
+        /// <response code="200">Returns the rule trace.</response>
+        /// <response code="404">No adjudication record found for this claim.</response>
         [HttpGet("{claimId}/trace")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetRuleTrace(int claimId)
         {
             var trace = await _adjRepo.GetRuleTraceAsync(claimId);
@@ -83,7 +110,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(trace);
         }
 
+
+        /// <summary>Returns the full adjudication record for a claim.</summary>
+        /// <param name="claimId">The claim ID to retrieve adjudication for.</param>
+        /// <response code="200">Returns the adjudication record.</response>
+        /// <response code="404">No adjudication record found for this claim.</response>
         [HttpGet("{claimId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAdjudication(int claimId) 
         {
             var record = await _adjRepo.GetAdjudicationAsync(claimId);
