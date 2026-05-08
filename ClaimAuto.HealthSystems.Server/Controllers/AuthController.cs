@@ -42,6 +42,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<ActionResult<UserResponseDto>> Register(CreateUserDto dto)
         {
+
+            //throw new KeyNotFoundException("Forced test of global exception handler"); // to test global exeption
+
             if (await _auth.EmailExistsAsync(dto.Email))
                 return Conflict("A user with this email already exists.");
 
