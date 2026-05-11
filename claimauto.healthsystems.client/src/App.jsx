@@ -9,6 +9,7 @@ import Register from './pages/identity/Register';
 import Dashboard from './pages/Admin/Dashboard';
 import AuditLogs from './pages/Admin/AuditLogs';
 import HospitalDashboard from './pages/Hospital/Dashboard';
+import HomePage from './pages/HomePage';
 
 // Smart redirect for the root URL "/"
 // - If not logged in → send to /login
@@ -47,7 +48,7 @@ export default function App() {
           </Route>
 
           {/* Catch-all for typos / unknown URLs */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
