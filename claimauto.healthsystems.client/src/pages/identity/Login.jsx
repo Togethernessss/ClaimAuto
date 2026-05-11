@@ -24,7 +24,7 @@ export default function Login() {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
         login(data.token, data.user);
-        navigate('/');
+        navigate('/dashboard');        //fixed
       }
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Login failed.';
