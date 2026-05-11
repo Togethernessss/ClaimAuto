@@ -15,7 +15,7 @@ export const ROLES = {
 // `null` = no path yet (placeholder); we'll add real routes module-by-module.
 export const MENU_ITEMS = [
   // Common to everyone
-  { key: 'dashboard',   label: 'Dashboard',         icon: 'bi-speedometer2',     path: '/',                roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
+  { key: 'dashboard',   label: 'Dashboard',         icon: 'bi-speedometer2',     path: '/dashboard',                roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'claims',      label: 'Claims',            icon: 'bi-file-medical',     path: '/claims',          roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'appeals',     label: 'Appeals',           icon: 'bi-megaphone',        path: '/appeals',         roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },

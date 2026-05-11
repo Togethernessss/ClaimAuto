@@ -7,18 +7,21 @@ import VerifyMfa from './pages/identity/VerifyMfa';
 import Register from './pages/identity/Register';
 import Dashboard from './pages/Dashboard';
 import AuditLogs from './pages/AuditLogs';
+import HomePage from './pages/HomePage';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/verify-mfa" element={<VerifyMfa />} />
-          <Route path="/register" element={<Register />} />
 
-          {/* Protected routes — wrapped in AppLayout (navbar + sidebar) */}
+          {/* ── Public routes (no login needed) ── */}
+          <Route path="/"          element={<HomePage />} />
+          <Route path="/login"     element={<Login />} />
+          <Route path="/verify-mfa" element={<VerifyMfa />} />
+          <Route path="/register"  element={<Register />} />
+
+          {/* ── Protected routes (login required) ── */}
           <Route
             element={
               <RequireAuth>
@@ -26,10 +29,11 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard"  element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             {/* More module pages will go here */}
           </Route>
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>
