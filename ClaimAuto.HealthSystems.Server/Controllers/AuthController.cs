@@ -5,9 +5,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
-{
+{   /// <summary>Handles user authentication, registration, and MFA operations.</summary>
     [ApiController]
     [Route("api/auth")]
+    [Produces("application/json")]
     public class AuthController : BaseController
     {
         private readonly IAuthRepository _auth;
@@ -30,7 +31,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // POST: api/auth/register
+        /// <summary>Registers a new user account.</summary>
+        /// <param name="dto">User registration details including name, email, password, and role.</param>
+        /// <response code="201">User created successfully.</response>
+        /// <response code="400">Invalid role provided.</response>
+        /// <response code="409">Email already exists.</response>
         [HttpPost("register")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<ActionResult<UserResponseDto>> Register(CreateUserDto dto)
         {
 
@@ -72,7 +81,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // POST: api/auth/login
         // If MFA enabled → returns mfaToken (user must call verify-mfa)
         // If MFA disabled → returns JWT directly
+        /// <summary>Authenticates a user. Returns JWT if MFA is disabled, or an MFA token if MFA is enabled.</summary>
+        /// <param name="dto">Login credentials (email and password).</param>
+        /// <response code="200">Login successful — returns JWT token or MFA token.</response>
+        /// <response code="401">Invalid credentials or inactive account.</response>
         [HttpPost("login")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult> Login(LoginDto dto)
         {
             var user = await _auth.GetUserByEmailAsync(dto.Email);
@@ -127,7 +142,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // POST: api/auth/verify-mfa
         // Step 2 of login — verify TOTP code from Authenticator app
+        /// <summary>Verifies the TOTP code from the Authenticator app to complete login.</summary>
+        /// <param name="dto">MFA token and 6-digit TOTP code.</param>
+        /// <response code="200">MFA verified — returns JWT token.</response>
+        /// <response code="401">Invalid or expired MFA token, or incorrect TOTP code.</response>
         [HttpPost("verify-mfa")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult> VerifyMfa(VerifyMfaDto dto)
         {
             int? userId = _auth.ValidateMfaToken(dto.MfaToken);
@@ -190,8 +211,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // POST: api/auth/mfa/setup  [Authorized]
         // Generates a TOTP secret and returns a QR code URI to scan
+        /// <summary>Generates a TOTP secret and QR code URI for MFA setup. Requires a valid JWT.</summary>
+        /// <response code="200">Returns secret key and QR code URI to scan in Authenticator app.</response>
+        /// <response code="400">MFA is already enabled.</response>
+        /// <response code="404">User not found.</response>
         [Authorize]
         [HttpPost("mfa/setup")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<MfaSetupResponseDto>> SetupMfa()
         {
             if (GetLoggedInUserId() is not int userId)
@@ -216,8 +244,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // POST: api/auth/mfa/confirm  [Authorized]
         // User enters 6-digit code from Authenticator to activate MFA
+        /// <summary>Confirms MFA setup by verifying the first TOTP code from the Authenticator app.</summary>
+        /// <param name="dto">6-digit TOTP code from Authenticator app.</param>
+        /// <response code="200">MFA enabled successfully.</response>
+        /// <response code="400">Invalid code or MFA already enabled.</response>
+        /// <response code="404">User not found.</response>
         [Authorize]
         [HttpPost("mfa/confirm")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> ConfirmMfa(MfaConfirmDto dto)
         {
             if (GetLoggedInUserId() is not int userId)
@@ -243,8 +279,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         // POST: api/auth/mfa/disable  [Authorized]
         // Disables MFA for the logged-in user (requires current TOTP code)
+        /// <summary>Disables MFA for the logged-in user. Requires a valid current TOTP code.</summary>
+        /// <param name="dto">Current 6-digit TOTP code to confirm identity.</param>
+        /// <response code="200">MFA disabled successfully.</response>
+        /// <response code="400">MFA is not enabled.</response>
+        /// <response code="401">Invalid TOTP code.</response>
+        /// <response code="404">User not found.</response>
         [Authorize]
         [HttpPost("mfa/disable")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DisableMfa(MfaConfirmDto dto)
         {
             if (GetLoggedInUserId() is not int userId)

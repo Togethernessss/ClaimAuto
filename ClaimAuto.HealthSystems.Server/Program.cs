@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Middleware;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
@@ -95,6 +96,10 @@ namespace ClaimAuto.HealthSystems.Server
                     Description = "Enter your JWT token. Example: eyJhbGciOiJIUzI1NiIs..."
                 });
 
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                options.IncludeXmlComments(xmlPath);
+
                 options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                     {
@@ -122,6 +127,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             
 
+      
             app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
 
             app.UseCors("AllowReactDev");

@@ -6,9 +6,11 @@ using ClaimAuto.HealthSystems.Server.Model;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Manages user notifications. Each user sees only their own notifications.</summary>
     [ApiController]
     [Route("api/notifications")]
     [Authorize]
+    /// <summary>Manages user notifications. Each user sees only their own notifications.</summary>
     public class NotificationsController : BaseController
     {
         private readonly INotificationRepository _notificationRepository;
@@ -18,7 +20,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _notificationRepository = notificationRepository;
         }
 
+        /// <summary>Returns notifications for the currently logged-in user.</summary>
+        /// <param name="status">Filter by status (Unread, Read, Dismissed).</param>
+        /// <param name="category">Filter by category (Exception, Payment, Appeal).</param>
+        /// <response code="200">Returns list of notifications.</response>
+        /// <response code="401">Unauthorized.</response>
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetMyNotifications([FromQuery] string? status, [FromQuery] string? category)
         {
             var userId = GetLoggedInUserId();
@@ -31,7 +40,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+
+        /// <summary>Returns all unread notifications for the currently logged-in user.</summary>
+        /// <response code="200">Returns list of unread notifications.</response>
+        /// <response code="401">Unauthorized.</response>
         [HttpGet("unread")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetUnreadNotifications()
         {
             var userId = GetLoggedInUserId();
@@ -44,8 +59,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Creates a new notification for a user. Admin and InsuranceStaff only.</summary>
+        /// <param name="dto">Notification details including message, category (Exception/Payment/Appeal), and severity (Info/Warning/Critical).</param>
+        /// <response code="201">Notification created successfully.</response>
+        /// <response code="400">Invalid category, severity, or missing message.</response>
+        /// <response code="401">Unauthorized.</response>
         [HttpPost]
         [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> CreateNotification(
             [FromBody] CreateNotificationDto dto)
         {
@@ -84,7 +107,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 response);
         }
 
+
+        /// <summary>Marks a notification as read.</summary>
+        /// <param name="id">The notification ID to mark as read.</param>
+        /// <response code="200">Notification marked as read.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Notification not found.</response>
         [HttpPut("{id}/read")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> MarkAsRead(int id)
         {
             var userId = GetLoggedInUserId();
@@ -100,7 +132,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+
+        /// <summary>Dismisses a notification.</summary>
+        /// <param name="id">The notification ID to dismiss.</param>
+        /// <response code="200">Notification dismissed.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Notification not found.</response>
         [HttpPut("{id}/dismiss")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DismissNotification(int id)
         {
             var userId = GetLoggedInUserId();
@@ -116,7 +157,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+
+        /// <summary>Permanently deletes a notification.</summary>
+        /// <param name="id">The notification ID to delete.</param>
+        /// <response code="204">Notification deleted successfully.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Notification not found.</response>
         [HttpDelete("{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteNotification(int id)
         {
             var userId = GetLoggedInUserId();
