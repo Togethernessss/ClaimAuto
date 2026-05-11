@@ -14,8 +14,13 @@ export const ROLES = {
 // Each menu item lists the roles allowed to see it.
 // `null` = no path yet (placeholder); we'll add real routes module-by-module.
 export const MENU_ITEMS = [
+  // Dashboard — one entry per role since each role has its own dashboard URL
+  { key: 'dashboard-admin',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/admin/dashboard',        roles: ['Admin'] },
+  { key: 'dashboard-staff',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/staff/dashboard',        roles: ['InsuranceStaff'] },
+  { key: 'dashboard-hospital',     label: 'Dashboard', icon: 'bi-speedometer2', path: '/hospital/dashboard',     roles: ['Hospital'] },
+  { key: 'dashboard-policyholder', label: 'Dashboard', icon: 'bi-speedometer2', path: '/policyholder/dashboard', roles: ['Policyholder'] },
+
   // Common to everyone
-  { key: 'dashboard',   label: 'Dashboard',         icon: 'bi-speedometer2',     path: '/dashboard',                roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'claims',      label: 'Claims',            icon: 'bi-file-medical',     path: '/claims',          roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'appeals',     label: 'Appeals',           icon: 'bi-megaphone',        path: '/appeals',         roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
@@ -46,4 +51,17 @@ export function getMenuForRole(role) {
 // Helper used by inline guards (e.g., show/hide a button)
 export function canAccess(role, allowedRoles) {
   return allowedRoles.includes(role);
+}
+
+// Returns the dashboard URL for a given role.
+// Used after login (Login.jsx, VerifyMfa.jsx) and on the root redirect (App.jsx).
+// Single source of truth — change a dashboard path here and all 3 places update.
+export function getDashboardPath(role) {
+  switch (role) {
+    case 'Admin':          return '/admin/dashboard';
+    case 'Hospital':       return '/hospital/dashboard';
+    case 'InsuranceStaff': return '/staff/dashboard';
+    case 'Policyholder':   return '/policyholder/dashboard';
+    default:               return '/login';
+  }
 }
