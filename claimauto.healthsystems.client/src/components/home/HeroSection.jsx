@@ -27,7 +27,7 @@ export default function HeroSection() {
           <Col lg={7}>
             <Badge bg="light" className="mb-3 px-3 py-2 rounded-pill fw-semibold" style={{ color: '#764ba2', fontSize: '0.8rem' }}>
               <i className="bi bi-stars me-1"></i>
-              AI-Powered Health Insurance Platform
+              Health Insurance Platform
             </Badge>
 
             <h1 className="text-white fw-bold mb-4" style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', lineHeight: 1.2 }}>
