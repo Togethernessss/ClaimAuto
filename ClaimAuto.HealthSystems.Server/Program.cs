@@ -114,11 +114,6 @@ namespace ClaimAuto.HealthSystems.Server
 
             await DbSeeder.SeedAsync(app);
 
-            await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
-        
-
-           
-
             if (app.Environment.IsDevelopment())//Added this condition to check if the application is running in the development environment, and if so, it enables Swagger for API documentation and testing.
             {
                 app.UseSwagger();//Added this line to enable the generation of Swagger documentation for the API, which allows developers to understand and interact with the API endpoints.

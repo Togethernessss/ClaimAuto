@@ -4,4 +4,5 @@
     <Deploy />
   </Project>
   <Project Path="ClaimAuto.HealthSystems.Server/ClaimAuto.HealthSystems.Server.csproj" />
+  <Project Path="ClaimAuto.HealthSystems.Tests/ClaimAuto.HealthSystems.Tests.csproj" Id="133fe314-bfb8-4eac-821b-a3a8ac5d3bd5" />
 </Solution>
