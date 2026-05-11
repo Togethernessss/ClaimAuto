@@ -7,6 +7,9 @@ import VerifyMfa from './pages/identity/VerifyMfa';
 import Register from './pages/identity/Register';
 import Dashboard from './pages/Dashboard';
 import AuditLogs from './pages/AuditLogs';
+import RoleGuard from './security/RoleGuard';
+import { ROLES } from './security/permissions';
+
 
 export default function App() {
   return (
@@ -27,7 +30,11 @@ export default function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
-            <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/audit-logs" element={
+            <RoleGuard allowedRoles={[ROLES.ADMIN]}>
+              <AuditLogs />
+            </RoleGuard>
+            } />
             {/* More module pages will go here */}
           </Route>
         </Routes>
