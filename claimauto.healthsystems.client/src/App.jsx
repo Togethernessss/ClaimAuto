@@ -25,15 +25,14 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Root: redirect based on login status and role */}
-          <Route path="/" element={<RootRedirect />} />
 
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
+          {/* ── Public routes (no login needed) ── */}
+          <Route path="/"          element={<HomePage />} />
+          <Route path="/login"     element={<Login />} />
           <Route path="/verify-mfa" element={<VerifyMfa />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/register"  element={<Register />} />
 
-          {/* Protected routes — wrapped in AppLayout (navbar + sidebar) */}
+          {/* ── Protected routes (login required) ── */}
           <Route
             element={
               <RequireAuth>
