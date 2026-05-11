@@ -111,9 +111,20 @@ namespace ClaimAuto.HealthSystems.Server
                 });
             });
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowReactDev", policy =>
+                    policy.WithOrigins("http://localhost:5173")   // ← MUST match Vite's URL
+                          .AllowAnyHeader()
+                          .AllowAnyMethod());
+            });
             var app = builder.Build();//Build the application using the configured services and middleware.
 
+            
+
             app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
+
+            app.UseCors("AllowReactDev");
 
             await DbSeeder.SeedAsync(app);//Called the SeedAsync method of the DbSeeder class to populate
         
