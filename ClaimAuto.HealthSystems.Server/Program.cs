@@ -1,5 +1,7 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Middleware;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Services;
@@ -94,6 +96,10 @@ namespace ClaimAuto.HealthSystems.Server
                     Description = "Enter your JWT token. Example: eyJhbGciOiJIUzI1NiIs..."
                 });
 
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                options.IncludeXmlComments(xmlPath);
+
                 options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                     {
@@ -110,9 +116,21 @@ namespace ClaimAuto.HealthSystems.Server
                 });
             });
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowReactDev", policy =>
+                    policy.WithOrigins("http://localhost:5173")   // ← MUST match Vite's URL
+                          .AllowAnyHeader()
+                          .AllowAnyMethod());
+            });
             var app = builder.Build();//Build the application using the configured services and middleware.
 
-            await DbSeeder.SeedAsync(app);
+            
+
+      
+            app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
+
+            app.UseCors("AllowReactDev");
 
             if (app.Environment.IsDevelopment())//Added this condition to check if the application is running in the development environment, and if so, it enables Swagger for API documentation and testing.
             {

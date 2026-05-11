@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Manages insurance claims, claim lines, and documents. All authenticated roles.</summary>
     [ApiController]
     [Route("api/claims")]
     [Authorize]
+    [Produces("application/json")]
     public class ClaimsController : BaseController
     {
         private readonly IClaimRepository _claimRepo;
@@ -17,7 +19,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _claimRepo = claimRepo;
         }
 
+        /// <summary>Returns claims visible to the current user. Admins see all; Policyholders see their own.</summary>
+        /// <param name="status">Filter by claim status.</param>
+        /// <param name="priority">Filter by priority.</param>
+        /// <response code="200">Returns list of claims.</response>
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
             [FromQuery] string? priority)
@@ -29,7 +36,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claims);
         }
 
+        /// <summary>Returns a single claim by ID.</summary>
+        /// <param name="id">The claim ID.</param>
+        /// <response code="200">Returns the claim.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpGet("{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
             var claim = await _claimRepo.GetClaimByIdAsync(id);
@@ -38,7 +51,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claim);
         }
 
+        /// <summary>Submits a new insurance claim. Validates ProviderID (must be Hospital role), MemberID, and active PolicyID.</summary>
+        /// <param name="dto">Claim details including member, provider, policy, and diagnosis info.</param>
+        /// <response code="201">Claim submitted successfully.</response>
+        /// <response code="400">Validation failed — invalid ProviderID, MemberID, or PolicyID.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="409">ExternalClaimRef already exists.</response>
         [HttpPost]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> SubmitClaim([FromBody] CreateClaimDto dto)
         {
             var userId = GetLoggedInUserId();
@@ -60,8 +83,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
+        /// <summary>Updates an existing claim. Admin and InsuranceStaff only.</summary>
+        /// <param name="id">The claim ID to update.</param>
+        /// <param name="dto">Fields to update.</param>
+        /// <response code="200">Claim updated successfully.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
         {
             var userId = GetLoggedInUserId();
@@ -75,8 +107,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
+        /// <summary>Permanently deletes a claim. Only Rejected claims can be deleted. Admin only.</summary>
+        /// <param name="id">The claim ID to delete.</param>
+        /// <response code="200">Claim deleted successfully.</response>
+        /// <response code="400">Claim is not in Rejected status.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteClaim(int id)
         {
             var userId = GetLoggedInUserId();
@@ -94,7 +136,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
         }
 
+
+        /// <summary>Adds a service line item to an existing claim.</summary>
+        /// <param name="id">The claim ID.</param>
+        /// <param name="dto">Claim line details including procedure code and billed amount.</param>
+        /// <response code="201">Claim line added successfully.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Claim not found.</response>
         [HttpPost("{id}/lines")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AddClaimLine(int id, [FromBody] AddClaimLineDto dto)
         {
             var userId = GetLoggedInUserId();
@@ -108,14 +160,27 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimLines), new { id = id }, created);
         }
 
+        /// <summary>Returns all line items for a specific claim.</summary>
+        /// <param name="id">The claim ID.</param>
+        /// <response code="200">Returns list of claim lines.</response>
         [HttpGet("{id}/lines")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimLines(int id)
         {
             var lines = await _claimRepo.GetClaimLinesAsync(id);
             return Ok(lines);
         }
 
+        /// <summary>Uploads a supporting document to a claim.</summary>
+        /// <param name="id">The claim ID.</param>
+        /// <param name="dto">Document details including type and file URI.</param>
+        /// <response code="201">Document uploaded successfully.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="404">Claim not found or user is invalid.</response>
         [HttpPost("{id}/documents")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UploadDocument(int id, [FromBody] UploadDocumentDto dto)
         {
             var userId = GetLoggedInUserId();
@@ -129,7 +194,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimDocuments), new { id = id }, created);
         }
 
+
+        /// <summary>Returns all documents attached to a specific claim.</summary>
+        /// <param name="id">The claim ID.</param>
+        /// <response code="200">Returns list of claim documents.</response>
         [HttpGet("{id}/documents")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimDocuments(int id)
         {
             var docs = await _claimRepo.GetClaimDocumentsAsync(id);
