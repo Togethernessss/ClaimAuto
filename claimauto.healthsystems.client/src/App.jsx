@@ -1,18 +1,33 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './security/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './security/AuthContext';
+import { getDashboardPath } from './security/permissions';
 import RequireAuth from './security/RequireAuth';
 import AppLayout from './components/AppLayout';
 import Login from './pages/identity/Login';
 import VerifyMfa from './pages/identity/VerifyMfa';
 import Register from './pages/identity/Register';
-import Dashboard from './pages/Dashboard';
-import AuditLogs from './pages/AuditLogs';
+import Dashboard from './pages/Admin/Dashboard';
+import AuditLogs from './pages/Admin/AuditLogs';
+import HospitalDashboard from './pages/Hospital/Dashboard';
+
+// Smart redirect for the root URL "/"
+// - If not logged in → send to /login
+// - If logged in → send to their role-specific dashboard
+function RootRedirect() {
+  const { user } = useAuth();
+
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={getDashboardPath(user.role)} replace />;
+}
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Root: redirect based on login status and role */}
+          <Route path="/" element={<RootRedirect />} />
+
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/verify-mfa" element={<VerifyMfa />} />
@@ -26,10 +41,14 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/admin/dashboard" element={<Dashboard />} />
+            <Route path="/hospital/dashboard" element={<HospitalDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             {/* More module pages will go here */}
           </Route>
+
+          {/* Catch-all for typos / unknown URLs */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

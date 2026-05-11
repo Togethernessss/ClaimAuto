@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
+import { getDashboardPath } from '../../security/permissions';
 import { login as loginApi } from '../../services/identity/authService';
 
 export default function Login() {
@@ -24,7 +25,7 @@ export default function Login() {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
         login(data.token, data.user);
-        navigate('/');
+        navigate(getDashboardPath(data.user.role));
       }
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Login failed.';

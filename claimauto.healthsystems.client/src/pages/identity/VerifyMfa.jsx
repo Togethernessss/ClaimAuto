@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
+import { getDashboardPath } from '../../security/permissions';
 import { verifyMfa } from '../../services/identity/authService';
 
 export default function VerifyMfa() {
@@ -27,7 +28,7 @@ export default function VerifyMfa() {
     try {
       const data = await verifyMfa(mfaToken, code);
       login(data.token, data.user);
-      navigate('/');
+      navigate(getDashboardPath(data.user.role));
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Verification failed.';
       setError(typeof apiMsg === 'string' ? apiMsg : 'Verification failed.');

@@ -1,7 +1,7 @@
 import { Container, Row, Col, Card } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../security/AuthContext';
-import { getMenuForRole } from '../security/permissions';
+import { useAuth } from '../../security/AuthContext';
+import { getMenuForRole } from '../../security/permissions';
 
 // what whole code doing below is creating a dashboard page for the user after they log in. It uses React Bootstrap for styling and layout. The dashboard welcomes the user by name and shows their role, along with quick access cards for the modules they have permission to access based on their role. Each card is clickable and navigates the user to the corresponding module page when clicked.
 export default function Dashboard() {
