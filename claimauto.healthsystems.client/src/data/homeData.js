@@ -9,7 +9,7 @@ export const navLinks = [
 
 export const heroFeatures = [
   { icon: 'bi-check2-circle',     label: 'Auto Adjudication Engine' },
-  { icon: 'bi-shield-check',      label: 'ML Fraud Detection' },
+  { icon: 'bi-shield-check',      label: 'Fraud Detection' },
   { icon: 'bi-lightning-charge',  label: 'Real-time Notifications' },
   { icon: 'bi-graph-up-arrow',    label: 'Live KPI Dashboard' },
 ];
@@ -39,7 +39,7 @@ export const featuresData = [
   {
     icon: 'bi-shield-exclamation',
     title: 'Fraud Detection',
-    desc: '4-factor ML scoring engine flags high-risk claims. Auto-opens fraud cases with ACID-safe notifications.',
+    desc: '4-factor scoring engine flags high-risk claims. Auto-opens fraud cases with ACID-safe notifications.',
     color: '#ffebee',
     iconColor: '#c62828',
   },
