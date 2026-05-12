@@ -32,7 +32,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Returns all policies regardless of status.</summary>
         /// <response code="200">Returns list of all policies.</response>
         [HttpGet]
-        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllPolicies()
         {
