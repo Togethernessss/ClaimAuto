@@ -11,7 +11,7 @@ export default function AppLayout() {
     navigate('/login');
   };
 
-  // Color the role badge based on role
+  
   const roleBadgeBg = {
     Admin: 'danger',
     InsuranceStaff: 'warning',
@@ -21,10 +21,18 @@ export default function AppLayout() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-      {/* Top navbar */}
+      {/* ─── Top navbar (fixed at top) ─── */}
       <nav
         className="navbar navbar-dark shadow-sm px-4"
-        style={{ backgroundColor: '#1e293b', height: 60 }}
+        style={{
+          backgroundColor: '#1e293b',
+          height: 60,
+          position: 'fixed',         
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1030,              
+        }}
       >
         <span className="navbar-brand fw-bold mb-0">
           <i className="bi bi-heart-pulse-fill text-danger me-2"></i>
@@ -43,13 +51,32 @@ export default function AppLayout() {
         </div>
       </nav>
 
-      {/* Sidebar + Main content */}
-      <div className="d-flex">
+      {/* ─── Sidebar (fixed on left, below navbar) ─── */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 60,                   
+          left: 0,
+          bottom: 0,
+          width: 250,
+          overflowY: 'auto',         
+          zIndex: 1020,
+        }}
+      >
         <Sidebar />
-        <main className="flex-grow-1 p-4">
-          <Outlet />
-        </main>
       </div>
+
+      {/* ─── Main content (offset to make space for navbar + sidebar) ─── */}
+      <main
+        style={{
+          marginTop: 60,            
+          marginLeft: 250,           
+          padding: '24px',
+          minHeight: 'calc(100vh - 60px)',
+        }}
+      >
+        <Outlet />
+      </main>
     </div>
   );
 }
