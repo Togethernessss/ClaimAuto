@@ -11,6 +11,7 @@ import AuditLogs from './pages/Admin/AuditLogs';
 import HospitalDashboard from './pages/Hospital/Dashboard';
 import HomePage from './pages/HomePage';
 import Policies from './pages/shared/Policies/Policies';
+import StaffDashboard from './pages/Staff/Dashboard';
 
 
 // Smart redirect for the root URL "/"
@@ -45,6 +46,7 @@ export default function App() {
           >
             <Route path="/admin/dashboard" element={<Dashboard />} />
             <Route path="/hospital/dashboard" element={<HospitalDashboard />} />
+            <Route path="/staff/dashboard" element={<StaffDashboard/>} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
             {/* More module pages will go here */}
