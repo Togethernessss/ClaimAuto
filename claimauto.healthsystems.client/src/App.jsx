@@ -10,7 +10,7 @@ import Dashboard from './pages/Admin/Dashboard';
 import AuditLogs from './pages/Admin/AuditLogs';
 import HospitalDashboard from './pages/Hospital/Dashboard';
 import HomePage from './pages/HomePage';
-import Policies from './pages/shared/Policies/Policies';
+import Policies from './pages/shared/Policies';
 
 
 // Smart redirect for the root URL "/"

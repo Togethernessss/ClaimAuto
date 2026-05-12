@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {   /// <summary>Manages insurance policies. Admin and InsuranceStaff access.</summary>
     [ApiController]
     [Route("api/policies")]
-    [Authorize]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
     [Produces("application/json")]
     public class PoliciesController : BaseController
     {
@@ -32,7 +32,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Returns all policies regardless of status.</summary>
         /// <response code="200">Returns list of all policies.</response>
         [HttpGet]
-        [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllPolicies()
         {
@@ -45,7 +44,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="200">Returns the policy.</response>
         /// <response code="404">Policy not found.</response>
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPolicyById(int id)
