@@ -10,6 +10,8 @@ import Dashboard from './pages/Admin/Dashboard';
 import AuditLogs from './pages/Admin/AuditLogs';
 import HospitalDashboard from './pages/Hospital/Dashboard';
 import HomePage from './pages/HomePage';
+import Policies from './pages/shared/Policies';
+
 
 // Smart redirect for the root URL "/"
 // - If not logged in → send to /login
@@ -44,6 +46,7 @@ export default function App() {
             <Route path="/admin/dashboard" element={<Dashboard />} />
             <Route path="/hospital/dashboard" element={<HospitalDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/policies" element={<Policies />} />
             {/* More module pages will go here */}
           </Route>
 
