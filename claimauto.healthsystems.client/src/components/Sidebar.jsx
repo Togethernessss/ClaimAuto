@@ -2,10 +2,6 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../security/AuthContext';
 import { getMenuForRole } from '../security/permissions';
 
-// Sidebar — renders the role-specific menu by reading permissions.js.
-// Active link uses the purple theme gradient (#667eea → #764ba2) to match
-// the welcome banner across all dashboards.
-
 export default function Sidebar() {
   const { user } = useAuth();
   if (!user) return null;
@@ -14,11 +10,12 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="bg-white p-3 flex-shrink-0"
+      className="p-3 flex-shrink-0"
       style={{
         width: 250,
         minHeight: 'calc(100vh - 60px)',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        boxShadow: '2px 0 8px rgba(102, 126, 234, 0.15)',
+        backgroundColor: '#ddd8f8',
       }}
     >
       {/* Menu header */}
