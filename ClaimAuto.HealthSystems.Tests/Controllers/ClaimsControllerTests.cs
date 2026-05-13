@@ -57,7 +57,7 @@ namespace ClaimAuto.HealthSystems.Tests.Controllers
                 .ReturnsAsync(fakeClaim);
 
             // ACT 
-            var result = await _controller.GetClaimById(10);
+            var result = await _controller.GetClaimById(14);
 
             // ASSERT 
             var okResult = result as OkObjectResult;

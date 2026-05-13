@@ -1,15 +1,3 @@
-// src/pages/shared/Policies/Policies.jsx
-//
-// ─────────────────────────────────────────────────────────────────────────────
-// WHAT IS THIS FILE?
-// The main Policies page.
-// This file owns ALL state and ALL logic.
-// It passes data DOWN to child components via props.
-// Child components just display what they receive — they own no data.
-//
-// This is the same pattern as HomePage.jsx which assembles
-// HeroSection, StatsBanner, FeaturesSection etc.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react';
 import { Container }                        from 'react-bootstrap';
@@ -305,7 +293,6 @@ export default function Policies() {
         onHide={() => setShowDeactivate(false)}
         onConfirm={handleDeactivateConfirm}
       />
-
     </Container>
   );
 }
