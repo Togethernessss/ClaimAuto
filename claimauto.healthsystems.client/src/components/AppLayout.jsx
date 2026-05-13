@@ -40,7 +40,6 @@ export default function AppLayout() {
         </span>
 
         <div className="d-flex align-items-center">
-          <span className={`badge bg-${roleBadgeBg} me-3`}>{user?.role}</span>
           <span className="text-white-50 me-3 small">
             <i className="bi bi-person-circle me-1"></i>
             {user?.name}
