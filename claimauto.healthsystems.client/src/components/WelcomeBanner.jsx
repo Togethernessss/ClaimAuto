@@ -32,7 +32,7 @@ export default function WelcomeBanner({ emoji = '', actions = [] }) {
       style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: '32px 28px',
-        margin: '8px 16px 24px 16px',
+        margin: '1px 16px 24px 16px',
       }}
     >
       {/* Avatar */}
