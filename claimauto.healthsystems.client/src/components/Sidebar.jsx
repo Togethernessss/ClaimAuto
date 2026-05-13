@@ -19,12 +19,7 @@ export default function Sidebar() {
       }}
     >
       {/* Menu header */}
-      <div
-        className="text-uppercase fw-bold mb-3"
-        style={{ color: '#6c757d', fontSize: 12 }}
-      >
-        Menu — {user.role}
-      </div>
+      
 
       {/* Menu items */}
       <nav>
