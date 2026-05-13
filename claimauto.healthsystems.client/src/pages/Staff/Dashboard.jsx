@@ -4,7 +4,7 @@ import { useAuth } from '../../security/AuthContext';
 import { getMenuForRole } from '../../security/permissions';
 import WelcomeBanner from '../../components/WelcomeBanner';
 
-// Admin dashboard — system-wide view for users with role = "Admin".
+// Staff dashboard — shown after login for users with role = "InsuranceStaff".
 // Uses the reusable WelcomeBanner component for consistency.
 
 // ─── Reusable circular KPI ring (native SVG) ─────────────────────────────
@@ -46,15 +46,15 @@ function CircularKPI({ value, unit, label, target, status, color, percent = 0 })
   );
 }
 
-// ─── Main Admin Dashboard ─────────────────────────────────────────────────
-export default function AdminDashboard() {
+// ─── Main Staff Dashboard ─────────────────────────────────────────────────
+export default function StaffDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
   // TODO: wire to real APIs when ready
-  //   stats → GET /api/users, /api/claims, /api/payments, /api/fraud
+  //   stats → GET /api/claims, /api/tasks?assignedTo=me, /api/payments, /api/fraud
   //   kpis  → GET /api/reports/kpis
 
   return (
@@ -62,24 +62,24 @@ export default function AdminDashboard() {
 
       {/* ── Reusable Welcome Banner ─────────────────────────────────────── */}
       <WelcomeBanner
-        emoji="👑"
+        emoji="👋"
         actions={[
           {
-            label: 'Manage Users',
-            icon: 'bi-people',
+            label: 'My Tasks',
+            icon: 'bi-list-check',
             variant: 'outline-light',
-            onClick: () => navigate('/members'),
+            onClick: () => navigate('/tasks'),
           },
           {
-            label: 'Audit Logs',
-            icon: 'bi-journal-text',
+            label: 'Open Claims Queue',
+            icon: 'bi-file-medical',
             variant: 'light',
-            onClick: () => navigate('/audit-logs'),
+            onClick: () => navigate('/claims'),
           },
         ]}
       />
 
-      {/* ── Priority Action Bar (system alerts) ─────────────────────────── */}
+      {/* ── Priority Action Bar (urgent items) ──────────────────────────── */}
       <Card className="border-0 shadow-sm mb-4 border-start border-danger border-4">
         <Card.Body className="d-flex align-items-center flex-wrap gap-3 py-3">
           <div
@@ -89,17 +89,17 @@ export default function AdminDashboard() {
             <i className="bi bi-exclamation-triangle-fill fs-5"></i>
           </div>
           <div className="flex-grow-1" style={{ minWidth: 220 }}>
-            <div className="fw-semibold">No system alerts right now</div>
+            <div className="fw-semibold">No urgent actions right now</div>
             <small className="text-muted">
-              Failed jobs, security warnings, and critical errors will appear here.
+              High-priority items (fraud alerts, pending authorizations) will appear here.
             </small>
           </div>
           <button
             className="btn btn-sm text-white fw-semibold"
-            onClick={() => navigate('/audit-logs')}
+            onClick={() => navigate('/tasks')}
             style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
           >
-            <i className="bi bi-list-stars me-1"></i> View System Logs
+            <i className="bi bi-list-stars me-1"></i> View All Priority Tasks
           </button>
         </Card.Body>
       </Card>
@@ -111,17 +111,15 @@ export default function AdminDashboard() {
             <Card.Body>
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <div className="text-uppercase text-muted small fw-semibold mb-1">Total Users</div>
+                  <div className="text-uppercase text-muted small fw-semibold mb-1">Claims Pending</div>
                   <div className="fs-3 fw-bold text-muted">—</div>
                   <div className="small text-muted">
-                    <i className="bi bi-person-plus me-1"></i> No data yet
+                    <i className="bi bi-clock me-1"></i> No data yet
                   </div>
                 </div>
-                <div
-                  className="rounded d-flex align-items-center justify-content-center bg-primary bg-opacity-10"
-                  style={{ width: 42, height: 42 }}
-                >
-                  <i className="bi bi-people text-primary fs-5"></i>
+                <div className="rounded d-flex align-items-center justify-content-center bg-primary bg-opacity-10"
+                     style={{ width: 42, height: 42 }}>
+                  <i className="bi bi-file-earmark-text text-primary fs-5"></i>
                 </div>
               </div>
             </Card.Body>
@@ -133,17 +131,15 @@ export default function AdminDashboard() {
             <Card.Body>
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <div className="text-uppercase text-muted small fw-semibold mb-1">Active Claims</div>
+                  <div className="text-uppercase text-muted small fw-semibold mb-1">My Tasks Today</div>
                   <div className="fs-3 fw-bold text-muted">—</div>
                   <div className="small text-muted">
-                    <i className="bi bi-clock me-1"></i> Awaiting data
+                    <i className="bi bi-check-circle me-1"></i> No tasks assigned
                   </div>
                 </div>
-                <div
-                  className="rounded d-flex align-items-center justify-content-center bg-success bg-opacity-10"
-                  style={{ width: 42, height: 42 }}
-                >
-                  <i className="bi bi-file-earmark-text text-success fs-5"></i>
+                <div className="rounded d-flex align-items-center justify-content-center bg-success bg-opacity-10"
+                     style={{ width: 42, height: 42 }}>
+                  <i className="bi bi-list-check text-success fs-5"></i>
                 </div>
               </div>
             </Card.Body>
@@ -155,16 +151,14 @@ export default function AdminDashboard() {
             <Card.Body>
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <div className="text-uppercase text-muted small fw-semibold mb-1">Monthly Revenue</div>
+                  <div className="text-uppercase text-muted small fw-semibold mb-1">Disbursed This Month</div>
                   <div className="fs-3 fw-bold text-muted">—</div>
                   <div className="small text-muted">
                     <i className="bi bi-graph-up me-1"></i> Awaiting data
                   </div>
                 </div>
-                <div
-                  className="rounded d-flex align-items-center justify-content-center bg-warning bg-opacity-10"
-                  style={{ width: 42, height: 42 }}
-                >
+                <div className="rounded d-flex align-items-center justify-content-center bg-warning bg-opacity-10"
+                     style={{ width: 42, height: 42 }}>
                   <i className="bi bi-cash-coin text-warning fs-5"></i>
                 </div>
               </div>
@@ -177,16 +171,14 @@ export default function AdminDashboard() {
             <Card.Body>
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <div className="text-uppercase text-muted small fw-semibold mb-1">Open Fraud Cases</div>
+                  <div className="text-uppercase text-muted small fw-semibold mb-1">Fraud Cases Open</div>
                   <div className="fs-3 fw-bold text-muted">—</div>
                   <div className="small text-muted">
                     <i className="bi bi-shield me-1"></i> No open cases
                   </div>
                 </div>
-                <div
-                  className="rounded d-flex align-items-center justify-content-center bg-danger bg-opacity-10"
-                  style={{ width: 42, height: 42 }}
-                >
+                <div className="rounded d-flex align-items-center justify-content-center bg-danger bg-opacity-10"
+                     style={{ width: 42, height: 42 }}>
                   <i className="bi bi-shield-exclamation text-danger fs-5"></i>
                 </div>
               </div>
@@ -197,7 +189,7 @@ export default function AdminDashboard() {
 
       {/* ── KPI Section (circular rings) ────────────────────────────────── */}
       <div className="d-flex align-items-center mb-3">
-        <h5 className="fw-bold mb-0 me-2">System Performance Metrics</h5>
+        <h5 className="fw-bold mb-0 me-2">Key Performance Metrics</h5>
         <Badge bg="success" pill className="text-uppercase" style={{ fontSize: 10 }}>
           ● Live
         </Badge>
@@ -222,23 +214,23 @@ export default function AdminDashboard() {
         </Col>
       </Row>
 
-      {/* ── Activity + Approvals panels ─────────────────────────────────── */}
+      {/* ── Claims Queue + My Tasks panels ──────────────────────────────── */}
       <Row className="g-3 mb-4">
         <Col lg={7}>
           <Card className="border-0 shadow-sm h-100">
             <Card.Header className="bg-white border-0 py-3">
               <h6 className="mb-0 fw-semibold">
-                <i className="bi bi-activity text-primary me-2"></i>
-                Recent System Activity
+                <i className="bi bi-file-earmark-text text-primary me-2"></i>
+                Claims Awaiting Review
               </h6>
-              <small className="text-muted">Live audit trail · latest events first</small>
+              <small className="text-muted">Pending your decision · sorted by priority</small>
             </Card.Header>
             <Card.Body>
               <div className="text-center py-5">
-                <i className="bi bi-clock-history" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-                <div className="fw-semibold text-muted mt-3">No activity yet</div>
+                <i className="bi bi-inbox" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+                <div className="fw-semibold text-muted mt-3">No claims to review</div>
                 <div className="small text-muted mt-1">
-                  System events will appear here in real time.
+                  High-priority claims will appear here first.
                 </div>
               </div>
             </Card.Body>
@@ -249,17 +241,17 @@ export default function AdminDashboard() {
           <Card className="border-0 shadow-sm h-100">
             <Card.Header className="bg-white border-0 py-3">
               <h6 className="mb-0 fw-semibold">
-                <i className="bi bi-check2-circle text-success me-2"></i>
-                Pending Approvals
+                <i className="bi bi-list-check text-success me-2"></i>
+                My Tasks
               </h6>
-              <small className="text-muted">Items needing admin attention</small>
+              <small className="text-muted">Assigned to you</small>
             </Card.Header>
             <Card.Body>
               <div className="text-center py-5">
-                <i className="bi bi-inbox" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-                <div className="fw-semibold text-muted mt-3">All clear!</div>
+                <i className="bi bi-check-circle" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+                <div className="fw-semibold text-muted mt-3">All caught up!</div>
                 <div className="small text-muted mt-1">
-                  Approval requests will appear here.
+                  Tasks assigned to you will appear here.
                 </div>
               </div>
             </Card.Body>

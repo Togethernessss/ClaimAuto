@@ -25,7 +25,7 @@ export default function AppLayout() {
       <nav
         className="navbar navbar-dark shadow-sm px-4"
         style={{
-          backgroundColor: '#1e293b',
+          background: 'linear-gradient(135deg, #667eea 10%, #764ba2 100%)',
           height: 60,
           position: 'fixed',         
           top: 0,
@@ -40,7 +40,6 @@ export default function AppLayout() {
         </span>
 
         <div className="d-flex align-items-center">
-          <span className={`badge bg-${roleBadgeBg} me-3`}>{user?.role}</span>
           <span className="text-white-50 me-3 small">
             <i className="bi bi-person-circle me-1"></i>
             {user?.name}
