@@ -1,36 +1,32 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../security/AuthContext';
 import { getMenuForRole } from '../security/permissions';
 
-// Sidebar — renders the role-specific menu by reading permissions.js.
-// Active link uses the purple theme gradient (#667eea → #764ba2) to match
-// the welcome banner across all dashboards.
-
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
   if (!user) return null;
 
   const menu = getMenuForRole(user.role);
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <aside
-      className="bg-white p-3 flex-shrink-0"
+      className="p-3 flex-shrink-0 d-flex flex-column"
       style={{
         width: 250,
         minHeight: 'calc(100vh - 60px)',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        boxShadow: '2px 0 8px rgba(102, 126, 234, 0.15)',
+        backgroundColor: '#ddd8f8',
       }}
     >
-      {/* Menu header */}
-      <div
-        className="text-uppercase fw-bold mb-3"
-        style={{ color: '#6c757d', fontSize: 12 }}
-      >
-        Menu — {user.role}
-      </div>
-
-      {/* Menu items */}
-      <nav>
+      {/* ── Menu items (flex-grow pushes the Logout to the bottom) ── */}
+      <nav className="flex-grow-1">
         {menu.map((item) => (
           <NavLink
             key={item.key}
@@ -61,9 +57,17 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* ── Logout button (pinned at the bottom via flex layout) ── */}
+      <button
+        className="btn btn-outline-danger d-flex align-items-center justify-content-center w-100 mb-2"
+        onClick={handleLogout}
+      >
+        <i className="bi bi-box-arrow-right me-2"></i> Logout
+      </button>
+
+      {/* ── Footer: items count ── */}
       <div
-        className="mt-4 pt-3 border-top"
+        className="pt-2 border-top text-center"
         style={{ fontSize: 12, color: '#6c757d' }}
       >
         <i className="bi bi-info-circle me-1"></i>
