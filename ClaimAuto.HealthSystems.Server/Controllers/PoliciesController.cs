@@ -97,6 +97,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            // First check the policy exists
+            var existing = await _policyRepo.GetPolicyByIdAsync(id);
+            if (existing == null)
+                return NotFound($"Policy with ID {id} was not found.");
+
+            // Block any update on Expired policies
+            if (existing.Status == "Expired")
+                return BadRequest(
+                    "This policy has expired and cannot be modified. " +
+                    "Expired policies are permanent and locked.");
+
             var updated = await _policyRepo.UpdatePolicyAsync(id, dto, userId.Value);
             if (updated == null)
                 return NotFound($"Policy with ID {id} was not found.");
@@ -136,6 +147,21 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                                         $"Please move members to another policy first."),
                 _ => StatusCode(500, "Unexpected error during deactivation.")
             };
+        }
+
+        /// <summary>
+        /// Checks all Active policies whose EffectiveTo date has passed
+        /// and marks them as Expired. Sends notification to Admin.
+        /// Called automatically when Admin logs in.
+        /// Admin only.
+        /// </summary>
+        [HttpPost("check-expired")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> CheckExpiredPolicies()
+        {
+            var result = await _policyRepo.AutoExpirePoliciesAsync();
+            return Ok(result);
         }
     }
 }

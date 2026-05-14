@@ -1,3 +1,5 @@
+import { useEffect }              from 'react';
+import { checkExpiredPolicies }   from '../../services/policies/policyService';
 import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
@@ -16,6 +18,33 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
+
+  // ── AUTO-EXPIRE OVERDUE POLICIES ──────────────────────────────────────────
+  // Runs silently once when Admin opens the dashboard.
+  // Finds any Active policies whose EffectiveTo date has passed,
+  // marks them Expired, and creates a Notification for Admin.
+  // No loading state — runs in background, fails silently.
+  useEffect(() => {
+    checkExpiredPolicies()
+      .then((result) => {
+        if (result?.expired > 0) {
+          console.log(
+            `[ClaimAuto] Auto-expired ${result.expired} ` +
+            `${result.expired === 1 ? 'policy' : 'policies'}: ` +
+            `${result.message}`
+          );
+          // Admin will see the notification in their Notifications page
+          // No popup needed — non-intrusive background job
+        }
+      })
+      .catch(() => {
+        // Silently ignore — don't break the dashboard for this
+      });
+  }, []); // ← empty array = runs ONCE when dashboard first loads
+  // ─────────────────────────────────────────────────────────────────────────
+  // TODO: wire to real APIs when ready
+  //   stats → GET /api/users, /api/claims, /api/payments, /api/fraud
+  //   kpis  → GET /api/reports/kpis
 
   return (
     <Container fluid className="p-0">

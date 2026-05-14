@@ -175,7 +175,8 @@ export default function PoliciesTable({
 
                           {isAdmin ? (
                             <>
-                              {/* EDIT BUTTON */}
+                              {/* EDIT BUTTON — only for Active and Suspended policies */}
+                              {/* Expired policies show a locked view instead */}
                               <Button
                                 size="sm"
                                 onClick={() => onEdit(policy)}
@@ -184,6 +185,7 @@ export default function PoliciesTable({
                                   borderRadius: 6,
                                   fontWeight: 600,
                                   fontSize: '0.78rem',
+                                  // Visually dim for Expired (though they can still click to see locked view)
                                   background: '#e8f0fe',
                                   border: '1.5px solid #4285f4',
                                   color: '#1a56db',
@@ -193,22 +195,28 @@ export default function PoliciesTable({
                                   gap: 5,
                                   padding: '5px 0',
                                   transition: 'all 0.15s',
+                                  opacity: policy.status === 'Expired' ? 0.4 : 1,
+                                  cursor: policy.status === 'Expired' ? 'not-allowed' : 'pointer',
                                 }}
+                                disabled={policy.status === 'Expired'}
                                 onMouseEnter={(e) => {
+                                  if (policy.status === 'Expired') return;
                                   e.currentTarget.style.background = '#4285f4';
                                   e.currentTarget.style.color = '#fff';
                                 }}
                                 onMouseLeave={(e) => {
+                                  if (policy.status === 'Expired') return;
                                   e.currentTarget.style.background = '#e8f0fe';
                                   e.currentTarget.style.color = '#1a56db';
                                 }}
                               >
                                 <i className="bi bi-pencil-fill" style={{ fontSize: '0.72rem' }}></i>
-                                Edit Policy
+                                {policy.status === 'Expired' ? 'Locked' : 'Edit Policy'}
                               </Button>
 
-                              {/* DEACTIVATE BUTTON — only if not expired */}
-                              {policy.status !== 'Expired' ? (
+                              {/* STATUS ACTION BUTTON — changes based on current status */}
+                              {policy.status === 'Active' && (
+                                // Active → can Deactivate
                                 <Button
                                   size="sm"
                                   onClick={() => onDeactivate(policy)}
@@ -239,8 +247,44 @@ export default function PoliciesTable({
                                   <i className="bi bi-slash-circle-fill" style={{ fontSize: '0.72rem' }}></i>
                                   Deactivate
                                 </Button>
-                              ) : (
-                                /* Already expired — no action */
+                              )}
+
+                              {policy.status === 'Suspended' && (
+                                // Suspended → can Deactivate (expire it) or Edit to reactivate
+                                <Button
+                                  size="sm"
+                                  onClick={() => onDeactivate(policy)}
+                                  style={{
+                                    width: 110,
+                                    borderRadius: 6,
+                                    fontWeight: 600,
+                                    fontSize: '0.78rem',
+                                    background: '#fff8e1',
+                                    border: '1.5px solid #f9a825',
+                                    color: '#e65100',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 5,
+                                    padding: '5px 0',
+                                    transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#f9a825';
+                                    e.currentTarget.style.color = '#fff';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = '#fff8e1';
+                                    e.currentTarget.style.color = '#e65100';
+                                  }}
+                                >
+                                  <i className="bi bi-slash-circle" style={{ fontSize: '0.72rem' }}></i>
+                                  Expire
+                                </Button>
+                              )}
+
+                              {policy.status === 'Expired' && (
+                                // Expired → no action, permanent
                                 <span
                                   style={{
                                     width: 110,
@@ -258,22 +302,19 @@ export default function PoliciesTable({
                                   }}
                                 >
                                   <i className="bi bi-lock-fill" style={{ fontSize: '0.72rem' }}></i>
-                                  Expired
+                                  Permanent
                                 </span>
                               )}
                             </>
                           ) : (
-                            /* InsuranceStaff — read only */
-                            <span
-                              style={{
-                                fontSize: '0.78rem',
-                                color: '#9e9e9e',
-                                fontStyle: 'italic',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                              }}
-                            >
+                            <span style={{
+                              fontSize: '0.78rem',
+                              color: '#9e9e9e',
+                              fontStyle: 'italic',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}>
                               <i className="bi bi-eye"></i>
                               View only
                             </span>

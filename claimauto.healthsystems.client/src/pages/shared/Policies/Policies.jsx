@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { Container }                        from 'react-bootstrap';
 import { useAuth }                          from '../../../security/AuthContext';
@@ -9,6 +8,7 @@ import {
   createPolicy,
   updatePolicy,
   deactivatePolicy,
+  checkExpiredPolicies,
 } from '../../../services/policies/policyService';
 import {
   CreatePolicyDto,
@@ -88,7 +88,7 @@ export default function Policies() {
   // Auto-clear success message after 3 seconds
   useEffect(() => {
     if (!successMsg) return;
-    const t = setTimeout(() => setSuccessMsg(null), 3000);
+    const t = setTimeout(() => setSuccessMsg(null), 5000);
     return () => clearTimeout(t);
   }, [successMsg]);
 
@@ -126,8 +126,9 @@ export default function Policies() {
       });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
+      try { await checkExpiredPolicies(); } catch { }
+      await loadPolicies();
       setSuccessMsg('Policy created successfully.');
-      loadPolicies();
     } catch (err) {
       const msg = err.response?.data?.message
                || err.response?.data
@@ -167,19 +168,51 @@ export default function Policies() {
         planName:          editForm.planName          || null,
         coverageRulesJSON: editForm.coverageRulesJSON || null,
         deductibleAmount:  editForm.deductibleAmount !== ''
-                             ? Number(editForm.deductibleAmount) : null,
+                            ? Number(editForm.deductibleAmount) : null,
         outOfPocketMax:    editForm.outOfPocketMax !== ''
-                             ? Number(editForm.outOfPocketMax) : null,
+                            ? Number(editForm.outOfPocketMax) : null,
         effectiveTo:       editForm.effectiveTo || null,
         status:            editForm.status      || null,
       });
+
       setShowEdit(false);
-      setSuccessMsg(`Policy "${editTarget.planName}" updated successfully.`);
-      loadPolicies();
+
+        // ── Run expiry check immediately after save ──────────────────────────
+        // Also checks 7-day and 2-hour warnings in one call.
+        // expireResult is declared OUTSIDE the try so we can use it below.
+        let expireResult = null;
+        try {
+          expireResult = await checkExpiredPolicies();
+        } catch {
+          // Silently ignore — don't block success flow
+        }
+
+        // Reload list AFTER expiry check so statuses are fresh
+        await loadPolicies();
+
+        // ── Smart success message showing all 3 alert types ─────────────────
+        const expired = expireResult?.expired    ?? 0;
+        const warned7 = expireResult?.warned7Day  ?? 0;
+        const warned2 = expireResult?.warned2Hour ?? 0;
+
+        const parts = [];
+        if (expired > 0)
+          parts.push(`${expired} ${expired === 1 ? 'policy' : 'policies'} expired`);
+        if (warned7 > 0)
+          parts.push(`${warned7} expiring in 7 days`);
+        if (warned2 > 0)
+          parts.push(`${warned2} expiring in ~2 hours`);
+
+        setSuccessMsg(
+          parts.length > 0
+            ? `Policy "${editTarget.planName}" updated. Alerts: ${parts.join(', ')}.`
+            : `Policy "${editTarget.planName}" updated successfully.`
+        );
+
     } catch (err) {
       const msg = err.response?.data?.message
-               || err.response?.data
-               || 'Failed to update policy.';
+              || err.response?.data
+              || 'Failed to update policy.';
       setEditError(typeof msg === 'string' ? msg : 'Failed to update policy.');
     } finally {
       setEditLoading(false);
@@ -199,8 +232,8 @@ export default function Policies() {
     try {
       await deactivatePolicy(deactivateTarget.policyID);
       setShowDeactivate(false);
+      await loadPolicies();
       setSuccessMsg(`Policy "${deactivateTarget.planName}" deactivated.`);
-      loadPolicies();
     } catch (err) {
       const msg = err.response?.data?.message
                || err.response?.data
