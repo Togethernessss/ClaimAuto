@@ -1,0 +1,75 @@
+import { Card, Badge } from 'react-bootstrap';
+
+/**
+ * SVG-based circular progress ring used on the Admin and Staff dashboards.
+ *
+ * Visually shows a percentage of progress around a ring, with the value
+ * displayed in the center and a status badge below.
+ *
+ * Props:
+ *   value   — string or number shown in the ring center, e.g. "—" or 87
+ *   unit    — small unit text below the value, e.g. "%" or "hrs"
+ *   label   — the KPI name below the ring, e.g. "Auto-Adjudication"
+ *   target  — target text in muted small font, e.g. "Target: ≥ 80%"
+ *   status  — short status badge text, e.g. "On track" or "No data"
+ *   color   — stroke color of the progress arc (CSS color), e.g. "#764ba2"
+ *   percent — 0–100 — how filled the ring is (default 0)
+ *
+ * Example:
+ *   <CircularKPI
+ *     value="—"
+ *     unit="%"
+ *     label="Auto-Adjudication"
+ *     target="Target: ≥ 80%"
+ *     status="No data"
+ *     color="#764ba2"
+ *     percent={0}
+ *   />
+ */
+export default function CircularKPI({
+  value,
+  unit,
+  label,
+  target,
+  status,
+  color,
+  percent = 0,
+}) {
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percent / 100) * circumference;
+
+  return (
+    <Card className="border-0 shadow-sm h-100 text-center">
+      <Card.Body>
+        <div
+          className="position-relative mx-auto mb-3"
+          style={{ width: 120, height: 120 }}
+        >
+          <svg width="120" height="120" style={{ transform: 'rotate(-90deg)' }}>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#f1f3f5" strokeWidth="10" />
+            <circle
+              cx="60" cy="60" r="50"
+              fill="none"
+              stroke={color}
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              style={{ transition: 'stroke-dashoffset 1s ease' }}
+            />
+          </svg>
+          <div className="position-absolute top-50 start-50 translate-middle">
+            <div className="fs-4 fw-bold text-muted">{value}</div>
+            <small className="text-muted">{unit}</small>
+          </div>
+        </div>
+        <div className="fw-semibold mb-1">{label}</div>
+        <small className="text-muted d-block mb-2">{target}</small>
+        <Badge bg="light" text="dark" className="text-uppercase" style={{ fontSize: 9 }}>
+          {status}
+        </Badge>
+      </Card.Body>
+    </Card>
+  );
+}
