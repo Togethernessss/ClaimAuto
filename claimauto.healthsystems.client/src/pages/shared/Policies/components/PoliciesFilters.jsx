@@ -56,14 +56,28 @@ export default function PoliciesFilters({
       </Col>
 
       {/* Results count */}
-      <Col className="d-flex align-items-center">
-        {!loading && (
-          <span className="text-muted small">
-            {filteredCount} of {totalCount}{' '}
-            {totalCount === 1 ? 'policy' : 'policies'}
-          </span>
-        )}
-      </Col>
+      <Col className="d-flex align-items-center gap-3">
+      {!loading && (
+        <span className="text-muted small">
+          {filteredCount} of {totalCount}{' '}
+          {totalCount === 1 ? 'policy' : 'policies'}
+        </span>
+      )}
+      {/* Show clear button only when filters are active */}
+      {(search || statusFilter !== 'All') && (
+        <button
+          className="btn btn-sm btn-outline-secondary rounded-pill py-0 px-3"
+          style={{ fontSize: '0.78rem' }}
+          onClick={() => {
+            onSearchChange('');
+            onStatusChange('All');
+          }}
+        >
+          <i className="bi bi-x me-1"></i>
+          Clear filters
+        </button>
+      )}
+    </Col>
 
     </Row>
   );

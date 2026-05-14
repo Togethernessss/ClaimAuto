@@ -65,3 +65,12 @@ export async function deactivatePolicy(id) {
   const response = await api.delete(`/api/policies/${id}`);
   return response.data;
 }
+
+
+// POST /api/policies/check-expired
+// Called when Admin logs in — auto-expires overdue policies
+// and sends notifications. Admin only.
+export async function checkExpiredPolicies() {
+  const response = await api.post('/api/policies/check-expired');
+  return response.data;
+}

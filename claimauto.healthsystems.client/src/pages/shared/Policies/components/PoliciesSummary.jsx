@@ -31,6 +31,14 @@ const STAT_CARDS = [
     color: '#757575',
   },
   {
+    key:   'suspended',
+    label: 'Suspended',
+    icon:  'bi-pause-circle',
+    bg:    '#fff8e1',
+    color: '#f9a825',
+  },
+
+  {
     key:   'enrolled',
     label: 'Total Enrolled',
     icon:  'bi-people-fill',
@@ -42,39 +50,44 @@ const STAT_CARDS = [
 export default function PoliciesSummary({ policies }) {
   // Calculate values from the policies array
   const values = {
-    total:    policies.length,
-    active:   policies.filter((p) => p.status === 'Active').length,
-    expired:  policies.filter((p) => p.status === 'Expired').length,
-    enrolled: policies.reduce((sum, p) => sum + (p.memberCount ?? 0), 0),
+    total:     policies.length,
+    active:    policies.filter((p) => p.status === 'Active').length,
+    expired:   policies.filter((p) => p.status === 'Expired').length,
+    suspended: policies.filter((p) => p.status === 'Suspended').length,
+    enrolled:  policies.reduce((sum, p) => sum + (p.memberCount ?? 0), 0),
   };
 
   return (
-    <Row className="g-3 mb-4">
+    <div className="d-flex gap-3 mb-4 flex-wrap">
       {STAT_CARDS.map((card) => (
-        <Col xs={6} lg={3} key={card.key}>
-          <Card className="border-0 shadow-sm">
-            <Card.Body className="d-flex align-items-center gap-3 py-3">
-              {/* Icon circle */}
+        <div
+          key={card.key}
+          className="flex-grow-1"
+          style={{ minWidth: 120, flex: '1 1 0' }}
+        >
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
               <div
                 className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                style={{ width: 44, height: 44, backgroundColor: card.bg }}
+                style={{ width: 38, height: 38, backgroundColor: card.bg }}
               >
                 <i
-                  className={`${card.icon} fs-5`}
-                  style={{ color: card.color }}
+                  className={`${card.icon}`}
+                  style={{ color: card.color, fontSize: '1rem' }}
                 ></i>
               </div>
-              {/* Value + label */}
               <div>
-                <div className="fw-bold fs-5 mb-0 lh-1">
+                <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>
                   {values[card.key]}
                 </div>
-                <div className="text-muted small">{card.label}</div>
+                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                  {card.label}
+                </div>
               </div>
             </Card.Body>
           </Card>
-        </Col>
+        </div>
       ))}
-    </Row>
+    </div>
   );
 }
