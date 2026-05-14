@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ClaimAuto.HealthSystems.Server.Services;
+using ClaimAuto.HealthSystems.Server.Helpers;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {   /// <summary>Manages user accounts. Admin only.</summary
@@ -18,11 +20,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         //Now depends on the INTERFACE — not the database directly
         private readonly IUserRepository _userRepository;
-
-        public UsersController(IUserRepository userRepository)
+        private readonly IAuthRepository _authRepository;
+        private readonly IEmailService _emailService;
+        public UsersController(
+                IUserRepository userRepository,
+                IAuthRepository authRepository,
+                IEmailService emailService)
         {
-            _userRepository = userRepository;
-        }
+                _userRepository = userRepository;
+                _authRepository = authRepository;
+                _emailService = emailService;
+           }
 
         // GET: api/users 
         /// <summary>Returns all user accounts.</summary>
@@ -157,6 +165,78 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
 
             return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);//201
+        }
+
+        // POST: api/users/invite
+        /// <summary>Admin invites a new user by email. System generates a temp password and emails it.</summary>
+        /// <response code="201">Invitation sent successfully.</response>
+        /// <response code="400">Invalid role.</response>
+        /// <response code="409">Email already exists.</response>
+        /// <response code="500">Failed to send invitation email.</response>
+        [HttpPost("invite")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<UserResponseDto>> InviteUser(InviteUserDto dto)
+        {
+            // 1. Validate inputs
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest("Name and email are required.");
+
+            if (await _authRepository.EmailExistsAsync(dto.Email))
+                return Conflict("A user with this email already exists.");
+
+            if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
+                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
+
+            // 2. Generate temp password
+            var tempPassword = TempPasswordGenerator.Generate(12);
+
+            // 3. Build user object (repo will hash password + set flag + audit)
+            var user = new User
+            {
+                Name = dto.Name,
+                Email = dto.Email,
+                Role = role,
+                Phone = dto.Phone,
+                Department = dto.Department
+            };
+
+            var created = await _authRepository.RegisterInvitedUserAsync(user, tempPassword);
+
+            // 4. Send invitation email (if this throws, the user is created but no email arrives —
+            //    we return 500 so the admin knows to manually resend or check SMTP config)
+            try
+            {
+                await _emailService.SendInvitationAsync(created.Email, created.Name, tempPassword, created.Role.ToString());
+            }
+            catch
+            {
+                return StatusCode(500, new
+                {
+                    Message = "User created but invitation email could not be sent. Check SMTP configuration.",
+                    UserId = created.UserID
+                });
+            }
+
+            // 5. Return the created user (no password in response, obviously)
+            var response = new UserResponseDto
+            {
+                UserID = created.UserID,
+                Name = created.Name,
+                Role = created.Role.ToString(),
+                Email = created.Email,
+                Phone = created.Phone,
+                Department = created.Department,
+                MFAEnabled = created.MFAEnabled,
+                MustChangePassword = created.MustChangePassword,
+                Status = created.Status.ToString(),
+                CreatedAt = created.CreatedAt
+            };
+
+            return CreatedAtAction(nameof(GetUser), new { id = created.UserID }, response);
         }
 
         // PUT: api/users/{id}

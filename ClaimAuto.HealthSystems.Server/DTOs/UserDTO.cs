@@ -12,6 +12,16 @@
         public bool MFAEnabled { get; set; } = false;
     }
 
+    // ── InviteUserDto — admin invites a user; no password (system generates one)
+    public class InviteUserDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;   // "Admin","InsuranceStaff","Policyholder","Hospital"
+        public string? Phone { get; set; }
+        public string? Department { get; set; }
+    }
+
     // ── LoginDto 
     public class LoginDto
     {
@@ -30,6 +40,7 @@
         public string? Department { get; set; }
         public bool MFAEnabled { get; set; }
         public string Status { get; set; } = string.Empty;   // "Active" or "Inactive"
+        public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

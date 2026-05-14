@@ -12,7 +12,7 @@ import AuditLogs from "./pages/Admin/AuditLogs";
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
 import Profile from './pages/identity/Profile';
-
+import ForceChangePassword from './pages/identity/ForceChangePassword';
 // Smart redirect for the root URL "/"
 // - If not logged in → send to /login
 // - If logged in → send to their role-specific dashboard
@@ -47,6 +47,7 @@ export default function App() {
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/force-change-password" element={<ForceChangePassword />} />
             {/* More module pages will go here */}
           </Route>
 

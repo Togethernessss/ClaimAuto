@@ -25,7 +25,11 @@ export default function Login() {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
         login(data.token, data.user);
-        navigate(getDashboardPath(data.user.role));
+        if (data.user.mustChangePassword) {
+          navigate('/force-change-password', { replace: true });
+        } else {
+          navigate(getDashboardPath(data.user.role), { replace: true });
+        }
       }
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Login failed.';
