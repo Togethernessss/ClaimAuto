@@ -151,9 +151,9 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/* ── Quick Access ───────────────────────────────────────────────── */}
+        {/*Quick Access*/}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
-        <h5 className="fw-semibold mb-3">Quick Access</h5>
+        
         <QuickAccessGrid
           items={myMenu}
           onItemClick={(item) => navigate(item.path)}

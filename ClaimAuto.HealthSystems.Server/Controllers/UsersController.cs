@@ -11,7 +11,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 {   /// <summary>Manages user accounts. Admin only.</summary
     [ApiController]
     [Route("api/users")]
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     [Produces("application/json")]
     public class UsersController : BaseController
     {
@@ -28,6 +28,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Returns all user accounts.</summary>
         /// <response code="200">Returns list of all users.</response>
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
@@ -55,6 +56,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="200">Returns the user.</response>
         /// <response code="404">User not found.</response>
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<UserResponseDto>> GetUser(int id)
@@ -82,6 +84,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <param name="role">Role to filter by: Admin, InsuranceStaff, Policyholder, Hospital.</param>
         /// <response code="200">Returns list of users with the given role.</response>
         [HttpGet("role/{role}")]      //"role" --> Just a text(static) while {role} is a variable that will be passed in the URL
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
@@ -110,6 +113,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="400">Invalid role.</response>
         /// <response code="409">Email already exists.</response>
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -156,13 +160,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // PUT: api/users/{id}
-        /// <summary>Updates a user's profile fields (name, phone, department, MFA, status).</summary>
-        /// <param name="id">The user ID to update.</param>
-        /// <param name="dto">Fields to update (only provided fields are changed).</param>
-        /// <response code="204">User updated successfully.</response>
-        /// <response code="404">User not found.</response>
+        /// <summary>
+        /// Updates a user's profile fields.
+        /// Admin can update any user. Non-admin users can update only their own profile
+        /// and cannot change their own status or MFA flag through this endpoint.
+        /// </summary>
         [HttpPut("{id}")]
+        [Authorize]   // ← overrides the controller-level Admin-only rule; any logged-in user can hit this
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateUser(int id, UpdateUserDto dto)
         {
@@ -170,12 +176,28 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
+            // ── Self-update guard ─────────────────────────────────────────
+            // Only an Admin can update another user. Non-admins must be editing
+            // their own record (id == their own UserID from the JWT).
+            var callerId = GetLoggedInUserId();
+            var callerRole = GetLoggedInUserRole();
+            bool isAdmin = callerRole == "Admin";
+
+            if (!isAdmin && callerId != id)
+                return Forbid();   // 403
+
+            // ── Apply allowed updates ────────────────────────────────────
             if (dto.Name != null) user.Name = dto.Name;
             if (dto.Phone != null) user.Phone = dto.Phone;
             if (dto.Department != null) user.Department = dto.Department;
-            if (dto.MFAEnabled.HasValue) user.MFAEnabled = dto.MFAEnabled.Value;
-            if (dto.Status != null && Enum.TryParse<AccountStatus>(dto.Status, out var status))
-                user.Status = status;
+
+            // Sensitive fields — Admin only
+            if (isAdmin)
+            {
+                if (dto.MFAEnabled.HasValue) user.MFAEnabled = dto.MFAEnabled.Value;
+                if (dto.Status != null && Enum.TryParse<AccountStatus>(dto.Status, out var status))
+                    user.Status = status;
+            }
 
             await _userRepository.UpdateUserAsync(user);
             return NoContent();
@@ -187,6 +209,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="204">User deactivated successfully.</response>
         /// <response code="404">User not found.</response>
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteUser(int id)
