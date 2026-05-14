@@ -20,7 +20,7 @@ export default function StaffDashboard() {
   return (
     <Container fluid className="p-0">
 
-      {/* ── Welcome Banner ──────────────────────────────────── */}
+      {/*Welcome Banner */}
       <WelcomeBanner
         emoji="👋"
         actions={[
@@ -41,7 +41,7 @@ export default function StaffDashboard() {
 
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar ──────────────────────────── */}
+        {/* Priority Action Bar */}
         <PriorityActionBar
           accentColor="danger"
           icon="bi-exclamation-triangle-fill"
@@ -52,7 +52,7 @@ export default function StaffDashboard() {
           onButtonClick={() => navigate('/tasks')}
         />
 
-        {/* ── Stat Cards ───────────────────────────────────── */}
+        {/*Stat Cards*/}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
