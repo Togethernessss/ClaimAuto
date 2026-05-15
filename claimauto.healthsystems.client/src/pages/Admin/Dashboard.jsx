@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
 import { getMenuForRole } from '../../security/permissions';
 import WelcomeBanner from '../../components/WelcomeBanner';
+import { checkExpiredMembers } from '../../services/members/memberService';
 
 // Admin dashboard — system-wide view for users with role = "Admin".
 // Uses the reusable WelcomeBanner component for consistency.
@@ -61,6 +62,8 @@ export default function AdminDashboard() {
   // marks them Expired, and creates a Notification for Admin.
   // No loading state — runs in background, fails silently.
   useEffect(() => {
+
+    // Auto-expire overdue policies
     checkExpiredPolicies()
       .then((result) => {
         if (result?.expired > 0) {
@@ -69,19 +72,23 @@ export default function AdminDashboard() {
             `${result.expired === 1 ? 'policy' : 'policies'}: ` +
             `${result.message}`
           );
-          // Admin will see the notification in their Notifications page
-          // No popup needed — non-intrusive background job
         }
       })
-      .catch(() => {
-        // Silently ignore — don't break the dashboard for this
-      });
-  }, []); // ← empty array = runs ONCE when dashboard first loads
-  // ─────────────────────────────────────────────────────────────────────────
-  // TODO: wire to real APIs when ready
-  //   stats → GET /api/users, /api/claims, /api/payments, /api/fraud
-  //   kpis  → GET /api/reports/kpis
+      .catch(() => {});
 
+    // Auto-expire overdue members
+    checkExpiredMembers()
+      .then((result) => {
+        if (result?.expired > 0) {
+          console.log(
+            `[ClaimAuto] Auto-expired ${result.expired} ` +
+            `${result.expired === 1 ? 'member' : 'members'}.`
+          );
+        }
+      })
+      .catch(() => {});
+
+  }, []); // runs once on dashboard load
   return (
     <Container fluid>
 

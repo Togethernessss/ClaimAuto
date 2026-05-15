@@ -97,24 +97,27 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
                 if (cachedMember == null) return null;
 
+                // Extract the IsEligible value from cached ResultJSON
+                // ResultJSON contains: {"IsEligible":true,"MemberStatus":"Active",...}
+                var isEligibleCached = cachedCheck.ResultJSON?.Contains("\"IsEligible\":true") ?? false;
+
                 return new EligibilityResponseDto
                 {
                     MemberID = memberId,
                     PolicyID = cachedMember.PolicyID,
-                    Status = cachedMember.Status.ToString(),
-                    RemainingBenefit = cachedCheck.TTL.HasValue
-                                        ? ExtractRemainingBenefitFromCache(cachedCheck.ResultJSON)
-                                        : 0m,
+                    Status = isEligibleCached ? "Eligible" : "NotEligible", // ← FIXED
+                    RemainingBenefit = ExtractRemainingBenefitFromCache(cachedCheck.ResultJSON),
                     DeductibleMet = ExtractDeductibleMetFromCache(cachedCheck.ResultJSON),
                     PreAuthRequired = false,
                     CheckedAt = cachedCheck.CheckedAt,
                     Source = "Cached",
-                    TTL = cachedCheck.TTL
+                    TTL = cachedCheck.TTL,
+                    Reason = ExtractReasonFromCache(cachedCheck.ResultJSON),
                 };
             }
 
             // ── Step 2: Load member + policy + claims in ONE query ───────────
-            
+
             var member = await _db.Members
                 .Include(m => m.Policy)
                 .FirstOrDefaultAsync(m => m.MemberID == memberId);
@@ -143,11 +146,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // DeductibleMet = how much of deductible has been used (capped at full deductible)
             var deductibleMet = Math.Min(totalPaid, deductible);
 
-            // ── Step 5: Check eligibility conditions ────────────────────────
-            var isEligible = member.Status == MemberStatus.Active
-                          && member.Policy.Status == PolicyStatus.Active
-                          && member.CoverageStart <= now
-                          && (member.CoverageEnd == null || member.CoverageEnd >= now);
+            // ── Step 5: Check eligibility + build reason ─────────────────────────────
+            var reasons = new List<string>();
+
+            if (member.Status != MemberStatus.Active)
+                reasons.Add($"Member is {member.Status}");
+
+            if (member.Policy.Status != PolicyStatus.Active)
+                reasons.Add($"Policy is {member.Policy.Status}");
+
+            if (member.CoverageStart > now)
+                reasons.Add($"Coverage has not started yet (starts {member.CoverageStart:dd MMM yyyy})");
+
+            if (member.CoverageEnd != null && member.CoverageEnd < now)
+                reasons.Add($"Coverage ended on {member.CoverageEnd:dd MMM yyyy}");
+
+            var isEligible = !reasons.Any();
+            var reason = isEligible ? "All conditions met" : string.Join(", ", reasons);
 
             // ── Step 6: Save fresh result to EligibilityChecks table ────────
             var resultJson = $"{{" +
@@ -155,7 +170,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 $"\"MemberStatus\":\"{member.Status}\"," +
                 $"\"PolicyStatus\":\"{member.Policy.Status}\"," +
                 $"\"RemainingBenefit\":{remainingBenefit}," +
-                $"\"DeductibleMet\":{deductibleMet}" +
+                $"\"DeductibleMet\":{deductibleMet}," +
+                $"\"Reason\":\"{reason}\"" +
                 $"}}";
 
             var check = new EligibilityCheck
@@ -182,7 +198,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PreAuthRequired = false,
                 CheckedAt = now,
                 Source = "API",
-                TTL = 300
+                TTL = 300,
+                Reason = reason,
             };
         }
 
@@ -271,7 +288,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (member == null) return null;
 
-            // Track changes for audit log — same pattern as Utkarsh
+            // Track changes for audit log
             var changes = new List<string>();
 
             if (dto.Name != null && dto.Name != member.Name)
@@ -300,6 +317,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     changes.Add($"Status: '{member.Status}' → '{dto.Status}'");
                     member.Status = newStatus;
                 }
+
             }
 
             // If nothing changed, return current state without saving
@@ -332,6 +350,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Timestamp = DateTime.UtcNow
             };
             _db.AuditLogs.Add(audit);
+
+
+            // ── CLEAR ELIGIBILITY CACHE when status changes ───────────────────────────
+            // Without this, old cached result (Eligible/NotEligible) persists for 300s
+            // even after member status changes — showing wrong eligibility to users.
+            // Fix: delete ALL cached checks for this member when status changes.
+            if (dto.Status != null || dto.CoverageEnd.HasValue)
+            {
+                var cachedChecks = await _db.EligibilityChecks
+                    .Where(e => e.MemberID == memberId)
+                    .ToListAsync();
+
+                if (cachedChecks.Any())
+                    _db.EligibilityChecks.RemoveRange(cachedChecks);
+            }
 
             await _db.SaveChangesAsync();
 
@@ -405,6 +438,63 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
+        private string ExtractReasonFromCache(string? resultJson)
+        {
+            if (string.IsNullOrEmpty(resultJson)) return "Unknown";
+            try
+            {
+                var key = "\"Reason\":\"";
+                var start = resultJson.IndexOf(key);
+                if (start == -1) return "Unknown";
+                start += key.Length;
+                var end = resultJson.IndexOf("\"", start);
+                if (end == -1) return "Unknown";
+                return resultJson.Substring(start, end - start);
+            }
+            catch { return "Unknown"; }
+        }
+
+        public async Task<object> AutoExpireMembersAsync()
+        {
+            var now = DateTime.UtcNow;
+
+            // Find Active members whose CoverageEnd has passed
+            var expiredMembers = await _db.Members
+                .Where(m => m.Status == MemberStatus.Active
+                         && m.CoverageEnd != null
+                         && m.CoverageEnd < now)
+                .ToListAsync();
+
+            if (!expiredMembers.Any())
+                return new { expired = 0, message = "No members to expire." };
+
+            foreach (var member in expiredMembers)
+            {
+                member.Status = MemberStatus.Inactive;
+
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    UserID = 1,
+                    Action = "AutoExpireMember",
+                    ResourceType = "Member",
+                    ResourceID = member.MemberID.ToString(),
+                    DetailsJSON = $"{{\"memberNumber\":\"{member.MemberNumber}\"," +
+                                   $"\"coverageEnd\":\"{member.CoverageEnd:yyyy-MM-dd}\"," +
+                                   $"\"reason\":\"Auto-expired — CoverageEnd date passed\"}}",
+                    Timestamp = now
+                });
+            }
+
+            await _db.SaveChangesAsync();
+
+            return new
+            {
+                expired = expiredMembers.Count,
+                message = $"{expiredMembers.Count} " +
+                          $"{(expiredMembers.Count == 1 ? "member" : "members")} " +
+                          $"auto-expired.",
+            };
+        }
 
     }
 }
