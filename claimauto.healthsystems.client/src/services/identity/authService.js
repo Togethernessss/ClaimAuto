@@ -57,28 +57,3 @@ export async function inviteUser(payload) {
   const response = await api.post('/api/users/invite', payload);
   return response.data;
 }
-
-// FORGOT PASSWORD — step 1
-// Backend: POST /api/auth/forgot-password
-// Body:    { email }
-// Always returns 200 with a generic message (no user enumeration).
-export async function requestPasswordReset(email) {
-  const response = await api.post('/api/auth/forgot-password', { email });
-  return response.data;
-}
-
-// FORGOT PASSWORD — token validity check (used on reset page load)
-// Backend: POST /api/auth/reset-password/validate
-// Body:    { token }
-export async function validateResetToken(token) {
-  const response = await api.post('/api/auth/reset-password/validate', { token });
-  return response.data;
-}
-
-// FORGOT PASSWORD — step 2
-// Backend: POST /api/auth/reset-password
-// Body:    { token, newPassword }
-export async function resetPassword(token, newPassword) {
-  const response = await api.post('/api/auth/reset-password', { token, newPassword });
-  return response.data;
-}
