@@ -49,6 +49,5 @@
         public DateTime CheckedAt { get; set; }
         public string Source { get; set; } = string.Empty;      // "RealTimeAPI","Cached","Manual"
         public int? TTL { get; set; }                            // cache validity in seconds
-        public string Reason { get; set; }
     }
 }

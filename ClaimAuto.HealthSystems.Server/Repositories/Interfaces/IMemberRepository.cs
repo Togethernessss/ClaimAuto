@@ -34,6 +34,5 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // DOB, Gender, PolicyID cannot be changed after creation
         // Returns null if member not found
         Task<MemberResponseDto?> UpdateMemberAsync(int memberId, UpdateMemberDto dto, int updatedByUserId);
-        Task<object> AutoExpireMembersAsync();
     }
 }
