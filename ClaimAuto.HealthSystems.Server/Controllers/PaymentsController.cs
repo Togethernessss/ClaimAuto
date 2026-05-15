@@ -5,7 +5,6 @@ using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-
 /// <summary>Manages claim payments through state machine: Pending → Authorized → Executed.</summary>
 [ApiController]
 [Route("api/payments")]
@@ -20,7 +19,6 @@ public class PaymentsController : BaseController
     {
         _paymentRepository = paymentRepository;
     }
-
 
     /// <summary>Returns all payments with optional filters. Admin and InsuranceStaff only.</summary>
     /// <param name="status">Filter by payment status.</param>
@@ -109,7 +107,6 @@ public class PaymentsController : BaseController
             response);
     }
 
-
     /// <summary>Authorizes a Pending payment, moving it to Authorized status.</summary>
     /// <param name="id">The payment ID to authorize.</param>
     /// <response code="200">Payment authorized successfully.</response>
@@ -120,8 +117,7 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AuthorizePayment(
-        int id)
+    public async Task<IActionResult> AuthorizePayment(int id)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)
@@ -137,7 +133,6 @@ public class PaymentsController : BaseController
 
         return Ok(response);
     }
-
 
     /// <summary>Executes an Authorized payment, moving it to Executed status.</summary>
     /// <param name="id">The payment ID to execute.</param>
@@ -175,7 +170,6 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-
     /// <summary>Places a payment on hold, preventing further processing.</summary>
     /// <param name="id">The payment ID to hold.</param>
     /// <response code="200">Payment placed on hold.</response>
@@ -203,6 +197,32 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
+    /// <summary>Resumes an OnHold payment, moving it back to Pending status.</summary>
+    /// <param name="id">The payment ID to resume.</param>
+    /// <response code="200">Payment resumed successfully.</response>
+    /// <response code="401">Unauthorized.</response>
+    /// <response code="404">Payment not found or not in OnHold status.</response>
+    [HttpPut("{id}/resume")]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResumePayment(int id)
+    {
+        var userId = GetLoggedInUserId();
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
+        var response = await _paymentRepository
+            .ResumePaymentAsync(id);
+
+        if (response == null)
+            return NotFound(
+                $"Payment {id} not found " +
+                $"or not in OnHold status.");
+
+        return Ok(response);
+    }
 
     /// <summary>Returns the remittance advice for a payment. Admin, InsuranceStaff, and Hospital roles.</summary>
     /// <param name="id">The payment ID.</param>
@@ -225,6 +245,69 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
+    /// <summary>
+    /// Returns all remittances with optional filters.
+    /// Admin and Staff see all. Hospital sees only their own.
+    /// </summary>
+    /// <param name="status">Filter by remittance status.</param>
+    /// <param name="search">Search by payee name or remittance ID.</param>
+    /// <param name="claimId">Filter by claim ID.</param>
+    /// <param name="dateFrom">Filter by generated date from.</param>
+    /// <param name="dateTo">Filter by generated date to.</param>
+    /// <response code="200">Returns list of remittances.</response>
+    /// <response code="401">Unauthorized.</response>
+    [HttpGet("remittances")]
+    [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetAllRemittances(
+        [FromQuery] string? status,
+        [FromQuery] string? search,
+        [FromQuery] int? claimId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo)
+    {
+        var userId = GetLoggedInUserId();
+        var userRole = GetLoggedInUserRole();
+
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
+        var response = await _paymentRepository
+            .GetAllRemittancesAsync(
+                userId, userRole,
+                status, search, claimId,
+                dateFrom, dateTo);
+
+        return Ok(response);
+    }
+
+    /// <summary>Downloads the PDF remittance advice for a payment.</summary>
+    /// <param name="id">The payment ID.</param>
+    /// <response code="200">Returns PDF file.</response>
+    /// <response code="404">PDF not found for this remittance.</response>
+    [HttpGet("{id}/remittance/pdf")]
+    [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRemittancePdf(int id)
+    {
+        var userId = GetLoggedInUserId();
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
+        var pdfBytes = await _paymentRepository
+            .GetRemittancePdfAsync(id);
+
+        if (pdfBytes == null || pdfBytes.Length == 0)
+            return NotFound(
+                $"PDF not yet generated for Payment {id}.");
+
+        return File(
+            pdfBytes,
+            "application/pdf",
+            $"Remittance-PAY-{id}.pdf");
+    }
 
     /// <summary>Acknowledges receipt of a remittance advice. Hospital role only.</summary>
     /// <param name="id">The payment ID whose remittance to acknowledge.</param>
@@ -236,8 +319,7 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult>
-        AcknowledgeRemittance(int id)
+    public async Task<IActionResult> AcknowledgeRemittance(int id)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)
@@ -259,8 +341,7 @@ public class PaymentsController : BaseController
     [HttpGet("reconciliation")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult>
-        GetReconciliations()
+    public async Task<IActionResult> GetReconciliations()
     {
         var response = await _paymentRepository
             .GetReconciliationsAsync();
@@ -278,9 +359,8 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult>
-        CreateReconciliation(
-            [FromBody] CreateReconciliationDto dto)
+    public async Task<IActionResult> CreateReconciliation(
+        [FromBody] CreateReconciliationDto dto)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)

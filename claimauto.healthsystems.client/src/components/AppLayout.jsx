@@ -22,7 +22,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div style={{ height: '100vh', overflow: 'hidden', backgroundColor: '#eceaf7' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', backgroundColor: '#f3f0ff' }}>
 
       {/* ─── Top navbar ─── */}
       <nav
@@ -92,7 +92,7 @@ export default function AppLayout() {
           padding: '16px 0 0 0',
           overflowY: 'auto',
           transition: 'left 0.3s ease',
-          backgroundColor: '#eceaf7',
+          backgroundColor: '#f3f0ff',
         }}
       >
         <Outlet />
