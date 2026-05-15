@@ -21,6 +21,8 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public string PasswordHash { get; set; } = string.Empty;
 
+        public bool MustChangePassword { get; set; } = false;
+
         [MaxLength(20)]
         public string? Phone { get; set; }
 

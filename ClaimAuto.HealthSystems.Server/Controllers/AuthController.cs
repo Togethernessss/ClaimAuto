@@ -3,6 +3,7 @@ using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ClaimAuto.HealthSystems.Server.Helpers;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {   /// <summary>Handles user authentication, registration, and MFA operations.</summary>
@@ -51,6 +52,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
                 return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
 
+            // Enforce password policy
+            var passwordError = PasswordPolicy.Validate(dto.Password);
+            if (passwordError != null)
+                return BadRequest(passwordError);
+
             var user = new User
             {
                 Name = dto.Name,
@@ -73,6 +79,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Phone = user.Phone,
                 Department = user.Department,
                 MFAEnabled = user.MFAEnabled,
+                MustChangePassword = user.MustChangePassword,
                 Status = user.Status.ToString(),
                 CreatedAt = user.CreatedAt
             });
@@ -134,6 +141,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Phone = user.Phone,
                     Department = user.Department,
                     MFAEnabled = user.MFAEnabled,
+                    MustChangePassword = user.MustChangePassword,
                     Status = user.Status.ToString(),
                     CreatedAt = user.CreatedAt
                 }
@@ -203,6 +211,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Phone = user.Phone,
                     Department = user.Department,
                     MFAEnabled = user.MFAEnabled,
+                    MustChangePassword = user.MustChangePassword,
                     Status = user.Status.ToString(),
                     CreatedAt = user.CreatedAt
                 }
@@ -310,6 +319,52 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             await _auth.DisableMfaAsync(userId);
 
             return Ok(new { Message = "MFA has been disabled." });
+        }
+
+        // POST: api/auth/change-password  [Authorized]
+        /// <summary>Changes the logged-in user's password. Requires current password + new password.</summary>
+        /// <param name="dto">Current password and new password.</param>
+        /// <response code="200">Password changed successfully.</response>
+        /// <response code="400">New password doesn't meet policy, or is same as current.</response>
+        /// <response code="401">Current password is incorrect, or invalid token.</response>
+        /// <response code="404">User not found.</response>
+        [Authorize]
+        [HttpPost("change-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult> ChangePassword(ChangePasswordDto dto)
+        {
+            // 1. Identify the caller from JWT
+            if (GetLoggedInUserId() is not int userId)
+                return Unauthorized("Invalid token.");
+
+            // 2. Sanity: new password must differ from current
+            if (string.Equals(dto.CurrentPassword, dto.NewPassword))
+                return BadRequest("New password must be different from your current password.");
+
+            // 3. Validate new password against policy
+            var passwordError = PasswordPolicy.Validate(dto.NewPassword);
+            if (passwordError != null)
+                return BadRequest(passwordError);
+
+            // 4. Look up the user
+            var user = await _auth.GetUserByIdAsync(userId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            // 5. Verify current password (proves the caller knows it — defeats stolen-session attacks)
+            if (!_auth.VerifyPassword(dto.CurrentPassword, user.PasswordHash))
+                return Unauthorized("Current password is incorrect.");
+
+            // 6. Hash + persist the new password (+ audit)
+            var newHash = _auth.HashPassword(dto.NewPassword);
+            var ok = await _auth.ChangePasswordAsync(userId, newHash);
+            if (!ok)
+                return NotFound("User not found.");
+
+            return Ok(new { Message = "Password changed successfully." });
         }
     }
 }

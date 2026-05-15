@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useEffect }              from 'react';
 import { checkExpiredPolicies }   from '../../services/policies/policyService';
 import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
+import InviteUserModal from '../../components/identity/InviteUserModal';
 import { getMenuForRole } from '../../security/permissions';
 import WelcomeBanner from '../../components/WelcomeBanner';
 import StatCard from '../../components/dashboard/StatCard';
@@ -16,6 +18,7 @@ import QuickAccessGrid from '../../components/dashboard/QuickAccessGrid';
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [showInvite, setShowInvite] = useState(false);
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
@@ -52,7 +55,13 @@ export default function AdminDashboard() {
       {/* ── Welcome Banner — full width ──────────────────────────────────── */}
       <WelcomeBanner
         emoji="👑"
-        actions={[
+                actions={[
+          {
+            label: 'Invite User',
+            icon: 'bi-envelope-plus',
+            variant: 'light',
+            onClick: () => setShowInvite(true),
+          },
           {
             label: 'Manage Users',
             icon: 'bi-people',
@@ -62,7 +71,7 @@ export default function AdminDashboard() {
           {
             label: 'Audit Logs',
             icon: 'bi-journal-text',
-            variant: 'light',
+            variant: 'outline-light',
             onClick: () => navigate('/audit-logs'),
           },
         ]}
@@ -183,11 +192,17 @@ export default function AdminDashboard() {
         {/*Quick Access*/}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
         
-        <QuickAccessGrid
+                <QuickAccessGrid
           items={myMenu}
           onItemClick={(item) => navigate(item.path)}
         />
       </div>
+
+      {/* ── Invite User Modal (controlled by WelcomeBanner button) ── */}
+      <InviteUserModal
+        show={showInvite}
+        onClose={() => setShowInvite(false)}
+      />
     </Container>
   );
 }

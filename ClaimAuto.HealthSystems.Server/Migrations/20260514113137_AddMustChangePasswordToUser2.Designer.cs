@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260514113137_AddMustChangePasswordToUser2")]
+    partial class AddMustChangePasswordToUser2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -705,12 +708,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NotifiedAt2Hours")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NotifiedAt7Days")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("OutOfPocketMax")

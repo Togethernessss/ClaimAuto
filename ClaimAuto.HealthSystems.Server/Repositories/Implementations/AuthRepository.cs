@@ -62,6 +62,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return user;
         }
 
+        // ── Invitation (transactional) ──────────────────────────────
+        public async Task<User> RegisterInvitedUserAsync(User user, string tempPassword)
+        {
+            user.PasswordHash = HashPassword(tempPassword);
+            user.MFAEnabled = false;
+            user.Status = AccountStatus.Active;
+            user.MustChangePassword = true;                 // ← key flag
+            user.CreatedAt = user.UpdatedAt = DateTime.UtcNow;
+
+            using var tx = await _db.Database.BeginTransactionAsync();
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
+
+            await LogAuthActionAsync(user.UserID, "UserInvited");
+            await tx.CommitAsync();
+            return user;
+        }
+
         // ── JWT generation ─────────────────────────────────────────
         public string GenerateJwtToken(User user)
         {
@@ -227,6 +245,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Timestamp = DateTime.UtcNow
             });
             await _db.SaveChangesAsync();
+        }
+
+        // ── Change password ─────────────────────────────────────────
+        public async Task<bool> ChangePasswordAsync(int userId, string newPasswordHash)
+        {
+            var user = await _db.Users.FindAsync(userId);
+            if (user == null) return false;
+
+            user.PasswordHash = newPasswordHash;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            // If the user was on a temp password (invited / admin-reset), clear the flag
+            if (user.MustChangePassword)
+                user.MustChangePassword = false;
+
+            await _db.SaveChangesAsync();
+            await LogAuthActionAsync(userId, "ChangePassword");
+            return true;
         }
     }
 }

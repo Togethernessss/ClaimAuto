@@ -4,7 +4,7 @@ import { useAuth } from '../../security/AuthContext';
 import ProfileInfoCard from '../../components/identity/ProfileInfoCard';
 import MfaCard from '../../components/identity/MfaCard';
 import AccountInfoCard from '../../components/identity/AccountInfoCard';
-
+import ChangePasswordCard from '../../components/identity/ChangePasswordCard';
 
 export default function Profile() {
     const { user } = useAuth();
@@ -41,6 +41,7 @@ export default function Profile() {
                 <Col lg={5}>
                     <div className="d-flex flex-column gap-3">
                         <MfaCard user={user} />
+                        <ChangePasswordCard />
                         <AccountInfoCard user={user} />
                     </div>
                 </Col>
