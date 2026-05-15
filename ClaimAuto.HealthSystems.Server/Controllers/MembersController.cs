@@ -136,20 +136,5 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             return Ok(updated);
         }
-
-
-        /// <summary>
-        /// Auto-expires members whose CoverageEnd date has passed.
-        /// Sets their status to Inactive.
-        /// Admin only.
-        /// </summary>
-        [HttpPost("check-expired")]
-        [Authorize(Roles = "Admin,InsuranceStaff")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> CheckExpiredMembers()
-        {
-            var result = await _memberRepo.AutoExpireMembersAsync();
-            return Ok(result);
-        }
     }
 }

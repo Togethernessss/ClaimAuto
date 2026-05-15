@@ -1,8 +1,11 @@
 import { Row, Col, Card } from 'react-bootstrap';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WHAT IS THIS?
 // The 4 summary stat cards at the top of the page.
 // Total Policies | Active | Expired | Total Enrolled Members
 // Hidden for Hospital role.
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Card definitions — defined outside component so they're not recreated
 const STAT_CARDS = [
