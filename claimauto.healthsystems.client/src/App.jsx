@@ -8,9 +8,9 @@ import VerifyMfa from "./pages/identity/VerifyMfa";
 import Register from "./pages/identity/Register";
 import Dashboard from "./pages/Dashboard";
 import AuditLogs from "./pages/Admin/AuditLogs";
-
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
+import PolicyholderDashboard from './pages/policyholder/PolicyholderDashboard';
 
 
 // Smart redirect for the root URL "/"
@@ -46,6 +46,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
+            <Route path="/policyholder" element={<PolicyholderDashboard />} /> 
             {/* More module pages will go here */}
           </Route>
 
