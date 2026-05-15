@@ -86,6 +86,12 @@ export default function Login() {
               />
             </Form.Group>
 
+            <div className="text-end mb-3">
+              <Link to="/forgot-password" className="small text-decoration-none">
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               variant="primary"

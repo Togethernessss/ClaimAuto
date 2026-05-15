@@ -28,6 +28,10 @@ import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
+import ForgotPassword from './pages/identity/ForgotPassword';
+import ResetPassword from './pages/identity/ResetPassword';
+
+
 // Smart redirect for the root URL "/"
 // - If not logged in → send to /login
 // - If logged in → send to their role-specific dashboard
@@ -52,6 +56,8 @@ export default function App() {
 
           <Route path="/register" element={<Register />} />
 
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           {/* ── Protected routes (login required) ── */}
           <Route
             element={
@@ -60,7 +66,7 @@ export default function App() {
               </RequireAuth>
             }
           >
-            
+
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />

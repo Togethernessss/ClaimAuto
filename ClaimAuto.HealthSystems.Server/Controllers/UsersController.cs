@@ -21,11 +21,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         //Now depends on the INTERFACE — not the database directly
         private readonly IUserRepository _userRepository;
         private readonly IAuthRepository _authRepository;
-        private readonly IEmailService _emailService;
+        private readonly IEmailServices _emailService;
         public UsersController(
                 IUserRepository userRepository,
                 IAuthRepository authRepository,
-                IEmailService emailService)
+                IEmailServices emailService)
         {
                 _userRepository = userRepository;
                 _authRepository = authRepository;
