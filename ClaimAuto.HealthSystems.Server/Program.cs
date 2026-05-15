@@ -5,8 +5,6 @@ using ClaimAuto.HealthSystems.Server.Middleware;
 using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Services;
-using ClaimAuto.HealthSystems.Server.Services.Interfaces;
-using ClaimAuto.HealthSystems.Server.Services.Implementations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -43,9 +41,6 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
-
-            // Register PDF generation service
-            builder.Services.AddScoped<IRemittancePdfService, RemittancePdfService>();
             builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
 
 
@@ -129,9 +124,11 @@ namespace ClaimAuto.HealthSystems.Server
                           .AllowAnyHeader()
                           .AllowAnyMethod());
             });
-
             var app = builder.Build();//Build the application using the configured services and middleware.
 
+            
+
+      
             app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
 
             app.UseCors("AllowReactDev");

@@ -26,7 +26,7 @@ export default function HeroSection() {
         <Row className="align-items-center g-5">
           <Col lg={7}>
             <Badge bg="light" className="mb-3 px-3 py-2 rounded-pill fw-semibold" style={{ color: '#764ba2', fontSize: '0.8rem' }}>
-              <i className="bi bi-plus-circle-fill me-1"></i>
+              <i className="bi bi-stars me-1"></i>
               Health Insurance Platform
             </Badge>
 
