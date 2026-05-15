@@ -61,7 +61,7 @@ export function getDashboardPath(role) {
     case 'Admin':          return '/dashboard';
     case 'Hospital':       return '/dashboard';
     case 'InsuranceStaff': return '/dashboard';
-    case 'Policyholder':   return '/policyholder';
+    case 'Policyholder':   return '/dashboard';
     default:               return '/login';
   }
 }

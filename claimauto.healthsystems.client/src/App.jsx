@@ -10,20 +10,14 @@ import Dashboard from "./pages/Dashboard";
 import AuditLogs from "./pages/Admin/AuditLogs";
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
-import PolicyholderDashboard from './pages/policyholder/PolicyholderDashboard';
 import Members from './pages/shared/Members/Members';
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
 
-
-// Smart redirect for the root URL "/"
-// - If not logged in → send to /login
-// - If logged in → send to their role-specific dashboard
 function RootRedirect() {
   const { user } = useAuth();
-
   if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={getDashboardPath(user.role)} replace />;
 }
@@ -33,35 +27,54 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* ── Public routes (no login needed) ── */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/verify-mfa" element={<VerifyMfa />} />
-          <Route path="/register" element={<Register />} />
 
+          {/* ── Public routes ── */}
+          <Route path="/"                element={<HomePage />} />
+          <Route path="/login"           element={<Login />} />
+          <Route path="/verify-mfa"      element={<VerifyMfa />} />
+          <Route path="/register"        element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          {/* ── Protected routes (login required) ── */}
-          <Route
-            element={
-              <RequireAuth>
-                <AppLayout />
-              </RequireAuth>
-            }
-          >
+          <Route path="/reset-password"  element={<ResetPassword />} />
 
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/audit-logs" element={<AuditLogs />} />
-            <Route path="/policies" element={<Policies />} />
-            <Route path="/policyholder" element={<PolicyholderDashboard />} /> 
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/members"  element={<Members />} />
+          {/* ── Protected routes ── */}
+          <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
+
+            {/* All dashboard paths → Dashboard.jsx → role decides */}
+            <Route path="/dashboard"              element={<Dashboard />} />
+            <Route path="/admin/dashboard"        element={<Dashboard />} />
+            <Route path="/staff/dashboard"        element={<Dashboard />} />
+            <Route path="/hospital/dashboard"     element={<Dashboard />} />
+            <Route path="/policyholder/dashboard" element={<Dashboard />} />
+
+            {/* Identity */}
+            <Route path="/profile"               element={<Profile />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
-            {/* More module pages will go here */}
+
+            {/* Admin only */}
+            <Route path="/audit-logs" element={<AuditLogs />} />
+
+            {/* Shared modules */}
+            <Route path="/policies" element={<Policies />} />
+            <Route path="/members"  element={<Members />} />
+
+            {/* Coming soon — uncomment as each module is built */}
+            {/* <Route path="/claims"         element={<Claims />} /> */}
+            {/* <Route path="/adjudication"   element={<Adjudication />} /> */}
+            {/* <Route path="/fraud"          element={<Fraud />} /> */}
+            {/* <Route path="/payments"       element={<Payments />} /> */}
+            {/* <Route path="/remittance"     element={<Remittance />} /> */}
+            {/* <Route path="/appeals"        element={<Appeals />} /> */}
+            {/* <Route path="/tasks"          element={<Tasks />} /> */}
+            {/* <Route path="/notifications"  element={<Notifications />} /> */}
+            {/* <Route path="/reports"        element={<Reports />} /> */}
+            {/* <Route path="/rules"          element={<Rules />} /> */}
+            {/* <Route path="/audit-packages" element={<AuditPackages />} /> */}
+
           </Route>
 
-          {/* Catch-all for typos / unknown URLs */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>
