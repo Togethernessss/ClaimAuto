@@ -4,7 +4,7 @@ using MimeKit;
 
 namespace ClaimAuto.HealthSystems.Server.Services
 {
-    public class SmtpEmailService : IEmailService
+    public class SmtpEmailService : IEmailServices
     {
         private readonly IConfiguration _config;
         private readonly ILogger<SmtpEmailService> _logger;
@@ -59,6 +59,58 @@ namespace ClaimAuto.HealthSystems.Server.Services
             {
                 _logger.LogError(ex, "Failed to send invitation email to {Email}", toEmail);
                 throw;   // bubble up so the controller can return 500/return a clear message
+            }
+        }
+
+        public async Task SendPasswordResetAsync(string toEmail, string toName, string resetLink)
+        {
+            var host = _config["Smtp:Host"]!;
+            var port = int.Parse(_config["Smtp:Port"]!);
+            var user = _config["Smtp:User"]!;
+            var pass = _config["Smtp:Pass"]!;
+            var fromEmail = _config["Smtp:FromEmail"]!;
+            var fromName = _config["Smtp:FromName"] ?? "ClaimAuto";
+
+            var msg = new MimeMessage();
+            msg.From.Add(new MailboxAddress(fromName, fromEmail));
+            msg.To.Add(new MailboxAddress(toName, toEmail));
+            msg.Subject = "Reset your ClaimAuto password";
+
+            msg.Body = new TextPart("html")
+            {
+                Text = $@"
+          <div style='font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:auto;padding:24px;background:#f7f5ff;border-radius:12px;'>
+            <h2 style='color:#5a3ea8;margin-top:0;'>Reset your password</h2>
+            <p>Hi {toName},</p>
+            <p>We received a request to reset the password on your ClaimAuto account. Click the button below to choose a new password. This link will expire in <b>30 minutes</b> and can be used only once.</p>
+            <p style='text-align:center;margin:28px 0;'>
+              <a href='{resetLink}'
+                 style='background:#5a3ea8;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;'>
+                Reset password
+              </a>
+            </p>
+            <p style='font-size:13px;color:#555;'>Or paste this URL into your browser:<br/>
+              <span style='word-break:break-all;color:#5a3ea8;'>{resetLink}</span>
+            </p>
+            <p style='color:#d9534f;font-size:13px;'><b>Didn't request this?</b> You can safely ignore this email — your password won't change.</p>
+            <p style='font-size:12px;color:#888;margin-top:32px;'>For your security, never share this link with anyone.</p>
+          </div>"
+            };
+
+            try
+            {
+                using var smtp = new SmtpClient();
+                await smtp.ConnectAsync(host, port, SecureSocketOptions.StartTlsWhenAvailable);
+                await smtp.AuthenticateAsync(user, pass);
+                await smtp.SendAsync(msg);
+                await smtp.DisconnectAsync(true);
+
+                _logger.LogInformation("Password reset email sent to {Email}", toEmail);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send password reset email to {Email}", toEmail);
+                throw;
             }
         }
     }
