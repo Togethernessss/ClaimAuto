@@ -4,15 +4,12 @@ import { useAuth } from '../security/AuthContext';
 import Sidebar from './Sidebar';
 
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+
 
   const handleScroll = (e) => {
     const el = e.target;
@@ -55,12 +52,12 @@ export default function AppLayout() {
         </div>
 
         <div className="d-flex align-items-center">
-          <span className="text-white-50 me-3 small">
-            <i className="bi bi-person-circle me-1"></i>
-            {user?.name}
-          </span>
-          <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>
-            <i className="bi bi-box-arrow-right me-1"></i> Logout
+          <button
+            className="btn btn-outline-light btn-sm"
+            onClick={() => navigate('/profile')}
+            title="My Profile"
+          >
+            <i className="bi bi-person-circle me-1"></i> Profile
           </button>
         </div>
       </nav>

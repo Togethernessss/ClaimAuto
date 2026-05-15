@@ -17,6 +17,8 @@ export default function CreateModal({
       onHide={onHide}
       size="lg"
       backdrop="static"
+      scrollable
+      style={{ '--bs-modal-height': '90vh' }}
     >
       <Modal.Header closeButton className="border-0 pb-0">
         <Modal.Title className="fw-bold">
@@ -26,7 +28,7 @@ export default function CreateModal({
       </Modal.Header>
 
       <Form onSubmit={onSubmit}>
-        <Modal.Body className="pt-3">
+        <Modal.Body className="pt-3" style={{ overflowY: 'auto', maxHeight: '65vh' }}>
 
           {error && (
             <Alert
@@ -138,17 +140,55 @@ export default function CreateModal({
             <Col md={12}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
-                  Coverage Rules (JSON)
+                  Covered Services
                 </Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  placeholder='{"coveredServices":["inpatient","outpatient","pharmacy"]}'
-                  value={form.coverageRulesJSON}
-                  onChange={onFieldChange('coverageRulesJSON')}
-                  style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
-                />
-                <Form.Text className="text-muted">Optional.</Form.Text>
+                <div className="d-flex flex-wrap gap-3 mt-1">
+                  {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
+                    'Dental', 'Vision', 'Mental Health'].map((service) => (
+                    <Form.Check
+                      key={service}
+                      type="checkbox"
+                      id={`service-${service}`}
+                      label={service}
+                      checked={
+                        (() => {
+                          try {
+                            const parsed = JSON.parse(form.coverageRulesJSON || '{}');
+                            return (parsed.coveredServices || [])
+                              .map(s => s.toLowerCase())
+                              .includes(service.toLowerCase());
+                          } catch { return false; }
+                        })()
+                      }
+                      onChange={(e) => {
+                        try {
+                          const parsed = JSON.parse(form.coverageRulesJSON || '{}');
+                          const services = parsed.coveredServices || [];
+                          const updated = e.target.checked
+                            ? [...services, service.toLowerCase()]
+                            : services.filter(s =>
+                                s.toLowerCase() !== service.toLowerCase());
+                          onFieldChange('coverageRulesJSON')({
+                            target: {
+                              value: JSON.stringify({ coveredServices: updated })
+                            }
+                          });
+                        } catch {
+                          onFieldChange('coverageRulesJSON')({
+                            target: {
+                              value: JSON.stringify({
+                                coveredServices: [service.toLowerCase()]
+                              })
+                            }
+                          });
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+                <Form.Text className="text-muted">
+                  Select the services covered under this policy.
+                </Form.Text>
               </Form.Group>
             </Col>
           </Row>

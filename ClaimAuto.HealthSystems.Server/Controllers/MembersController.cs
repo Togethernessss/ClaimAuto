@@ -8,7 +8,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     /// <summary>Manages policy members and eligibility checks. Admin and InsuranceStaff access.</summary>
     [ApiController]
     [Route("api/members")]
-    [Authorize(Roles = "Admin,InsuranceStaff")]
+    [Authorize]
     [Produces("application/json")]
     public class MembersController : BaseController
     {
@@ -43,6 +43,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="200">Returns the member.</response>
         /// <response code="404">Member not found.</response>
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]  // ← add this
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetMemberById(int id)
@@ -61,6 +62,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="200">Returns eligibility result (cached or fresh).</response>
         /// <response code="404">Member not found.</response>
         [HttpGet("{id}/eligibility")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]  // ← add this
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CheckEligibility(int id)
@@ -135,6 +137,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Member with ID {id} was not found.");
 
             return Ok(updated);
+        }
+
+        /// <summary>
+        /// Auto-expires members whose CoverageEnd date has passed.
+        /// Sets their status to Inactive.
+        /// </summary>
+        [HttpPost("check-expired")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> CheckExpiredMembers()
+        {
+            var result = await _memberRepo.AutoExpireMembersAsync();
+            return Ok(result);
         }
     }
 }
