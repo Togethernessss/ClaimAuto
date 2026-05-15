@@ -8,9 +8,9 @@ import VerifyMfa from "./pages/identity/VerifyMfa";
 import Register from "./pages/identity/Register";
 import Dashboard from "./pages/Dashboard";
 import AuditLogs from "./pages/Admin/AuditLogs";
-
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
+import PolicyholderDashboard from './pages/policyholder/PolicyholderDashboard';
 import Members from './pages/shared/Members/Members';
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
@@ -53,6 +53,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
+            <Route path="/policyholder" element={<PolicyholderDashboard />} /> 
             <Route path="/profile" element={<Profile />} />
             <Route path="/members"  element={<Members />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
