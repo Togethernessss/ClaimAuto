@@ -41,7 +41,7 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
-            builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+            builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
 
 
             builder.Services.AddControllers()

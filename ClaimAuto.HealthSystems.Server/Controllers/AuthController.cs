@@ -1,9 +1,13 @@
 using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.Helpers;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ClaimAuto.HealthSystems.Server.Helpers;
+using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
+using NETCore.MailKit.Core;
+using static ClaimAuto.HealthSystems.Server.DTOs.PasswordResetDto;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {   /// <summary>Handles user authentication, registration, and MFA operations.</summary>
@@ -15,7 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IAuthRepository _auth;
         private readonly IConfiguration _config;
         private readonly ITotpRepository _totp;
-
+        private readonly IEmailServices _email;
         // Display-only constants used in user-facing error messages.
         // Authoritative values live in AuthRepository.
         private const int MAX_MFA_ATTEMPTS = 5;
@@ -24,11 +28,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public AuthController(
             IAuthRepository auth,
             IConfiguration config,
-            ITotpRepository totp)
+            ITotpRepository totp,
+            IEmailServices email)
+            
         {
             _auth = auth;
             _config = config;
             _totp = totp;
+            _email = email;
         }
 
         // POST: api/auth/register
@@ -365,6 +372,76 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound("User not found.");
 
             return Ok(new { Message = "Password changed successfully." });
+        }
+
+        // POST: api/auth/forgot-password
+        /// <summary>Initiates a password reset. Always returns 200 (no user enumeration).</summary>
+        [HttpPost("forgot-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult> ForgotPassword(ForgotPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return Ok(new { Message = "If that email is registered, a reset link has been sent." });
+
+            var rawToken = await _auth.CreatePasswordResetTokenAsync(dto.Email);
+
+            if (rawToken != null)
+            {
+                var user = await _auth.GetUserByEmailAsync(dto.Email);
+                if (user != null)
+                {
+                    var baseUrl = _config["Frontend:BaseUrl"]?.TrimEnd('/') ?? "http://localhost:5173";
+                    var resetLink = $"{baseUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
+
+                    try
+                    {
+                        await _email.SendPasswordResetAsync(user.Email, user.Name, resetLink);
+                    }
+                    catch
+                    {
+                        // Swallow — we don't reveal email-send failures to the caller (anti-enumeration).
+                        // The exception is already logged by SmtpEmailService.
+                    }
+                }
+            }
+
+            return Ok(new { Message = "If that email is registered, a reset link has been sent." });
+        }
+
+        // POST: api/auth/reset-password/validate
+        /// <summary>Checks whether a reset token is currently valid (used by the reset page on load).</summary>
+        [HttpPost("reset-password/validate")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult> ValidateResetToken(ValidateResetTokenDto dto)
+        {
+            var userId = await _auth.ValidatePasswordResetTokenAsync(dto.Token);
+            if (userId == null)
+                return BadRequest("This reset link is invalid or has expired.");
+
+            return Ok(new { Valid = true });
+        }
+
+        // POST: api/auth/reset-password
+        /// <summary>Consumes a reset token and sets a new password.</summary>
+        [HttpPost("reset-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult> ResetPassword(ResetPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token))
+                return BadRequest("Reset token is required.");
+
+            var policyError = PasswordPolicy.Validate(dto.NewPassword);
+            if (policyError != null)
+                return BadRequest(policyError);
+
+            var newHash = _auth.HashPassword(dto.NewPassword);
+            var ok = await _auth.ResetPasswordWithTokenAsync(dto.Token, newHash);
+            if (!ok)
+                return BadRequest("This reset link is invalid or has expired.");
+
+            return Ok(new { Message = "Your password has been reset. You can now sign in." });
         }
     }
 }
