@@ -32,18 +32,5 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         Task<RemittanceResponseDto?> AcknowledgeRemittanceAsync(
             int paymentId);
-
-        Task<PaymentResponseDto?> ResumePaymentAsync(int id);
-
-        Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
-            int? userId,
-            string? userRole,
-            string? status,
-            string? search,
-            int? claimId,
-            DateTime? dateFrom,
-            DateTime? dateTo);
-
-        Task<byte[]?> GetRemittancePdfAsync(int paymentId);   // ← NEW
     }
 }
