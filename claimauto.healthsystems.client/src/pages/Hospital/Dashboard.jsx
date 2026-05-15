@@ -4,7 +4,6 @@ import { useAuth } from '../../security/AuthContext';
 import { getMenuForRole } from '../../security/permissions';
 import { useState, useEffect } from 'react';
 import { getActivePolicies } from '../../services/policies/policyService';
-import { getAllRemittances } from '../../services/payments/remittanceService';
 import WelcomeBanner from '../../components/WelcomeBanner';
 import StatCard from '../../components/dashboard/StatCard';
 import PriorityActionBar from '../../components/dashboard/PriorityActionBar';
@@ -18,88 +17,60 @@ export default function HospitalDashboard() {
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
-  const [policies,        setPolicies]        = useState([]);
+  const [policies, setPolicies] = useState([]);
   const [policiesLoading, setPoliciesLoading] = useState(true);
-  const [policiesError,   setPoliciesError]   = useState(null);
-
-  const [remittances,        setRemittances]        = useState([]);
-  const [remittancesLoading, setRemittancesLoading] = useState(true);
-  const [remittancesError,   setRemittancesError]   = useState(null);
+  const [policiesError, setPoliciesError] = useState(null);
 
   useEffect(() => {
-    async function loadPolicies() {
+    async function load() {
       try {
         const data = await getActivePolicies();
         setPolicies(data);
-      } catch {
+      } catch (err) {
         setPoliciesError('Could not load policies.');
       } finally {
         setPoliciesLoading(false);
       }
     }
-
-    async function loadRemittances() {
-      try {
-        const data = await getAllRemittances();
-        setRemittances(data);
-      } catch {
-        setRemittancesError('Could not load remittances.');
-      } finally {
-        setRemittancesLoading(false);
-      }
-    }
-
-    loadPolicies();
-    loadRemittances();
+    load();
   }, []);
-
-  const pendingRemittances = remittances.filter(r => r.status === 'Sent');
-  const unacknowledged     = remittances
-    .filter(r => r.status !== 'Acknowledged')
-    .slice(0, 10);
-
-  function statusStyle(status) {
-    switch (status) {
-      case 'Generated':    return { bg: '#e3f2fd', color: '#0C447C' };
-      case 'Sent':         return { bg: '#fef3c7', color: '#633806' };
-      case 'Acknowledged': return { bg: '#d1f2eb', color: '#085041' };
-      default:             return { bg: '#e2e3e5', color: '#41464b' };
-    }
-  }
-
-  function formatCurrency(val) {
-    if (!val) return '—';
-    return `₹${Number(val).toLocaleString('en-IN')}`;
-  }
-
-  function formatDate(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
-  }
 
   return (
     <Container fluid className="p-0">
 
-      <WelcomeBanner emoji="🏥" />
+      {/*Welcome Banner*/}
+      <WelcomeBanner
+        emoji="🏥"
+        actions={[
+          {
+            label: 'Bulk Upload',
+            icon: 'bi-upload',
+            variant: 'outline-light',
+            onClick: () => navigate('/claims/bulk-upload'),
+          },
+          {
+            label: 'New Claim',
+            icon: 'bi-plus-lg',
+            variant: 'light',
+            onClick: () => navigate('/claims/submit'),
+          },
+        ]}
+      />
 
       <div className="px-4 pb-4">
 
-        {/* Priority Action Bar — only when pending remittances exist */}
-        {!remittancesLoading && pendingRemittances.length > 0 && (
-          <PriorityActionBar
-            accentColor="warning"
-            icon="bi-cash-stack"
-            title={`${pendingRemittances.length} remittance${pendingRemittances.length > 1 ? 's' : ''} awaiting your acknowledgement`}
-            description="Please confirm receipt to close the payment loop with the insurer."
-            buttonLabel="View Remittance History"
-            buttonIcon="bi-list-stars"
-            onButtonClick={() => navigate('/remittance')}
-          />
-        )}
+        {/*Priority Action Bar*/}
+        <PriorityActionBar
+          accentColor="warning"
+          icon="bi-cash-stack"
+          title="No pending remittances"
+          description="When the insurer sends a payment, it'll appear here for you to acknowledge."
+          buttonLabel="View Remittance History"
+          buttonIcon="bi-list-stars"
+          onButtonClick={() => navigate('/remittance')}
+        />
 
-        {/* Stat Cards */}
+        {/*Stat Card*/}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -143,204 +114,59 @@ export default function HospitalDashboard() {
           </Col>
         </Row>
 
-        {/* Middle row */}
+        {/*Middle row: 3 panels */}
         <Row className="g-3 mb-4">
 
-          {/* Active Policies */}
+          {/* Active Policies — real data */}
           <Col lg={4}>
             <DashboardPanel
               icon="bi-shield-check"
               iconColor="primary"
               title="Active Policies"
-              subtitle="Available for new claim submissions"
+              subtitle="Available for new claims"
             >
               {policiesLoading ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" size="sm" variant="primary" />
-                  <div className="text-muted small mt-2">Loading policies...</div>
+                <div className="text-center py-3">
+                  <Spinner animation="border" size="sm" />
                 </div>
               ) : policiesError ? (
-                <div className="text-center py-4">
-                  <i className="bi bi-exclamation-circle text-danger" style={{ fontSize: 32 }}></i>
-                  <div className="text-muted small mt-2">{policiesError}</div>
-                </div>
+                <div className="small text-danger">{policiesError}</div>
               ) : policies.length === 0 ? (
                 <EmptyStatePanel
                   icon="bi-shield-slash"
                   title="No active policies"
-                  description="Contact your insurer to set up a plan."
+                  description="When admins create policies you'll see them here."
                 />
               ) : (
-                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  {policies.map((p, index) => (
-                    <div
-                      key={p.policyID}
-                      onClick={() => navigate('/policies')}
-                      style={{
-                        padding: '12px 16px',
-                        borderBottom: index < policies.length - 1
-                          ? '1px solid #f0f0f0' : 'none',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                    >
-                      <div className="d-flex align-items-start gap-3">
-                        <div style={{
-                          width: 8, height: 8, borderRadius: '50%',
-                          backgroundColor: '#2e7d32',
-                          flexShrink: 0, marginTop: 5,
-                        }}></div>
-                        <div className="flex-grow-1">
-                          <div className="fw-semibold" style={{ fontSize: 13, color: '#1e2a3a' }}>
-                            {p.planName}
-                          </div>
-                          <div className="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                            <span className="font-monospace" style={{ fontSize: 11, color: '#9e9e9e' }}>
-                              {p.planCode}
-                            </span>
-                            {p.deductibleAmount != null && (
-                              <span style={{
-                                fontSize: 11, background: '#e8f5e9',
-                                color: '#2e7d32', fontWeight: 600,
-                                borderRadius: 4, padding: '1px 6px',
-                              }}>
-                                ₹{Number(p.deductibleAmount).toLocaleString('en-IN')} deductible
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <i className="bi bi-chevron-right text-muted" style={{ fontSize: 12, marginTop: 3 }}></i>
-                      </div>
-                    </div>
+                <ul className="list-unstyled mb-0">
+                  {policies.map((p) => (
+                    <li key={p.policyID} className="py-2 border-bottom small">
+                      <div className="fw-semibold">{p.planName}</div>
+                      <div className="text-muted">{p.planCode}</div>
+                    </li>
                   ))}
-                </div>
-              )}
-
-              {!policiesLoading && !policiesError && policies.length > 0 && (
-                <div style={{ padding: '8px 16px', borderTop: '1px solid #f0f0f0' }}>
-                  <button
-                    className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
-                    style={{ color: '#1a56db', fontSize: 12 }}
-                    onClick={() => navigate('/policies')}
-                  >
-                    View all {policies.length} active {policies.length === 1 ? 'policy' : 'policies'}
-                    <i className="bi bi-arrow-right ms-1"></i>
-                  </button>
-                </div>
+                </ul>
               )}
             </DashboardPanel>
           </Col>
 
-          {/* Remittances */}
+          {/* Remittances to Acknowledge — empty state only */}
           <Col lg={4}>
             <DashboardPanel
               icon="bi-cash-stack"
               iconColor="success"
-              title="Remittances"
-              subtitle="Recent unacknowledged remittances"
+              title="Remittances to Acknowledge"
+              subtitle="Confirm receipt to close the loop with insurer"
             >
-              {remittancesLoading ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" size="sm" variant="success" />
-                  <div className="text-muted small mt-2">Loading remittances...</div>
-                </div>
-              ) : remittancesError ? (
-                <div className="text-center py-4">
-                  <i className="bi bi-exclamation-circle text-danger" style={{ fontSize: 32 }}></i>
-                  <div className="text-muted small mt-2">{remittancesError}</div>
-                </div>
-              ) : unacknowledged.length === 0 ? (
-                <EmptyStatePanel
-                  icon="bi-inbox"
-                  title="No pending remittances"
-                  description="When the insurer sends a payment, it will appear here."
-                />
-              ) : (
-                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  {unacknowledged.map((r, index) => {
-                    const s = statusStyle(r.status);
-                    return (
-                      <div
-                        key={r.remittanceID}
-                        onClick={() => navigate('/remittance')}
-                        style={{
-                          padding: '12px 16px',
-                          borderBottom: index < unacknowledged.length - 1
-                            ? '1px solid #f0f0f0' : 'none',
-                          cursor: 'pointer',
-                          background: r.status === 'Sent' ? '#fffbf0' : 'white',
-                          transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#f8f9fa';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background =
-                            r.status === 'Sent' ? '#fffbf0' : 'white';
-                        }}
-                      >
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div className="flex-grow-1">
-                            <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                              <span className="font-monospace fw-semibold" style={{ fontSize: 12 }}>
-                                #REM-{r.remittanceID}
-                              </span>
-                              <span style={{
-                                fontSize: 10, padding: '1px 7px',
-                                borderRadius: 20, fontWeight: 600,
-                                background: s.bg, color: s.color,
-                              }}>
-                                {r.status}
-                              </span>
-                              {r.status === 'Sent' && (
-                                <span style={{
-                                  fontSize: 10, color: '#633806',
-                                  background: '#fef3c7',
-                                  padding: '1px 6px', borderRadius: 4,
-                                  fontWeight: 500,
-                                }}>
-                                  Action needed
-                                </span>
-                              )}
-                            </div>
-                            <div className="d-flex align-items-center gap-2">
-                              <span className="fw-semibold" style={{ fontSize: 13, color: '#764ba2' }}>
-                                {formatCurrency(r.amount)}
-                              </span>
-                              <span className="text-muted" style={{ fontSize: 11 }}>
-                                · Claim #{r.claimID}
-                              </span>
-                            </div>
-                            <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
-                              {formatDate(r.generatedAt)}
-                            </div>
-                          </div>
-                          <i className="bi bi-chevron-right text-muted" style={{ fontSize: 12, marginTop: 3 }}></i>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!remittancesLoading && !remittancesError && remittances.length > 0 && (
-                <div style={{ padding: '8px 16px', borderTop: '1px solid #f0f0f0' }}>
-                  <button
-                    className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
-                    style={{ color: '#1a56db', fontSize: 12 }}
-                    onClick={() => navigate('/remittance')}
-                  >
-                    View all remittances
-                    <i className="bi bi-arrow-right ms-1"></i>
-                  </button>
-                </div>
-              )}
+              <EmptyStatePanel
+                icon="bi-inbox"
+                title="No pending remittances"
+                description="When the insurer sends a payment, it will appear here."
+              />
             </DashboardPanel>
           </Col>
 
-          {/* Recent Submissions */}
+          {/* Recent Submissions — empty state with CTA button */}
           <Col lg={4}>
             <DashboardPanel
               icon="bi-list-ul"
@@ -363,7 +189,7 @@ export default function HospitalDashboard() {
 
         </Row>
 
-        {/* Quick Access */}
+        {/*Quick Access*/}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
         <QuickAccessGrid
           items={myMenu}
