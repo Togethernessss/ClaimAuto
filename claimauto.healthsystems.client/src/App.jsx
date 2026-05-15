@@ -11,6 +11,7 @@ import AuditLogs from "./pages/Admin/AuditLogs";
 
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
+import Members from './pages/shared/Members/Members';
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
@@ -53,12 +54,13 @@ export default function App() {
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/members"  element={<Members />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
             {/* More module pages will go here */}
           </Route>
 
           {/* Catch-all for typos / unknown URLs */}
-          <Route path="*" element={<Navigate to="" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

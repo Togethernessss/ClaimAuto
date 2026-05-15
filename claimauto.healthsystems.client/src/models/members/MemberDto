@@ -1,0 +1,69 @@
+// src/models/members/MemberDto.js
+// Mirrors backend MemberDTO.cs
+
+export class CreateMemberDto {
+  constructor({
+    policyID        = '',
+    name            = '',
+    dob             = '',
+    gender          = '',
+    memberNumber    = '',
+    contactPhone    = '',
+    contactEmail    = '',
+    contactAddress  = '',
+    coverageStart   = '',
+    coverageEnd     = '',
+  } = {}) {
+    this.policyID        = policyID;
+    this.name            = name;
+    this.dob             = dob;
+    this.gender          = gender;
+    this.memberNumber    = memberNumber;
+    this.contactPhone    = contactPhone;
+    this.contactEmail    = contactEmail;
+    this.contactAddress  = contactAddress;
+    this.coverageStart   = coverageStart;
+    this.coverageEnd     = coverageEnd;
+  }
+}
+
+export class UpdateMemberDto {
+  constructor({
+    name           = '',
+    contactPhone   = '',
+    contactEmail   = '',
+    contactAddress = '',
+    coverageEnd    = '',
+    status         = '',
+  } = {}) {
+    this.name           = name;
+    this.contactPhone   = contactPhone;
+    this.contactEmail   = contactEmail;
+    this.contactAddress = contactAddress;
+    this.coverageEnd    = coverageEnd;
+    this.status         = status;
+  }
+}
+
+export class MemberResponseDto {
+  constructor({
+    memberID, policyID, policyName,
+    name, dob, gender, memberNumber,
+    contactInfoJSON, coverageStart, coverageEnd, status,
+  } = {}) {
+    this.memberID        = memberID;
+    this.policyID        = policyID;
+    this.policyName      = policyName;
+    this.name            = name;
+    this.dob             = dob;
+    this.gender          = gender;
+    this.memberNumber    = memberNumber;
+    this.contactInfoJSON = contactInfoJSON;
+    this.coverageStart   = coverageStart;
+    this.coverageEnd     = coverageEnd;
+    this.status          = status;
+  }
+
+  get isActive()   { return this.status === 'Active'; }
+  get isInactive() { return this.status === 'Inactive'; }
+}
