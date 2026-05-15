@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260515051749_RemoveRemitFileURIAddRemitFilePDF")]
+    partial class RemoveRemitFileURIAddRemitFilePDF
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -631,44 +634,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<bool>("Used")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("UsedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("UserID")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
-
-                    b.HasIndex("UserID");
-
-                    b.ToTable("PasswordResetTokens");
-                });
-
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Payment", b =>
                 {
                     b.Property<int>("PaymentID")
@@ -743,12 +708,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("EffectiveTo")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NotifiedAt2Hours")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NotifiedAt7Days")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("OutOfPocketMax")
@@ -998,9 +957,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("MFASecretKey")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
-
-                    b.Property<bool>("MustChangePassword")
-                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1253,17 +1209,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Claim");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("User");
                 });
