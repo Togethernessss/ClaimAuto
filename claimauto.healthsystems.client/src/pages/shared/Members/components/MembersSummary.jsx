@@ -1,57 +1,53 @@
-import { Row, Col, Card } from 'react-bootstrap';
+import { Card } from 'react-bootstrap';
 
-// The 4 summary stat cards at the top of the page.
-// Total Policies | Active | Expired | Total Enrolled Members
-// Hidden for Hospital role.
-
-// Card definitions — defined outside component so they're not recreated
 const STAT_CARDS = [
   {
     key:   'total',
-    label: 'Total Policies',
-    icon:  'bi-shield-check',
+    label: 'Total Members',
+    icon:  'bi-people-fill',
     bg:    '#e3f2fd',
     color: '#1565c0',
   },
   {
     key:   'active',
     label: 'Active',
-    icon:  'bi-check-circle',
+    icon:  'bi-person-check-fill',
     bg:    '#d1f2eb',
     color: '#2e7d32',
   },
   {
-    key:   'expired',
-    label: 'Expired',
-    icon:  'bi-calendar-x',
+    key:   'inactive',
+    label: 'Inactive',
+    icon:  'bi-person-dash-fill',
     bg:    '#f5f5f5',
     color: '#757575',
   },
   {
     key:   'suspended',
     label: 'Suspended',
-    icon:  'bi-pause-circle',
+    icon:  'bi-person-x-fill',
     bg:    '#fff8e1',
     color: '#f9a825',
   },
-
   {
-    key:   'enrolled',
-    label: 'Total Enrolled',
-    icon:  'bi-people-fill',
-    bg:    '#fff3e0',
-    color: '#e65100',
+    key:   'policies',
+    label: 'Policies Used',
+    icon:  'bi-shield-check',
+    bg:    '#f3e5f5',
+    color: '#6a1b9a',
   },
 ];
 
-export default function PoliciesSummary({ policies }) {
-  // Calculate values from the policies array
+export default function MembersSummary({ members }) {
+  // Count unique policyIDs across all members
+  const uniquePolicies = new Set(members.map((m) => m.policyID)).size;
+
   const values = {
-    total:     policies.length,
-    active:    policies.filter((p) => p.status === 'Active').length,
-    expired:   policies.filter((p) => p.status === 'Expired').length,
-    suspended: policies.filter((p) => p.status === 'Suspended').length,
-    enrolled:  policies.reduce((sum, p) => sum + (p.memberCount ?? 0), 0),
+    total:    members.length,
+    active:   members.filter((m) => m.status === 'Active').length,
+    inactive: members.filter((m) => m.status === 'Inactive').length,
+    suspended:members.filter((m) => m.status === 'Suspended').length,
+    policies: uniquePolicies,
   };
 
   return (
@@ -69,7 +65,7 @@ export default function PoliciesSummary({ policies }) {
                 style={{ width: 38, height: 38, backgroundColor: card.bg }}
               >
                 <i
-                  className={`${card.icon}`}
+                  className={card.icon}
                   style={{ color: card.color, fontSize: '1rem' }}
                 ></i>
               </div>

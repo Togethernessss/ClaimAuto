@@ -1,3 +1,18 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './security/AuthContext';
+import { getDashboardPath } from './security/permissions';
+import RequireAuth from './security/RequireAuth';
+import AppLayout from './components/AppLayout';
+import Login from './pages/identity/Login';
+import VerifyMfa from './pages/identity/VerifyMfa';
+import Register from './pages/identity/Register';
+import Dashboard from './pages/Admin/Dashboard';
+import AuditLogs from './pages/Admin/AuditLogs';
+import HospitalDashboard from './pages/Hospital/Dashboard';
+import HomePage from './pages/HomePage';
+import Policies from './pages/shared/Policies/Policies';
+import StaffDashboard from './pages/Staff/Dashboard';
+import Members from './pages/shared/Members/Members';
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./security/AuthContext";
 import { getDashboardPath } from "./security/permissions";
@@ -32,6 +47,9 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-mfa" element={<VerifyMfa />} />
+          <Route path="/register"  element={<Register />} />
+          
+
           <Route path="/register" element={<Register />} />
 
           {/* ── Protected routes (login required) ── */}
@@ -46,6 +64,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
+            <Route path="/members" element={<Members />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
             {/* More module pages will go here */}

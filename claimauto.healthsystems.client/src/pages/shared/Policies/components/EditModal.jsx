@@ -19,6 +19,8 @@ export default function EditModal({
       onHide={onHide}
       size="lg"
       backdrop="static"
+      scrollable
+      style={{ '--bs-modal-height': '90vh' }}
     >
       <Modal.Header closeButton className="border-0 pb-0">
         <Modal.Title className="fw-bold">
@@ -32,7 +34,7 @@ export default function EditModal({
         <>
           {/* ── EXPIRED POLICY — locked state ──────────────────────────── */}
           {policy.status === 'Expired' ? (
-            <Modal.Body className="pt-3">
+            <Modal.Body className="pt-3" style={{ overflowY: 'auto', maxHeight: '65vh' }}>
               <div className="text-center py-4">
                 <div
                   className="rounded-circle d-inline-flex align-items-center 
@@ -63,7 +65,7 @@ export default function EditModal({
           ) : (
             /* ── NORMAL EDIT FORM ────────────────────────────────────────── */
             <Form onSubmit={onSubmit}>
-              <Modal.Body className="pt-3">
+              <Modal.Body className="pt-3" style={{ overflowY: 'auto', maxHeight: '60vh' }} >
                 {/* Locked fields info */}
                 <Alert variant="info" className="py-2 small mb-3">
                   <i className="bi bi-lock-fill me-2"></i>
@@ -165,15 +167,57 @@ export default function EditModal({
                   <Col md={12}>
                     <Form.Group>
                       <Form.Label className="small fw-semibold">
-                        Coverage Rules (JSON)
+                        Covered Services
                       </Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={3}
-                        value={form.coverageRulesJSON}
-                        onChange={onFieldChange('coverageRulesJSON')}
-                        style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
-                      />
+                      <div className="d-flex flex-wrap gap-3 mt-1">
+                        {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
+                          'Dental', 'Vision', 'Mental Health'].map((service) => {
+                          // Check if this service is currently selected
+                          let isChecked = false;
+                          try {
+                            const parsed = JSON.parse(form.coverageRulesJSON || '{}');
+                            isChecked = (parsed.coveredServices || [])
+                              .map(s => s.toLowerCase())
+                              .includes(service.toLowerCase());
+                          } catch { isChecked = false; }
+
+                          return (
+                            <Form.Check
+                              key={service}
+                              type="checkbox"
+                              id={`edit-service-${service}`}
+                              label={service}
+                              checked={isChecked}
+                              onChange={(e) => {
+                                try {
+                                  const parsed   = JSON.parse(form.coverageRulesJSON || '{}');
+                                  const services = parsed.coveredServices || [];
+                                  const updated  = e.target.checked
+                                    ? [...services, service.toLowerCase()]
+                                    : services.filter(s =>
+                                        s.toLowerCase() !== service.toLowerCase());
+                                  onFieldChange('coverageRulesJSON')({
+                                    target: {
+                                      value: JSON.stringify({ coveredServices: updated })
+                                    }
+                                  });
+                                } catch {
+                                  onFieldChange('coverageRulesJSON')({
+                                    target: {
+                                      value: JSON.stringify({
+                                        coveredServices: [service.toLowerCase()]
+                                      })
+                                    }
+                                  });
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                      <Form.Text className="text-muted">
+                        Select the services covered under this policy.
+                      </Form.Text>
                     </Form.Group>
                   </Col>
                 </Row>
