@@ -1,18 +1,20 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './security/AuthContext';
-import { getDashboardPath } from './security/permissions';
-import RequireAuth from './security/RequireAuth';
-import AppLayout from './components/AppLayout';
-import Login from './pages/identity/Login';
-import VerifyMfa from './pages/identity/VerifyMfa';
-import Register from './pages/identity/Register';
-import Dashboard from './pages/Admin/Dashboard';
-import AuditLogs from './pages/Admin/AuditLogs';
-import HospitalDashboard from './pages/Hospital/Dashboard';
-import HomePage from './pages/HomePage';
-import Policies from './pages/shared/Policies/Policies';
-import StaffDashboard from './pages/Staff/Dashboard';
-import Members from './pages/shared/Members/Members';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./security/AuthContext";
+import { getDashboardPath } from "./security/permissions";
+import RequireAuth from "./security/RequireAuth";
+import AppLayout from "./components/AppLayout";
+import Login from "./pages/identity/Login";
+import VerifyMfa from "./pages/identity/VerifyMfa";
+import Register from "./pages/identity/Register";
+import Dashboard from "./pages/Dashboard";
+import AuditLogs from "./pages/Admin/AuditLogs";
+
+import HomePage from "./pages/HomePage";
+import Policies from "./pages/shared/Policies/Policies";
+import Profile from './pages/identity/Profile';
+import ForceChangePassword from './pages/identity/ForceChangePassword';
+import ForgotPassword from './pages/identity/ForgotPassword';
+import ResetPassword from './pages/identity/ResetPassword';
 
 
 // Smart redirect for the root URL "/"
@@ -30,14 +32,14 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-
           {/* ── Public routes (no login needed) ── */}
-          <Route path="/"          element={<HomePage />} />
-          <Route path="/login"     element={<Login />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/verify-mfa" element={<VerifyMfa />} />
-          <Route path="/register"  element={<Register />} />
-          
+          <Route path="/register" element={<Register />} />
 
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           {/* ── Protected routes (login required) ── */}
           <Route
             element={
@@ -46,12 +48,12 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route path="/admin/dashboard" element={<Dashboard />} />
-            <Route path="/hospital/dashboard" element={<HospitalDashboard />} />
-            <Route path="/staff/dashboard" element={<StaffDashboard/>} />
+
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
-            <Route path="/members" element={<Members />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/force-change-password" element={<ForceChangePassword />} />
             {/* More module pages will go here */}
           </Route>
 

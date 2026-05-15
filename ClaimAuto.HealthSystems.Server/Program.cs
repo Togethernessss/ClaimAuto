@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using ClaimAuto.HealthSystems.Server.Services;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -40,7 +41,7 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
-
+            builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
 
 
             builder.Services.AddControllers()
