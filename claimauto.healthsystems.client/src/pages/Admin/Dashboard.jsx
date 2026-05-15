@@ -1,4 +1,4 @@
-import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
+import { Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
 import { getMenuForRole } from '../../security/permissions';
@@ -17,42 +17,31 @@ export default function AdminDashboard() {
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
+  // TODO: wire to real APIs
+  // systemAlerts → GET /api/audit-logs?severity=critical
+  // when systemAlerts.length > 0 show PriorityActionBar
+
   return (
     <Container fluid className="p-0">
 
-      {/* ── Welcome Banner — full width ──────────────────────────────────── */}
-      <WelcomeBanner
-        emoji="👑"
-        actions={[
-          {
-            label: 'Manage Users',
-            icon: 'bi-people',
-            variant: 'outline-light',
-            onClick: () => navigate('/members'),
-          },
-          {
-            label: 'Audit Logs',
-            icon: 'bi-journal-text',
-            variant: 'light',
-            onClick: () => navigate('/audit-logs'),
-          },
-        ]}
-      />
+      <WelcomeBanner emoji="👑" />
 
-      {/* ── All content below banner gets padding ────────────────────────── */}
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar ────────────────────────────────────────── */}
-        <PriorityActionBar
-          accentColor="danger"
-          icon="bi-exclamation-triangle-fill"
-          title="No system alerts right now"
-          description="Failed jobs, security warnings, and critical errors will appear here."
-          buttonLabel="View System Logs"
-          buttonIcon="bi-list-stars"
-          onButtonClick={() => navigate('/audit-logs')}
-        />
-        {/* ── Stat Cards ─────────────────────────────────────────────────── */}
+        {/* Priority Action Bar — hidden until real alerts are wired */}
+        {false && (
+          <PriorityActionBar
+            accentColor="danger"
+            icon="bi-exclamation-triangle-fill"
+            title="No system alerts right now"
+            description="Failed jobs, security warnings, and critical errors will appear here."
+            buttonLabel="View System Logs"
+            buttonIcon="bi-list-stars"
+            onButtonClick={() => navigate('/audit-logs')}
+          />
+        )}
+
+        {/* Stat Cards */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -96,29 +85,28 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/* ── KPI Section ────────────────────────────────────────────────── */}
+        {/* KPI Section */}
         <SectionHeader title="System Performance Metrics" live />
-
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Auto-Adjudication" target="Target: ≥ 80%"
-              status="No data" color="#764ba2" percent={0} />
+            <CircularKPI value="—" unit="%" label="Auto-Adjudication"
+              target="Target: ≥ 80%" status="No data" color="#764ba2" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="hrs" label="Average TAT" target="Target: ≤ 4 hrs"
-              status="No data" color="#0d6efd" percent={0} />
+            <CircularKPI value="—" unit="hrs" label="Average TAT"
+              target="Target: ≤ 4 hrs" status="No data" color="#0d6efd" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Denial Rate" target="Target: < 10%"
-              status="No data" color="#f59e0b" percent={0} />
+            <CircularKPI value="—" unit="%" label="Denial Rate"
+              target="Target: < 10%" status="No data" color="#f59e0b" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Fraud Flag Rate" target="Target: < 5%"
-              status="No data" color="#dc3545" percent={0} />
+            <CircularKPI value="—" unit="%" label="Fraud Flag Rate"
+              target="Target: < 5%" status="No data" color="#dc3545" percent={0} />
           </Col>
         </Row>
 
-        {/* ── Activity + Approvals panels ────────────────────────────────── */}
+        {/* Activity + Approvals */}
         <Row className="g-3 mb-4">
           <Col lg={7}>
             <DashboardPanel
@@ -134,7 +122,6 @@ export default function AdminDashboard() {
               />
             </DashboardPanel>
           </Col>
-
           <Col lg={5}>
             <DashboardPanel
               icon="bi-check2-circle"
@@ -151,13 +138,13 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/* ── Quick Access ───────────────────────────────────────────────── */}
-        <h5 className="fw-semibold mb-3">Quick Access</h5>
+        {/* Quick Access */}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
         <QuickAccessGrid
           items={myMenu}
           onItemClick={(item) => navigate(item.path)}
         />
+
       </div>
     </Container>
   );

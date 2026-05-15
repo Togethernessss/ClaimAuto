@@ -17,42 +17,31 @@ export default function StaffDashboard() {
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
+  // TODO: wire to real APIs
+  // urgentTasks → GET /api/tasks?priority=High&assignedTo=me
+  // when urgentTasks.length > 0 show PriorityActionBar
+
   return (
     <Container fluid className="p-0">
 
-      {/* ── Welcome Banner ──────────────────────────────────── */}
-      <WelcomeBanner
-        emoji="👋"
-        actions={[
-          {
-            label: 'My Tasks',
-            icon: 'bi-list-check',
-            variant: 'outline-light',
-            onClick: () => navigate('/tasks'),
-          },
-          {
-            label: 'Open Claims Queue',
-            icon: 'bi-file-medical',
-            variant: 'light',
-            onClick: () => navigate('/claims'),
-          },
-        ]}
-      />
+      <WelcomeBanner emoji="👋" />
 
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar ──────────────────────────── */}
-        <PriorityActionBar
-          accentColor="danger"
-          icon="bi-exclamation-triangle-fill"
-          title="No urgent actions right now"
-          description="High-priority items (fraud alerts, pending authorizations) will appear here."
-          buttonLabel="View All Priority Tasks"
-          buttonIcon="bi-list-stars"
-          onButtonClick={() => navigate('/tasks')}
-        />
+        {/* Priority Action Bar — hidden until real urgent tasks are wired */}
+        {false && (
+          <PriorityActionBar
+            accentColor="danger"
+            icon="bi-exclamation-triangle-fill"
+            title="No urgent actions right now"
+            description="High-priority items (fraud alerts, pending authorizations) will appear here."
+            buttonLabel="View All Priority Tasks"
+            buttonIcon="bi-list-stars"
+            onButtonClick={() => navigate('/tasks')}
+          />
+        )}
 
-        {/* ── Stat Cards ───────────────────────────────────── */}
+        {/* Stat Cards */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -96,31 +85,29 @@ export default function StaffDashboard() {
           </Col>
         </Row>
 
-        {/* ── KPI Section ──────────────────────────────────── */}
+        {/* KPI Section */}
         <SectionHeader title="My Performance Metrics" live />
-
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Auto-Adjudication" target="Target: ≥ 80%"
-              status="No data" color="#764ba2" percent={0} />
+            <CircularKPI value="—" unit="%" label="Auto-Adjudication"
+              target="Target: ≥ 80%" status="No data" color="#764ba2" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="hrs" label="Average TAT" target="Target: ≤ 4 hrs"
-              status="No data" color="#0d6efd" percent={0} />
+            <CircularKPI value="—" unit="hrs" label="Average TAT"
+              target="Target: ≤ 4 hrs" status="No data" color="#0d6efd" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Denial Rate" target="Target: < 10%"
-              status="No data" color="#f59e0b" percent={0} />
+            <CircularKPI value="—" unit="%" label="Denial Rate"
+              target="Target: < 10%" status="No data" color="#f59e0b" percent={0} />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Fraud Flag Rate" target="Target: < 5%"
-              status="No data" color="#dc3545" percent={0} />
+            <CircularKPI value="—" unit="%" label="Fraud Flag Rate"
+              target="Target: < 5%" status="No data" color="#dc3545" percent={0} />
           </Col>
         </Row>
 
-        {/* ── Claims Queue + My Tasks panels ───────────────── */}
+        {/* Claims Queue + My Tasks */}
         <Row className="g-3 mb-4">
-
           <Col lg={7}>
             <DashboardPanel
               icon="bi-file-earmark-text"
@@ -135,7 +122,6 @@ export default function StaffDashboard() {
               />
             </DashboardPanel>
           </Col>
-
           <Col lg={5}>
             <DashboardPanel
               icon="bi-list-check"
@@ -150,10 +136,9 @@ export default function StaffDashboard() {
               />
             </DashboardPanel>
           </Col>
-
         </Row>
 
-        {/* ── Quick Access ─────────────────────────────────── */}
+        {/* Quick Access */}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
         <QuickAccessGrid
           items={myMenu}

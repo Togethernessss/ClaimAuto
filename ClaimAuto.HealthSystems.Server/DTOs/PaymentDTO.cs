@@ -33,10 +33,14 @@
     {
         public int RemittanceID { get; set; }
         public int PaymentID { get; set; }
-        public string? RemitFileURI { get; set; }
         public DateTime GeneratedAt { get; set; }
         public DateTime? SentToProviderAt { get; set; }
-        public string Status { get; set; } = string.Empty;      // "Generated","Sent","Acknowledged"
+        public string Status { get; set; } = string.Empty;
+        public string PayeeName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string Currency { get; set; } = string.Empty;
+        public int ClaimID { get; set; }
+        public bool HasPDF { get; set; }
     }
 
     // ── ReconciliationResponseDto 
