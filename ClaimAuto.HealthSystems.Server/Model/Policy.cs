@@ -35,5 +35,10 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public ICollection<Member> Members { get; set; } = new List<Member>();
         public ICollection<Claim> Claims { get; set; } = new List<Claim>();
         public ICollection<EligibilityCheck> EligibilityChecks { get; set; } = new List<EligibilityCheck>();
+
+        // Tracks when advance expiry notifications were sent
+        // Null = notification not sent yet
+        public DateTime? NotifiedAt7Days { get; set; }
+        public DateTime? NotifiedAt2Hours { get; set; }
     }
 }

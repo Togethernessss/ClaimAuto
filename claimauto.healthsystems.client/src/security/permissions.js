@@ -24,7 +24,7 @@ export const MENU_ITEMS = [
   { key: 'claims',      label: 'Claims',            icon: 'bi-file-medical',     path: '/claims',          roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'appeals',     label: 'Appeals',           icon: 'bi-megaphone',        path: '/appeals',         roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
-
+   
   // Admin + Staff
   { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff'] },
   { key: 'adjudication',label: 'Adjudication',      icon: 'bi-check2-square',    path: '/adjudication',    roles: ['Admin','InsuranceStaff'] },
@@ -61,7 +61,7 @@ export function getDashboardPath(role) {
     case 'Admin':          return '/dashboard';
     case 'Hospital':       return '/dashboard';
     case 'InsuranceStaff': return '/dashboard';
-    case 'Policyholder':   return '/dashboard';
+    case 'Policyholder':   return '/policyholder';
     default:               return '/login';
   }
 }

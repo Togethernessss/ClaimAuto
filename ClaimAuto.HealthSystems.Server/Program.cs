@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using ClaimAuto.HealthSystems.Server.Services;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -45,6 +46,8 @@ namespace ClaimAuto.HealthSystems.Server
 
             // Register PDF generation service
             builder.Services.AddScoped<IRemittancePdfService, RemittancePdfService>();
+            builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
+
 
             builder.Services.AddControllers()
             .AddJsonOptions(options =>

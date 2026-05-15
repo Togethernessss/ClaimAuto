@@ -1,6 +1,9 @@
-import { Container, Row, Col } from 'react-bootstrap';
+import { useState, useEffect } from 'react';
+import { checkExpiredPolicies }   from '../../services/policies/policyService';
+import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
+import InviteUserModal from '../../components/identity/InviteUserModal';
 import { getMenuForRole } from '../../security/permissions';
 import WelcomeBanner from '../../components/WelcomeBanner';
 import StatCard from '../../components/dashboard/StatCard';
@@ -10,16 +13,52 @@ import DashboardPanel from '../../components/dashboard/DashboardPanel';
 import EmptyStatePanel from '../../components/dashboard/EmptyStatePanel';
 import SectionHeader from '../../components/dashboard/SectionHeader';
 import QuickAccessGrid from '../../components/dashboard/QuickAccessGrid';
+import { checkExpiredMembers } from '../../services/members/memberService';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [showInvite, setShowInvite] = useState(false);
 
   const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
 
-  // TODO: wire to real APIs
-  // systemAlerts → GET /api/audit-logs?severity=critical
-  // when systemAlerts.length > 0 show PriorityActionBar
+  // ── AUTO-EXPIRE OVERDUE POLICIES ──────────────────────────────────────────
+  // Runs silently once when Admin opens the dashboard.
+  // Finds any Active policies whose EffectiveTo date has passed,
+  // marks them Expired, and creates a Notification for Admin.
+  // No loading state — runs in background, fails silently.
+  useEffect(() => {
+
+    // Auto-expire overdue policies
+    checkExpiredPolicies()
+      .then((result) => {
+        if (result?.expired > 0) {
+          console.log(
+            `[ClaimAuto] Auto-expired ${result.expired} ` +
+            `${result.expired === 1 ? 'policy' : 'policies'}: ` +
+            `${result.message}`
+          );
+        }
+      })
+      .catch(() => {});
+
+    // Auto-expire overdue members
+    checkExpiredMembers()
+      .then((result) => {
+        if (result?.expired > 0) {
+          console.log(
+            `[ClaimAuto] Auto-expired ${result.expired} ` +
+            `${result.expired === 1 ? 'member' : 'members'}.`
+          );
+        }
+      })
+      .catch(() => {});
+
+  }, []); // ← empty array = runs ONCE when dashboard first loads
+  // ─────────────────────────────────────────────────────────────────────────
+  // TODO: wire to real APIs when ready
+  //   stats → GET /api/users, /api/claims, /api/payments, /api/fraud
+  //   kpis  → GET /api/reports/kpis
 
   return (
     <Container fluid className="p-0">
@@ -146,6 +185,12 @@ export default function AdminDashboard() {
         />
 
       </div>
+
+      {/* ── Invite User Modal (controlled by WelcomeBanner button) ── */}
+      <InviteUserModal
+        show={showInvite}
+        onClose={() => setShowInvite(false)}
+      />
     </Container>
   );
 }

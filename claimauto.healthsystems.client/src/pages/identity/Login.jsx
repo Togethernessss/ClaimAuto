@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Form, Button, Alert, Spinner, InputGroup } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
 import { getDashboardPath } from '../../security/permissions';
 import { login as loginApi } from '../../services/identity/authService';
@@ -25,7 +25,11 @@ export default function Login() {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
         login(data.token, data.user);
-        navigate(getDashboardPath(data.user.role));
+        if (data.user.mustChangePassword) {
+          navigate('/force-change-password', { replace: true });
+        } else {
+          navigate(getDashboardPath(data.user.role), { replace: true });
+        }
       }
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Login failed.';
@@ -81,6 +85,12 @@ export default function Login() {
                 required
               />
             </Form.Group>
+
+            <div className="text-end mb-3">
+              <Link to="/forgot-password" className="small text-decoration-none">
+                Forgot password?
+              </Link>
+            </div>
 
             <Button
               type="submit"
