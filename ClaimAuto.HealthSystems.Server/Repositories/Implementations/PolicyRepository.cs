@@ -175,12 +175,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
             if (dto.Status != null)
             {
-                if (Enum.TryParse<PolicyStatus>(dto.Status, out var newStatus) && newStatus != policy.Status)
+                if (Enum.TryParse<PolicyStatus>(dto.Status, out var newStatus)
+                    && newStatus != policy.Status)
                 {
+                    // RULE: Expired is a TERMINAL state.
+                    // Once a policy is Expired, NO status change is allowed.
+                    // This blocks ALL paths: Expired→Active, Expired→Suspended etc.
+                    if (policy.Status == PolicyStatus.Expired)
+                    {
+                        // Return null → controller returns 400 Bad Request
+                        return null;
+                    }
+
                     changes.Add($"Status: '{policy.Status}' → '{dto.Status}'");
                     policy.Status = newStatus;
                 }
             }
+
             if (!changes.Any())
             {
                 return new PolicyResponseDto
@@ -257,6 +268,168 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _db.SaveChangesAsync();
 
             return "ok";
+        }
+
+
+        public async Task<object> AutoExpirePoliciesAsync()
+        {
+            var now = DateTime.UtcNow;
+
+            // Find Admin to send notifications to
+            var adminUser = await _db.Users
+                .Where(u => u.Role == UserRole.Admin
+                         && u.Status == AccountStatus.Active)
+                .FirstOrDefaultAsync();
+
+            int expiredCount = 0;
+            int warned7DayCount = 0;
+            int warned2HourCount = 0;
+
+            // ── ALREADY EXPIRED ───────────────────────────────────────────────────
+            // Active policies whose EffectiveTo has already passed
+            var expiredPolicies = await _db.Policies
+                .Where(p => p.Status == PolicyStatus.Active
+                         && p.EffectiveTo != null
+                         && p.EffectiveTo < now)
+                .ToListAsync();
+
+            foreach (var policy in expiredPolicies)
+            {
+                policy.Status = PolicyStatus.Expired;
+                expiredCount++;
+
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    UserID = adminUser?.UserID ?? 1,
+                    Action = "AutoExpirePolicy",
+                    ResourceType = "Policy",
+                    ResourceID = policy.PolicyID.ToString(),
+                    DetailsJSON = $"{{\"planCode\":\"{policy.PlanCode}\"," +
+                                   $"\"effectiveTo\":\"{policy.EffectiveTo:yyyy-MM-dd}\"," +
+                                   $"\"reason\":\"Auto-expired — EffectiveTo date passed\"}}",
+                    Timestamp = now
+                });
+
+                if (adminUser != null)
+                {
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserID = adminUser.UserID,
+                        ClaimID = null,
+                        Message = $"Policy '{policy.PlanCode}' ({policy.PlanName}) " +
+                                    $"has been automatically expired. " +
+                                    $"Effective To date was " +
+                                    $"{policy.EffectiveTo:dd MMM yyyy}.",
+                        Category = NotificationCategory.Exception,
+                        Severity = NotificationSeverity.Warning,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = now
+                    });
+                }
+            }
+
+            // ── 7-DAY WARNING ─────────────────────────────────────────────────────
+            // Send warning the FIRST TIME Admin opens dashboard
+            // when policy is within 7 days of expiry.
+            //
+            // Logic: EffectiveTo <= now + 7 days  (already within range)
+            //        AND NotifiedAt7Days is null  (not sent yet)
+            var expiringSoon7Day = await _db.Policies
+                .Where(p => p.Status == PolicyStatus.Active
+                         && p.EffectiveTo != null
+                         && p.EffectiveTo > now              // not expired yet
+                         && p.EffectiveTo <= now.AddDays(7)  // within 7 days
+                         && p.NotifiedAt7Days == null)        // not sent yet
+                .ToListAsync();
+
+            foreach (var policy in expiringSoon7Day)
+            {
+                // Lock it — will never send this notification again
+                policy.NotifiedAt7Days = now;
+                warned7DayCount++;
+
+                if (adminUser != null)
+                {
+                    // Calculate how many days remain for a clear message
+                    var daysLeft = (policy.EffectiveTo.Value - now).Days;
+                    var dayWord = daysLeft == 1 ? "day" : "days";
+
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserID = adminUser.UserID,
+                        ClaimID = null,
+                        Message = $"Policy '{policy.PlanCode}' ({policy.PlanName}) " +
+                                    $"is expiring in {daysLeft} {dayWord} on " +
+                                    $"{policy.EffectiveTo:dd MMM yyyy}. " +
+                                    $"Please review and take action if needed.",
+                        Category = NotificationCategory.Exception,
+                        Severity = NotificationSeverity.Warning,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = now
+                    });
+                }
+            }
+
+            // ── 2-HOUR WARNING ────────────────────────────────────────────────────
+            // Send warning the FIRST TIME Admin opens dashboard
+            // when policy is within 2 hours of expiry.
+            //
+            // Logic: EffectiveTo <= now + 2 hours  (already within range)
+            //        AND NotifiedAt2Hours is null  (not sent yet)
+
+            var expiringSoon2Hour = await _db.Policies
+                .Where(p => p.Status == PolicyStatus.Active
+                         && p.EffectiveTo != null
+                         && p.EffectiveTo > now                   // not expired yet
+                         && p.EffectiveTo <= now.AddHours(2)      // within 2 hours
+                         && p.NotifiedAt2Hours == null)            // not sent yet
+                .ToListAsync();
+
+            foreach (var policy in expiringSoon2Hour)
+            {
+                // Lock it — will never send this notification again
+                policy.NotifiedAt2Hours = now;
+                warned2HourCount++;
+
+                if (adminUser != null)
+                {
+                    // Calculate exact minutes remaining
+                    var minutesLeft = (int)(policy.EffectiveTo.Value - now).TotalMinutes;
+                    var timeWord = minutesLeft >= 60
+                        ? $"{minutesLeft / 60} hour{(minutesLeft / 60 > 1 ? "s" : "")}"
+                        : $"{minutesLeft} minute{(minutesLeft > 1 ? "s" : "")}";
+
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserID = adminUser.UserID,
+                        ClaimID = null,
+                        Message = $"URGENT: Policy '{policy.PlanCode}' " +
+                                    $"({policy.PlanName}) is expiring in " +
+                                    $"{timeWord} at " +
+                                    $"{policy.EffectiveTo:dd MMM yyyy HH:mm} UTC. " +
+                                    $"Take immediate action if renewal is required.",
+                        Category = NotificationCategory.Exception,
+                        Severity = NotificationSeverity.Critical,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = now
+                    });
+                }
+            }
+
+            // Save all changes in one transaction
+            if (expiredCount > 0 || warned7DayCount > 0 || warned2HourCount > 0)
+                await _db.SaveChangesAsync();
+
+            return new
+            {
+                expired = expiredCount,
+                warned7Day = warned7DayCount,
+                warned2Hour = warned2HourCount,
+                message = $"{expiredCount} expired, " +
+                              $"{warned7DayCount} 7-day warnings, " +
+                              $"{warned2HourCount} 2-hour warnings sent.",
+                checkedAt = now
+            };
         }
     }
 }
