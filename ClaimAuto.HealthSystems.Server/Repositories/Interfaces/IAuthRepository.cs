@@ -42,10 +42,5 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         // Admin invitation: creates user with temp password + MustChangePassword=true, audits "UserInvited"
         Task<User> RegisterInvitedUserAsync(User user, string tempPassword);
-
-        // Password reset (forgot-password flow)
-        Task<string?> CreatePasswordResetTokenAsync(string email);   // returns raw token, or null if email not found
-        Task<int?> ValidatePasswordResetTokenAsync(string rawToken); // returns userId on success
-        Task<bool> ResetPasswordWithTokenAsync(string rawToken, string newPasswordHash);
     }
 }

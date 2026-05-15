@@ -6,7 +6,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using System.Security.Cryptography;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
@@ -264,116 +263,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _db.SaveChangesAsync();
             await LogAuthActionAsync(userId, "ChangePassword");
             return true;
-        }
-
-        // ── Password Reset ──────────────────────────────────────────
-        private const int RESET_TOKEN_TTL_MINUTES = 30;
-
-        /// <summary>
-        /// Creates a one-time password reset token for the given email.
-        /// Returns the RAW token (only this call sees it — store only its hash).
-        /// Returns null if the email does not exist (caller should still return 200).
-        /// </summary>
-        public async Task<string?> CreatePasswordResetTokenAsync(string email)
-        {
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
-            if (user == null) return null;
-            if (user.Status != AccountStatus.Active) return null;
-
-            // Invalidate any prior unused tokens for this user
-            var stale = await _db.PasswordResetTokens
-                .Where(t => t.UserID == user.UserID && !t.Used)
-                .ToListAsync();
-            foreach (var t in stale) t.Used = true;
-
-            // Generate 32-byte cryptographically random token (URL-safe base64)
-            var bytes = RandomNumberGenerator.GetBytes(32);
-            var rawToken = Convert.ToBase64String(bytes)
-                .Replace("+", "-").Replace("/", "_").Replace("=", "");
-
-            var hash = HashToken(rawToken);
-
-            _db.PasswordResetTokens.Add(new PasswordResetToken
-            {
-                UserID = user.UserID,
-                TokenHash = hash,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(RESET_TOKEN_TTL_MINUTES),
-                Used = false,
-                CreatedAt = DateTime.UtcNow
-            });
-
-            await _db.SaveChangesAsync();
-            await LogAuthActionAsync(user.UserID, "ForgotPasswordRequested");
-
-            return rawToken;
-        }
-
-        /// <summary>
-        /// Validates a raw token. Returns the userId if it's valid, unused and unexpired; else null.
-        /// Does not consume the token.
-        /// </summary>
-        public async Task<int?> ValidatePasswordResetTokenAsync(string rawToken)
-        {
-            if (string.IsNullOrWhiteSpace(rawToken)) return null;
-
-            var hash = HashToken(rawToken);
-            var record = await _db.PasswordResetTokens
-                .FirstOrDefaultAsync(t => t.TokenHash == hash);
-
-            if (record == null) return null;
-            if (record.Used) return null;
-            if (record.ExpiresAt < DateTime.UtcNow) return null;
-
-            return record.UserID;
-        }
-
-        /// <summary>
-        /// Consumes the token (marks Used=true) and updates the user's password.
-        /// Returns false if the token is invalid/expired/already used.
-        /// </summary>
-        public async Task<bool> ResetPasswordWithTokenAsync(string rawToken, string newPasswordHash)
-        {
-            if (string.IsNullOrWhiteSpace(rawToken)) return false;
-
-            var hash = HashToken(rawToken);
-
-            using var tx = await _db.Database.BeginTransactionAsync();
-
-            var record = await _db.PasswordResetTokens
-                .FirstOrDefaultAsync(t => t.TokenHash == hash);
-
-            if (record == null || record.Used || record.ExpiresAt < DateTime.UtcNow)
-                return false;
-
-            var user = await _db.Users.FindAsync(record.UserID);
-            if (user == null) return false;
-
-            user.PasswordHash = newPasswordHash;
-            user.MustChangePassword = false;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            record.Used = true;
-            record.UsedAt = DateTime.UtcNow;
-
-            // Invalidate any other outstanding tokens for this user (defense in depth)
-            var others = await _db.PasswordResetTokens
-                .Where(t => t.UserID == user.UserID && !t.Used && t.Id != record.Id)
-                .ToListAsync();
-            foreach (var t in others) t.Used = true;
-
-            await _db.SaveChangesAsync();
-            await LogAuthActionAsync(user.UserID, "PasswordResetCompleted");
-
-            await tx.CommitAsync();
-            return true;
-        }
-
-        // Hash helper — SHA-256 hex
-        private static string HashToken(string rawToken)
-        {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(rawToken));
-            return Convert.ToHexString(bytes);
         }
     }
 }

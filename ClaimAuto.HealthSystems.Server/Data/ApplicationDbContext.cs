@@ -10,7 +10,6 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
         // Module 1
         public DbSet<User> Users { get; set; }
-        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
 
         // Module 2
@@ -49,8 +48,6 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<ClaimTasks> ClaimTasks { get; set; }
 
-
-
         //What is Fluent API? It is a way to configure the model using code instead of data annotations. It allows for more complex configurations and is done in the OnModelCreating method of the DbContext.
         protected override void OnModelCreating(ModelBuilder mb)// Fluent API configurations
         {
@@ -81,18 +78,6 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
-
-            // PasswordResetToken — fast lookup by hash, FK to User
-            mb.Entity<PasswordResetToken>()
-                .HasIndex(t => t.TokenHash)
-                .IsUnique();
-
-            mb.Entity<PasswordResetToken>()
-                .HasOne(t => t.User)
-                .WithMany()
-                .HasForeignKey(t => t.UserID)
-                .OnDelete(DeleteBehavior.Cascade);
-
 
             //Restrict all secondary FK paths to avoid cascade cycles
             // Claim → Provider (User) — already has Claim → Member → User path
