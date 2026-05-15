@@ -15,16 +15,16 @@ export const ROLES = {
 // `null` = no path yet (placeholder); we'll add real routes module-by-module.
 export const MENU_ITEMS = [
   // Dashboard — one entry per role since each role has its own dashboard URL
-  { key: 'dashboard-admin',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/admin/dashboard',        roles: ['Admin'] },
-  { key: 'dashboard-staff',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/staff/dashboard',        roles: ['InsuranceStaff'] },
-  { key: 'dashboard-hospital',     label: 'Dashboard', icon: 'bi-speedometer2', path: '/hospital/dashboard',     roles: ['Hospital'] },
-  { key: 'dashboard-policyholder', label: 'Dashboard', icon: 'bi-speedometer2', path: '/policyholder/dashboard', roles: ['Policyholder'] },
+  { key: 'dashboard-admin',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/dashboard',        roles: ['Admin'] },
+  { key: 'dashboard-staff',        label: 'Dashboard', icon: 'bi-speedometer2', path: '/dashboard',        roles: ['InsuranceStaff'] },
+  { key: 'dashboard-hospital',     label: 'Dashboard', icon: 'bi-speedometer2', path: '/dashboard',     roles: ['Hospital'] },
+  { key: 'dashboard-policyholder', label: 'Dashboard', icon: 'bi-speedometer2', path: '/dashboard', roles: ['Policyholder'] },
 
   // Common to everyone
   { key: 'claims',      label: 'Claims',            icon: 'bi-file-medical',     path: '/claims',          roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'appeals',     label: 'Appeals',           icon: 'bi-megaphone',        path: '/appeals',         roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
-
+   
   // Admin + Staff
   { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff'] },
   { key: 'adjudication',label: 'Adjudication',      icon: 'bi-check2-square',    path: '/adjudication',    roles: ['Admin','InsuranceStaff'] },
@@ -58,10 +58,10 @@ export function canAccess(role, allowedRoles) {
 // Single source of truth — change a dashboard path here and all 3 places update.
 export function getDashboardPath(role) {
   switch (role) {
-    case 'Admin':          return '/admin/dashboard';
-    case 'Hospital':       return '/hospital/dashboard';
-    case 'InsuranceStaff': return '/staff/dashboard';
-    case 'Policyholder':   return '/policyholder/dashboard';
+    case 'Admin':          return '/dashboard';
+    case 'Hospital':       return '/dashboard';
+    case 'InsuranceStaff': return '/dashboard';
+    case 'Policyholder':   return '/dashboard';
     default:               return '/login';
   }
 }
