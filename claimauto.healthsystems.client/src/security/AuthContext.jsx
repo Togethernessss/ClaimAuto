@@ -1,20 +1,21 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-
-  // On app load, restore session from localStorage if present
-  useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+  // Read localStorage synchronously BEFORE the first render so refresh works.
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      // Corrupted JSON in localStorage — clear it and treat as logged out.
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      return null;
     }
-  }, []);
+  });
 
   const login = (newToken, newUser) => {
     localStorage.setItem('token', newToken);
