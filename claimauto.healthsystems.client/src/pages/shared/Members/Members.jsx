@@ -33,6 +33,7 @@ export default function Members() {
   const isAdmin    = canAccess(user?.role, ['Admin']);
   const isStaff    = canAccess(user?.role, ['InsuranceStaff']);
   const isHospital = canAccess(user?.role, ['Hospital']);
+  const isPolicyholder  = canAccess(user?.role, ['Policyholder']);
 
   // ── LIST STATE ────────────────────────────────────────────────────────────
   const [members,    setMembers]    = useState([]);
@@ -138,6 +139,7 @@ export default function Members() {
                           : null,
         coverageStart:   createForm.coverageStart,
         coverageEnd:     createForm.coverageEnd || null,
+        policyholderUserID: isPolicyholder ? user.userID : null, 
       });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);

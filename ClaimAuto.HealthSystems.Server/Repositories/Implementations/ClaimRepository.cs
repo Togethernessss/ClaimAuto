@@ -31,12 +31,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Policyholder sees only claims linked to their member record
             if (userRole == "Policyholder" && userId.HasValue)
             {
-                var memberIds = await _db.Members
-                    .Where(m => m.MemberID == userId.Value)
-                    .Select(m => m.MemberID)
-                    .ToListAsync();
+                var myMemberIds = await _db.Members
+                .Where(m => m.PolicyholderUserID == userId.Value)
+                .Select(m => m.MemberID)
+                .ToListAsync();
 
-                query = query.Where(c => memberIds.Contains(c.MemberID));
+                query = query.Where(c =>
+                    c.ProviderID == userId.Value ||          // their own reimbursement claims
+                    myMemberIds.Contains(c.MemberID)         // hospital claims for their members
+                );
             }
 
             // Admin and InsuranceStaff see all claims — no filter needed
@@ -65,7 +68,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Currency = c.Currency,
                     Status = c.Status.ToString(),
                     Priority = c.Priority.ToString(),
-                    SubmittedAt = c.SubmittedAt
+                    SubmittedAt = c.SubmittedAt,
+                    Notes = c.Notes,
                 })
                 .ToListAsync();
         }
@@ -108,6 +112,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 SourceChannel = claim.SourceChannel.ToString(),
                 SubmittedAt = claim.SubmittedAt,
                 ReceivedAt = claim.ReceivedAt,
+                Notes = claim.Notes,
 
                 // ── Nested claim lines ───────────────────────────────
                 ClaimLines = claim.ClaimLines.Select(l => new ClaimLineResponseDto
@@ -167,9 +172,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId)
         {
             // ── Validate Provider exists and is a Hospital ───────────────
+            // Allow Hospital for regular claims, Policyholder for reimbursement
             var provider = await _db.Users.FindAsync(dto.ProviderID);
-            if (provider == null || provider.Role != UserRole.Hospital)
-                return null;
+            if (provider == null) return null;
+
+            if (dto.ClaimType == "Reimbursement")
+            {
+                // Policyholder submitting for out-of-pocket reimbursement
+                if (provider.Role != UserRole.Policyholder) return null;
+            }
+            else
+            {
+                // Hospital submitting on behalf of patient
+                if (provider.Role != UserRole.Hospital) return null;
+            }
 
             // ── Validate Member exists ───────────────────────────────────
             var member = await _db.Members.FindAsync(dto.MemberID);
@@ -206,7 +222,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Currency = dto.Currency,
                 Status = ClaimStatus.Submitted,
                 Priority = priority,
-                SourceChannel = sourceChannel
+                SourceChannel = sourceChannel,
+                Notes = dto.Notes,
             };
 
             _db.Claims.Add(claim);
@@ -247,7 +264,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Currency = claim.Currency,
                 Status = claim.Status.ToString(),
                 Priority = claim.Priority.ToString(),
-                SubmittedAt = claim.SubmittedAt
+                SubmittedAt = claim.SubmittedAt,
+                Notes = claim.Notes,
             };
         }
 

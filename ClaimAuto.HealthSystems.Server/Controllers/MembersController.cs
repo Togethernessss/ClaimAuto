@@ -29,12 +29,26 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllMembers(
-            [FromQuery] int? policyId,
-            [FromQuery] string? status)
+        [FromQuery] int? policyId,
+        [FromQuery] string? status)
         {
+            var userId = GetLoggedInUserId();
+            var userRole = GetLoggedInUserRole();
+
             var members = await _memberRepo.GetAllMembersAsync(policyId, status);
+
+            // Policyholder only sees members they own
+            if (userRole == "Policyholder" && userId.HasValue)
+            {
+                var own = members
+                    .Where(m => m.PolicyholderUserID == userId.Value)
+                    .ToList();
+                return Ok(own);
+            }
+
             return Ok(members);
         }
+
 
         // ── GET /api/members/{id} ────────────────────────────────────────
         // Returns single member with PolicyName resolved
@@ -54,6 +68,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(member);
         }
 
+
         // ── GET /api/members/{id}/eligibility ────────────────────────────
         // Checks eligibility with TTL-based caching (300 seconds)
         // Returns cached result if within TTL, otherwise runs fresh check
@@ -72,6 +87,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Member with ID {id} was not found.");
             return Ok(result);
         }
+
 
         // ── POST /api/members ────────────────────────────────────────────
         // Creates a new member under a policy
@@ -138,6 +154,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             return Ok(updated);
         }
+
 
         /// <summary>
         /// Auto-expires members whose CoverageEnd date has passed.

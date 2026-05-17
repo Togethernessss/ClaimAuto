@@ -19,16 +19,32 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _policyRepo = policyRepo;
         }
 
-        /// <summary>Returns all active policies. Accessible by Admin, InsuranceStaff, and Hospital roles.</summary>
-        /// <response code="200">Returns list of active policies.</response>
+        /// <summary>
+        /// Returns active policies.
+        /// Admin/Staff/Hospital: all active policies.
+        /// Policyholder: only policies their members are enrolled under.
+        /// </summary>
         [HttpGet("active")]
-        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital,Policyholder")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetActivePolicies()
         {
-            var policies = await _policyRepo.GetActivePoliciesAsync();
-            return Ok(policies);
+            var userId = GetLoggedInUserId();
+            var userRole = GetLoggedInUserRole();
+
+            // Policyholder only sees policies their own members are enrolled under
+            if (userRole == "Policyholder" && userId.HasValue)
+            {
+                var policies = await _policyRepo.GetPoliciesForPolicyholderAsync(userId.Value);
+                return Ok(policies);
+            }
+
+            // Admin, Staff, Hospital see all active policies
+            var allActive = await _policyRepo.GetActivePoliciesAsync();
+            return Ok(allActive);
         }
+
+
         /// <summary>Returns all policies regardless of status.</summary>
         /// <response code="200">Returns list of all policies.</response>
         [HttpGet]
@@ -39,6 +55,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var policies = await _policyRepo.GetAllPoliciesAsync();
             return Ok(policies);
         }
+
 
         /// <summary>Returns a single policy by ID.</summary>
         /// <param name="id">The policy ID.</param>
@@ -80,6 +97,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var created = await _policyRepo.CreatePolicyAsync(dto, userId.Value);
             return CreatedAtAction(nameof(GetPolicyById), new { id = created.PolicyID }, created);
         }
+
+
         /// <summary>Updates an existing policy. Admin only.</summary>
         /// <param name="id">The policy ID to update.</param>
         /// <param name="dto">Fields to update.</param>
@@ -148,6 +167,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 _ => StatusCode(500, "Unexpected error during deactivation.")
             };
         }
+
 
         /// <summary>
         /// Checks all Active policies whose EffectiveTo date has passed

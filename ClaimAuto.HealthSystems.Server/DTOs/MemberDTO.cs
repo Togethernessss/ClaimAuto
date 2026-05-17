@@ -10,6 +10,8 @@
         public string? MemberNumber { get; set; }
         public string? ContactInfoJSON { get; set; }
         public DateTime CoverageStart { get; set; }
+        public DateTime? CoverageEnd { get; set; }
+        public int? PolicyholderUserID { get; set; }   //  which policyholder owns this member
     }
 
     // ── UpdateMemberDto 
@@ -35,6 +37,7 @@
         public DateTime CoverageStart { get; set; }
         public DateTime? CoverageEnd { get; set; }
         public string Status { get; set; } = string.Empty;
+        public int? PolicyholderUserID { get; set; }
     }
 
     // ── EligibilityResponseDto 

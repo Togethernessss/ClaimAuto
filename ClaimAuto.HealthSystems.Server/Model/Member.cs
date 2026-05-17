@@ -35,6 +35,13 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public MemberStatus Status { get; set; } = MemberStatus.Active;
 
+        // Which Policyholder user owns this member
+        // Nullable — Admin/Staff enrolled members may not have a linked policyholder
+        public int? PolicyholderUserID { get; set; }
+
+        [ForeignKey("PolicyholderUserID")]
+        public User? PolicyholderUser { get; set; }
+
         // Navigation
         public ICollection<Claim> Claims { get; set; } = new List<Claim>();
         public ICollection<EligibilityCheck> EligibilityChecks { get; set; } = new List<EligibilityCheck>();

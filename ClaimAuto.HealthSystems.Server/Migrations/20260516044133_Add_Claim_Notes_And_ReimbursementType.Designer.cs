@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260516044133_Add_Claim_Notes_And_ReimbursementType")]
+    partial class Add_Claim_Notes_And_ReimbursementType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -575,9 +578,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("PolicyID")
                         .HasColumnType("int");
 
-                    b.Property<int?>("PolicyholderUserID")
-                        .HasColumnType("int");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -589,8 +589,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasFilter("[MemberNumber] IS NOT NULL");
 
                     b.HasIndex("PolicyID");
-
-                    b.HasIndex("PolicyholderUserID");
 
                     b.ToTable("Members");
                 });
@@ -1245,14 +1243,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "PolicyholderUser")
-                        .WithMany()
-                        .HasForeignKey("PolicyholderUserID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Policy");
-
-                    b.Navigation("PolicyholderUser");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Notification", b =>

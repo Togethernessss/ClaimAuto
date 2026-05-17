@@ -26,7 +26,7 @@ export const MENU_ITEMS = [
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
    
   // Admin + Staff
-  { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff'] },
+  { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff','Policyholder'] },
   { key: 'adjudication',label: 'Adjudication',      icon: 'bi-check2-square',    path: '/adjudication',    roles: ['Admin','InsuranceStaff'] },
   { key: 'fraud',       label: 'Fraud Cases',       icon: 'bi-shield-exclamation', path: '/fraud',         roles: ['Admin','InsuranceStaff'] },
   { key: 'payments',    label: 'Payments',          icon: 'bi-credit-card',      path: '/payments',        roles: ['Admin','InsuranceStaff'] },
@@ -34,7 +34,7 @@ export const MENU_ITEMS = [
   { key: 'tasks',       label: 'Tasks',             icon: 'bi-list-task',        path: '/tasks',           roles: ['Admin','InsuranceStaff'] },
 
   // Hospital + Admin + Staff
-  { key: 'policies',    label: 'Policies',          icon: 'bi-shield-check',     path: '/policies',        roles: ['Admin','InsuranceStaff','Hospital'] },
+  { key: 'policies',    label: 'Policies',          icon: 'bi-shield-check',     path: '/policies',        roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
   { key: 'remittance',  label: 'Remittance',        icon: 'bi-receipt',          path: '/remittance',      roles: ['Admin','InsuranceStaff','Hospital'] },
 
   // Admin only

@@ -13,6 +13,7 @@ export class CreateMemberDto {
     contactAddress  = '',
     coverageStart   = '',
     coverageEnd     = '',
+    policyholderUserID = null,
   } = {}) {
     this.policyID        = policyID;
     this.name            = name;
@@ -24,6 +25,7 @@ export class CreateMemberDto {
     this.contactAddress  = contactAddress;
     this.coverageStart   = coverageStart;
     this.coverageEnd     = coverageEnd;
+    this.policyholderUserID = policyholderUserID;
   }
 }
 
@@ -50,6 +52,7 @@ export class MemberResponseDto {
     memberID, policyID, policyName,
     name, dob, gender, memberNumber,
     contactInfoJSON, coverageStart, coverageEnd, status,
+    policyholderUserID = null,
   } = {}) {
     this.memberID        = memberID;
     this.policyID        = policyID;
@@ -62,6 +65,7 @@ export class MemberResponseDto {
     this.coverageStart   = coverageStart;
     this.coverageEnd     = coverageEnd;
     this.status          = status;
+    this.policyholderUserID = policyholderUserID; 
   }
 
   get isActive()   { return this.status === 'Active'; }

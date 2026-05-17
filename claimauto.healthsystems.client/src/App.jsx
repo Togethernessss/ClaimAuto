@@ -11,6 +11,7 @@ import AuditLogs from "./pages/Admin/AuditLogs";
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
 import Members from './pages/shared/Members/Members';
+import Claims from './pages/shared/Claims/Claims';
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
@@ -56,9 +57,9 @@ export default function App() {
             {/* Shared modules */}
             <Route path="/policies" element={<Policies />} />
             <Route path="/members"  element={<Members />} />
+            <Route path="/claims"   element={<Claims />} />
 
             {/* Coming soon — uncomment as each module is built */}
-            {/* <Route path="/claims"         element={<Claims />} /> */}
             {/* <Route path="/adjudication"   element={<Adjudication />} /> */}
             {/* <Route path="/fraud"          element={<Fraud />} /> */}
             {/* <Route path="/payments"       element={<Payments />} /> */}

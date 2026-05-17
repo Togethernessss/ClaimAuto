@@ -47,6 +47,9 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public SourceChannel SourceChannel { get; set; }
 
+        [MaxLength(500)]
+        public string? Notes { get; set; }   // ← ADD
+
         // Navigation
         public ICollection<ClaimLine> ClaimLines { get; set; } = new List<ClaimLine>();
         public ICollection<ClaimDocument> ClaimDocuments { get; set; } = new List<ClaimDocument>();

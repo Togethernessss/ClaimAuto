@@ -34,6 +34,7 @@ export default function Policies() {
   const { user }   = useAuth();
   const isAdmin    = canAccess(user?.role, ['Admin']);
   const isHospital = canAccess(user?.role, ['Hospital']);
+  const isPolicyholder = canAccess(user?.role, ['Policyholder']);
 
   // ── LIST STATE ────────────────────────────────────────────────────────────
   const [policies,   setPolicies]  = useState([]);
@@ -69,9 +70,11 @@ export default function Policies() {
     setLoading(true);
     setError(null);
     try {
-      const data = isHospital
-        ? await getActivePolicies()
-        : await getAllPolicies();
+      const isPolicyholder = canAccess(user?.role, ['Policyholder']);
+
+      const data = isHospital || isPolicyholder
+        ? await getActivePolicies()   // Hospital + Policyholder → /api/policies/active
+        : await getAllPolicies();      // Admin + Staff → /api/policies (all statuses)
       setPolicies(data);
     } catch (err) {
       const msg = err.response?.data?.message

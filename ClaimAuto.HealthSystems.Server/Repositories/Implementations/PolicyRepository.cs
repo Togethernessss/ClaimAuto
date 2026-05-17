@@ -270,7 +270,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return "ok";
         }
 
-
         public async Task<object> AutoExpirePoliciesAsync()
         {
             var now = DateTime.UtcNow;
@@ -431,5 +430,35 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 checkedAt = now
             };
         }
+
+        public async Task<List<PolicyResponseDto>> GetPoliciesForPolicyholderAsync(int policyholderUserId)
+        {
+            // Get PolicyIDs from members that belong to this policyholder
+            var policyIds = await _db.Members
+                .Where(m => m.PolicyholderUserID == policyholderUserId
+                         && m.Status == MemberStatus.Active)
+                .Select(m => m.PolicyID)
+                .Distinct()
+                .ToListAsync();
+
+            return await _db.Policies
+                .Where(p => policyIds.Contains(p.PolicyID)
+                         && p.Status == PolicyStatus.Active)
+                .Select(p => new PolicyResponseDto
+                {
+                    PolicyID = p.PolicyID,
+                    PlanCode = p.PlanCode,
+                    PlanName = p.PlanName,
+                    CoverageRulesJSON = p.CoverageRulesJSON,
+                    DeductibleAmount = p.DeductibleAmount,
+                    OutOfPocketMax = p.OutOfPocketMax,
+                    EffectiveFrom = p.EffectiveFrom,
+                    EffectiveTo = p.EffectiveTo,
+                    Status = p.Status.ToString(),
+                    MemberCount = p.Members.Count,
+                })
+                .ToListAsync();
+        }
+
     }
 }

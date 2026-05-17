@@ -13,6 +13,7 @@
         public string Currency { get; set; } = "INR";
         public string Priority { get; set; } = "Normal";        // "Normal","High","Urgent"
         public string SourceChannel { get; set; } = string.Empty; // "Portal","EDI","API","BatchCSV"
+        public string? Notes { get; set; }   // ← ADD: Policyholder describes treatment
     }
 
     // ── ClaimResponseDto 
@@ -31,6 +32,7 @@
         public string Status { get; set; } = string.Empty;
         public string Priority { get; set; } = string.Empty;
         public DateTime SubmittedAt { get; set; }
+        public string? Notes { get; set; }   // ← ADD to both
     }
 
     // ── ClaimDetailResponseDto 
@@ -49,6 +51,7 @@
         public string SourceChannel { get; set; } = string.Empty;
         public DateTime SubmittedAt { get; set; }
         public DateTime? ReceivedAt { get; set; }
+        public string? Notes { get; set; }   // ← ADD to both
 
         // Nested collections — loaded via Include() in repository
         public List<ClaimLineResponseDto> ClaimLines { get; set; } = new();
