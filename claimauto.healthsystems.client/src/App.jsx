@@ -8,9 +8,12 @@ import VerifyMfa from "./pages/identity/VerifyMfa";
 import Register from "./pages/identity/Register";
 import Dashboard from "./pages/Dashboard";
 import AuditLogs from "./pages/Admin/AuditLogs";
-
+import Payments from "./pages/shared/Payments/Payments";
+import Remittance from "./pages/shared/Remittance/Remittance";
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
+import PolicyholderDashboard from './pages/policyholder/PolicyholderDashboard';
+import Members from './pages/shared/Members/Members';
 import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
@@ -52,13 +55,17 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/remittance" element={<Remittance />} />
+            <Route path="/policyholder" element={<PolicyholderDashboard />} /> 
             <Route path="/profile" element={<Profile />} />
+            <Route path="/members"  element={<Members />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
             {/* More module pages will go here */}
           </Route>
 
           {/* Catch-all for typos / unknown URLs */}
-          <Route path="*" element={<Navigate to="" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -826,8 +826,8 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("PaymentID")
                         .HasColumnType("int");
 
-                    b.Property<string>("RemitFileURI")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<byte[]>("RemitFilePDF")
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<DateTime?>("SentToProviderAt")
                         .HasColumnType("datetime2");
