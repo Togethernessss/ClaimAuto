@@ -8,6 +8,8 @@ import VerifyMfa from "./pages/identity/VerifyMfa";
 import Register from "./pages/identity/Register";
 import Dashboard from "./pages/Dashboard";
 import AuditLogs from "./pages/Admin/AuditLogs";
+import Payments from "./pages/shared/Payments/Payments";
+import Remittance from "./pages/shared/Remittance/Remittance";
 import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
 import PolicyholderDashboard from './pages/policyholder/PolicyholderDashboard';
@@ -16,14 +18,10 @@ import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
+import Notifications from './pages/shared/Notifications/Notifications';
 
-
-// Smart redirect for the root URL "/"
-// - If not logged in → send to /login
-// - If logged in → send to their role-specific dashboard
 function RootRedirect() {
   const { user } = useAuth();
-
   if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={getDashboardPath(user.role)} replace />;
 }
@@ -33,15 +31,15 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* ── Public routes (no login needed) ── */}
+          {/* ── Public routes ── */}
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-mfa" element={<VerifyMfa />} />
           <Route path="/register" element={<Register />} />
-
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          {/* ── Protected routes (login required) ── */}
+
+          {/* ── Protected routes ── */}
           <Route
             element={
               <RequireAuth>
@@ -49,18 +47,19 @@ export default function App() {
               </RequireAuth>
             }
           >
-
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/policies" element={<Policies />} />
-            <Route path="/policyholder" element={<PolicyholderDashboard />} /> 
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/remittance" element={<Remittance />} />
+            <Route path="/policyholder" element={<PolicyholderDashboard />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/members"  element={<Members />} />
+            <Route path="/members" element={<Members />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
-            {/* More module pages will go here */}
+            <Route path="/notifications" element={<Notifications />} />
           </Route>
 
-          {/* Catch-all for typos / unknown URLs */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

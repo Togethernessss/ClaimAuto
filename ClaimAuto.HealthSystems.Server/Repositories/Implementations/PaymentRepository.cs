@@ -2,6 +2,7 @@
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
@@ -10,11 +11,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     {
         private readonly ApplicationDbContext _context;
         private readonly INotificationRepository _notificationRepo;
+        private readonly IRemittancePdfService _pdfService;
 
-        public PaymentRepository(ApplicationDbContext context, INotificationRepository notificationRepo)
+        public PaymentRepository(
+            ApplicationDbContext context,
+            INotificationRepository notificationRepo,
+            IRemittancePdfService pdfService)
         {
             _context = context;
             _notificationRepo = notificationRepo;
+            _pdfService = pdfService;
         }
 
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
@@ -95,7 +101,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<PaymentResponseDto> CreatePaymentAsync(
             Payment payment)
         {
-            using var transaction = await _context.Database   // Transaction guarantees: BOTH succeed or NEITHER happens remittance and payment generation
+            using var transaction = await _context.Database
                 .BeginTransactionAsync();
             try
             {
@@ -116,7 +122,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
                 await transaction.CommitAsync();
 
-                var payeeName = await _context.Users     // for response
+                var payeeName = await _context.Users
                     .Where(u => u.UserID == payment.PayeeID)
                     .Select(u => u.Name)
                     .FirstOrDefaultAsync() ?? "Unknown";
@@ -185,7 +191,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var payment = await _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
-                    .ThenInclude(c => c.Member)   // to find Arjun for notification
+                    .ThenInclude(c => c.Member)
                 .Include(p => p.Remittance)
                 .FirstOrDefaultAsync(
                     p => p.PaymentID == id);
@@ -207,6 +213,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 payment.Remittance.Status = RemittanceStatus.Sent;
                 payment.Remittance.SentToProviderAt = DateTime.UtcNow;
+
+                // ── Generate and store PDF ────────────────────────
+                payment.Remittance.RemitFilePDF =
+                    _pdfService.GenerateRemittancePdf(
+                        payment.Remittance, payment);
             }
 
             await _context.SaveChangesAsync();
@@ -216,8 +227,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 UserID = payment.PayeeID,
                 ClaimID = payment.ClaimID,
-                Message = $"Payment of ₹{payment.Amount} has been sent to your account. " +
-                          $"Reference: {payment.ReferenceNumber}.",
+                Message = $"Payment of ₹{payment.Amount} has been sent " +
+                           $"to your account. " +
+                           $"Reference: {payment.ReferenceNumber}.",
                 Category = NotificationCategory.Payment,
                 Severity = NotificationSeverity.Info
             });
@@ -226,9 +238,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment.Claim != null)
             {
                 var memberUser = await _context.Users
-                    .Where(u => u.Name == payment.Claim.Member.Name
-                             && u.Role == UserRole.Policyholder
-                             && u.Status == AccountStatus.Active)
+                    .Where(u =>
+                        u.Name == payment.Claim.Member.Name &&
+                        u.Role == UserRole.Policyholder &&
+                        u.Status == AccountStatus.Active)
                     .FirstOrDefaultAsync();
 
                 if (memberUser != null)
@@ -237,8 +250,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     {
                         UserID = memberUser.UserID,
                         ClaimID = payment.ClaimID,
-                        Message = $"₹{payment.Amount} has been paid to your provider " +
-                                  $"for your claim. Reference: {payment.ReferenceNumber}.",
+                        Message = $"₹{payment.Amount} has been paid to " +
+                                   $"your provider for your claim. " +
+                                   $"Reference: {payment.ReferenceNumber}.",
                         Category = NotificationCategory.Payment,
                         Severity = NotificationSeverity.Info
                     });
@@ -273,8 +287,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 return null;
 
             if (payment.Status != PaymentStatus.Pending
-                && payment.Status !=
-                    PaymentStatus.Authorized)
+                && payment.Status != PaymentStatus.Authorized)
                 return null;
 
             payment.Status = PaymentStatus.OnHold;
@@ -313,11 +326,87 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 RemittanceID = remittance.RemittanceID,
                 PaymentID = remittance.PaymentID,
-                RemitFileURI = remittance.RemitFileURI,
                 GeneratedAt = remittance.GeneratedAt,
                 SentToProviderAt = remittance.SentToProviderAt,
-                Status = remittance.Status.ToString()
+                Status = remittance.Status.ToString(),
+                HasPDF = remittance.RemitFilePDF != null
+                                   && remittance.RemitFilePDF.Length > 0,
             };
+        }
+
+        public async Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
+            int? userId,
+            string? userRole,
+            string? status,
+            string? search,
+            int? claimId,
+            DateTime? dateFrom,
+            DateTime? dateTo)
+        {
+            var query = _context.Remittances
+                .Include(r => r.Payment)
+                    .ThenInclude(p => p.Payee)
+                .Include(r => r.Payment)
+                    .ThenInclude(p => p.Claim)
+                .AsQueryable();
+
+            // Hospital sees only their own remittances
+            if (userRole == "Hospital" && userId.HasValue)
+                query = query.Where(
+                    r => r.Payment.PayeeID == userId.Value);
+
+            // Filter by status
+            if (!string.IsNullOrEmpty(status))
+            {
+                if (Enum.TryParse<RemittanceStatus>(
+                    status, true, out var statusEnum))
+                    query = query.Where(
+                        r => r.Status == statusEnum);
+            }
+
+            // Filter by claimId
+            if (claimId.HasValue)
+                query = query.Where(
+                    r => r.Payment.ClaimID == claimId.Value);
+
+            // Search by payee name or remittance ID
+            if (!string.IsNullOrEmpty(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(r =>
+                    r.Payment.Payee.Name
+                        .ToLower().Contains(searchLower) ||
+                    r.RemittanceID.ToString()
+                        .Contains(search));
+            }
+
+            // Filter by date range
+            if (dateFrom.HasValue)
+                query = query.Where(
+                    r => r.GeneratedAt >= dateFrom.Value);
+
+            if (dateTo.HasValue)
+                query = query.Where(
+                    r => r.GeneratedAt <= dateTo.Value);
+
+            var remittances = await query
+                .OrderByDescending(r => r.GeneratedAt)
+                .ToListAsync();
+
+            return remittances.Select(r => new RemittanceResponseDto
+            {
+                RemittanceID = r.RemittanceID,
+                PaymentID = r.PaymentID,
+                GeneratedAt = r.GeneratedAt,
+                SentToProviderAt = r.SentToProviderAt,
+                Status = r.Status.ToString(),
+                PayeeName = r.Payment?.Payee?.Name ?? "Unknown",
+                Amount = r.Payment?.Amount ?? 0,
+                Currency = r.Payment?.Currency ?? "INR",
+                ClaimID = r.Payment?.ClaimID ?? 0,
+                HasPDF = r.RemitFilePDF != null
+                                   && r.RemitFilePDF.Length > 0,
+            }).ToList();
         }
 
         public async Task<List<ReconciliationResponseDto>>
@@ -353,23 +442,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var totalCount = paymentsInPeriod.Count;
             var totalAmount = paymentsInPeriod
-                .Where(p =>
-                    p.Status == PaymentStatus.Executed)
-                .Sum(p => p.Amount);    // adding every amount whose status is executed
+                .Where(p => p.Status == PaymentStatus.Executed)
+                .Sum(p => p.Amount);
 
             var summary = System.Text.Json.JsonSerializer
-                .Serialize(new                      // it converts c# object to json
+                .Serialize(new
                 {
                     totalPayments = totalCount,
                     totalAmount = totalAmount,
-                    periodStart = dto.PeriodStart
-                        .ToString("yyyy-MM-dd"),
-                    periodEnd = dto.PeriodEnd
-                        .ToString("yyyy-MM-dd")
+                    periodStart = dto.PeriodStart.ToString("yyyy-MM-dd"),
+                    periodEnd = dto.PeriodEnd.ToString("yyyy-MM-dd")
                 });
 
-            var discrepancies = System.Text.Json    // Discrepancies = MISMATCHES between your records and bank's records.
-                .JsonSerializer.Serialize(new
+            var discrepancies = System.Text.Json.JsonSerializer
+                .Serialize(new
                 {
                     count = 0,
                     items = new List<object>()
@@ -428,11 +514,53 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 RemittanceID = remittance.RemittanceID,
                 PaymentID = remittance.PaymentID,
-                RemitFileURI = remittance.RemitFileURI,
                 GeneratedAt = remittance.GeneratedAt,
                 SentToProviderAt = remittance.SentToProviderAt,
-                Status = remittance.Status.ToString()
+                Status = remittance.Status.ToString(),
+                HasPDF = remittance.RemitFilePDF != null
+                                   && remittance.RemitFilePDF.Length > 0,
             };
+        }
+
+        public async Task<PaymentResponseDto?> ResumePaymentAsync(int id)
+        {
+            var payment = await _context.Payments
+                .Include(p => p.Payee)
+                .FirstOrDefaultAsync(p => p.PaymentID == id);
+
+            if (payment == null)
+                return null;
+
+            if (payment.Status != PaymentStatus.OnHold)
+                return null;
+
+            payment.Status = PaymentStatus.Pending;
+            await _context.SaveChangesAsync();
+
+            return new PaymentResponseDto
+            {
+                PaymentID = payment.PaymentID,
+                ClaimID = payment.ClaimID,
+                PayeeID = payment.PayeeID,
+                PayeeName = payment.Payee?.Name ?? "Unknown",
+                Amount = payment.Amount,
+                Currency = payment.Currency,
+                PaymentMethod = payment.PaymentMethod.ToString(),
+                Status = payment.Status.ToString(),
+                CreatedAt = payment.CreatedAt,
+                ScheduledAt = payment.ScheduledAt,
+                ExecutedAt = payment.ExecutedAt,
+                ReferenceNumber = payment.ReferenceNumber
+            };
+        }
+
+        public async Task<byte[]?> GetRemittancePdfAsync(int paymentId)
+        {
+            var remittance = await _context.Remittances
+                .FirstOrDefaultAsync(r =>
+                    r.PaymentID == paymentId);
+
+            return remittance?.RemitFilePDF;
         }
     }
 }

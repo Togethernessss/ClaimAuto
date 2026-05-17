@@ -6,6 +6,7 @@ namespace ClaimAuto.HealthSystems.Server.Model
     [Table("Remittances")]
     public class Remittance
     {
+
         [Key]
         public int RemittanceID { get; set; }
 
@@ -13,7 +14,7 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public int PaymentID { get; set; }
         public Payment Payment { get; set; } = null!;
 
-        public string? RemitFileURI { get; set; }
+        public byte[]? RemitFilePDF { get; set; }   
 
         [Required]
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
