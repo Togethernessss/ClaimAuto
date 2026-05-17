@@ -14,10 +14,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         Task<NotificationResponseDto> CreateAsync(Notification notification);
 
+        Task<int> MarkAllAsReadAsync(int userId);
+
         Task<NotificationResponseDto?> MarkAsReadAsync(int id, int userId);
 
         Task<NotificationResponseDto?> DismissAsync(int id, int userId);
 
         Task<bool> DeleteAsync(int id, int userId);
+
+        Task<int> DeleteAllAsync(int userId);
     }
 }

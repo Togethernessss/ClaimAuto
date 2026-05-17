@@ -78,6 +78,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return MapToDto(notification);
         }
 
+        public async Task<int> MarkAllAsReadAsync(int userId)
+        {
+            var unread = await _context.Notifications
+                .Where(n => n.UserID == userId
+                         && n.Status == NotificationStatus.Unread)
+                .ToListAsync();
+
+            foreach (var n in unread)
+            {
+                n.Status = NotificationStatus.Read;
+                n.ReadAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return unread.Count;
+        }
+
         public async Task<NotificationResponseDto?> MarkAsReadAsync(
             int id, int userId)
         {
@@ -152,6 +169,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ReadAt = n.ReadAt,
                 Status = n.Status.ToString()
             };
+        }
+
+        public async Task<int> DeleteAllAsync(int userId)
+        {
+            var all = await _context.Notifications
+                .Where(n => n.UserID == userId)
+                .ToListAsync();
+
+            _context.Notifications.RemoveRange(all);
+            await _context.SaveChangesAsync();
+            return all.Count;
         }
     }
 }
