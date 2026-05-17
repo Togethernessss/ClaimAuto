@@ -158,6 +158,14 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(e => e.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Member → PolicyholderUser (User) — optional FK, no cascade
+            mb.Entity<Member>()
+                .HasOne(m => m.PolicyholderUser)
+                .WithMany()
+                .HasForeignKey(m => m.PolicyholderUserID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Reconciliation → PerformedBy (User)
             mb.Entity<Reconciliation>()
                 .HasOne(r => r.PerformedBy)

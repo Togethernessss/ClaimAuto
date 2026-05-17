@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260514113137_AddMustChangePasswordToUser2")]
-    partial class AddMustChangePasswordToUser2
+    [Migration("20260517042814_Add_Member_PolicyholderUserID")]
+    partial class Add_Member_PolicyholderUserID
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -204,6 +204,10 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<int>("MemberID")
                         .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("PolicyID")
                         .HasColumnType("int");
@@ -574,6 +578,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("PolicyID")
                         .HasColumnType("int");
 
+                    b.Property<int?>("PolicyholderUserID")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -585,6 +592,8 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasFilter("[MemberNumber] IS NOT NULL");
 
                     b.HasIndex("PolicyID");
+
+                    b.HasIndex("PolicyholderUserID");
 
                     b.ToTable("Members");
                 });
@@ -632,6 +641,44 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("UserID");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("Used")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserID")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserID");
+
+                    b.ToTable("PasswordResetTokens");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Payment", b =>
@@ -708,6 +755,12 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NotifiedAt2Hours")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NotifiedAt7Days")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("OutOfPocketMax")
@@ -1195,7 +1248,14 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "PolicyholderUser")
+                        .WithMany()
+                        .HasForeignKey("PolicyholderUserID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Policy");
+
+                    b.Navigation("PolicyholderUser");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Notification", b =>
@@ -1212,6 +1272,17 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Claim");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
+                {
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

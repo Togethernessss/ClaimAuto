@@ -44,7 +44,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ContactInfoJSON = m.ContactInfoJSON,
                     CoverageStart = m.CoverageStart,
                     CoverageEnd = m.CoverageEnd,
-                    Status = m.Status.ToString()
+                    Status = m.Status.ToString(),
+                    PolicyholderUserID = m.PolicyholderUserID,
                 })
                 .ToListAsync();
         }
@@ -68,7 +69,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ContactInfoJSON = m.ContactInfoJSON,
                     CoverageStart = m.CoverageStart,
                     CoverageEnd = m.CoverageEnd,
-                    Status = m.Status.ToString()
+                    Status = m.Status.ToString(),
+                    PolicyholderUserID = m.PolicyholderUserID,
                 })
                 .FirstOrDefaultAsync();
         }
@@ -234,7 +236,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 MemberNumber = dto.MemberNumber,
                 ContactInfoJSON = dto.ContactInfoJSON,
                 CoverageStart = dto.CoverageStart,
-                Status = MemberStatus.Active     // server sets this — always Active on creation
+                CoverageEnd = dto.CoverageEnd,
+                Status = MemberStatus.Active,     // server sets this — always Active on creation
+                PolicyholderUserID = dto.PolicyholderUserID,
             };
 
             _db.Members.Add(member);
@@ -269,7 +273,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ContactInfoJSON = member.ContactInfoJSON,
                 CoverageStart = member.CoverageStart,
                 CoverageEnd = member.CoverageEnd,
-                Status = member.Status.ToString()
+                Status = member.Status.ToString(),
+                PolicyholderUserID = member.PolicyholderUserID,
             };
         }
 
@@ -299,13 +304,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 member.ContactInfoJSON = dto.ContactInfoJSON;
             }
 
-            if (dto.CoverageEnd.HasValue && dto.CoverageEnd != member.CoverageEnd)
+            if (dto.CoverageEnd != member.CoverageEnd)
             {
                 changes.Add($"CoverageEnd: {member.CoverageEnd} → {dto.CoverageEnd}");
-                member.CoverageEnd = dto.CoverageEnd;
+                member.CoverageEnd = dto.CoverageEnd;  // null clears it, value sets it
             }
 
-            if (dto.Status != null)
+            // Status — allow setting to any valid value including re-activating
+            if (!string.IsNullOrEmpty(dto.Status))
             {
                 if (Enum.TryParse<MemberStatus>(dto.Status, out var newStatus)
                     && newStatus != member.Status)
@@ -330,7 +336,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ContactInfoJSON = member.ContactInfoJSON,
                     CoverageStart = member.CoverageStart,
                     CoverageEnd = member.CoverageEnd,
-                    Status = member.Status.ToString()
+                    Status = member.Status.ToString(),
+                    PolicyholderUserID = member.PolicyholderUserID,
                 };
             }
 
