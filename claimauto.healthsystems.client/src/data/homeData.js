@@ -97,8 +97,8 @@ export const stakeholdersData = [
   {
     icon: 'bi-person-heart',
     role: 'Policyholder',
-    tagline: 'Your health, your claims — always in sight.',
-    desc: 'View your active policy, submit claims, track approvals, file appeals, and manage enrolled family members — all in one dashboard.',
+    tagline: 'Your health, your claims always in sight.',
+    desc: 'View your active policy, submit claims, track approvals, file appeals, and manage enrolled family members all in one dashboard.',
     features: ['Submit & track claims', 'View policy coverage', 'File & monitor appeals', 'Family member eligibility'],
     color: '#e3f2fd',
     iconColor: '#1565c0',

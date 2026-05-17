@@ -108,6 +108,27 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
+
+        /// <summary>Marks all unread notifications as read for the current user.</summary>
+        /// <response code="200">Returns count of notifications marked as read.</response>
+        /// <response code="401">Unauthorized.</response>
+        [HttpPut("read-all")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> MarkAllAsRead()
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token.");
+
+            var count = await _notificationRepository
+                .MarkAllAsReadAsync(userId.Value);
+
+            return Ok(new { message = $"{count} notification(s) marked as read." });
+        }
+
+
+
         /// <summary>Marks a notification as read.</summary>
         /// <param name="id">The notification ID to mark as read.</param>
         /// <response code="200">Notification marked as read.</response>
@@ -180,6 +201,27 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Notification {id} not found.");
 
             return NoContent();
+        }
+
+        /// <summary>Deletes all notifications for the current user.</summary>
+        /// <response code="200">Returns count of deleted notifications.</response>
+        /// <response code="401">Unauthorized.</response>
+        [HttpDelete("all")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> DeleteAll()
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token.");
+
+            var count = await _notificationRepository
+                .DeleteAllAsync(userId.Value);
+
+            return Ok(new
+            {
+                message = $"{count} notification(s) deleted."
+            });
         }
     }
 }
