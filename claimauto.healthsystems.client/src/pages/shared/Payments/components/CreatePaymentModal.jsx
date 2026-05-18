@@ -56,19 +56,24 @@ export default function CreatePaymentModal({
         String(c.claimID).includes(claimSearch))
     : claims.slice(0, 20);
 
+  // FIX: set both claimID and payeeID when a claim is selected
+  // c.providerID = the hospital's UserID — this is who gets paid
   function handleSelectClaim(c) {
     setSelectedClaim(c);
     setShowPanel(false);
     setClaimSearch('');
     setValidationError(null);
     onFieldChange('claimID')({ target: { value: c.claimID } });
+    onFieldChange('payeeID')({ target: { value: c.providerID } }); // ← KEY FIX
   }
 
+  // FIX: clear both claimID and payeeID when user clicks "Change"
   function handleClearSelection() {
     setSelectedClaim(null);
     setClaimSearch('');
     setShowPanel(false);
     onFieldChange('claimID')({ target: { value: null } });
+    onFieldChange('payeeID')({ target: { value: null } }); // ← KEY FIX
   }
 
   function handleSubmit() {
@@ -84,16 +89,17 @@ export default function CreatePaymentModal({
     onSubmit();
   }
 
-  const paymentInfo    = selectedClaim ? getPaymentInfo(selectedClaim.claimID) : null;
-  const isFormValid    = form.claimID && form.amount && parseFloat(form.amount) > 0;
+  const paymentInfo = selectedClaim ? getPaymentInfo(selectedClaim.claimID) : null;
+  const isFormValid = form.claimID && form.amount && parseFloat(form.amount) > 0;
 
-  // claim type → colored tag style
   function typeStyle(type) {
     switch (type) {
-      case 'Inpatient':  return { bg: '#fce4ec', color: '#880e4f' };
-      case 'Outpatient': return { bg: '#e3f2fd', color: '#1565c0' };
-      case 'Pharmacy':   return { bg: '#f3e5f5', color: '#4a148c' };
-      default:           return { bg: '#f5f5f5', color: '#424242' };
+      case 'Inpatient':     return { bg: '#fce4ec', color: '#880e4f' };
+      case 'Outpatient':    return { bg: '#e3f2fd', color: '#1565c0' };
+      case 'Pharmacy':      return { bg: '#f3e5f5', color: '#4a148c' };
+      case 'Emergency':     return { bg: '#fff3e0', color: '#e65100' };
+      case 'Reimbursement': return { bg: '#e8f5e9', color: '#2e7d32' };
+      default:              return { bg: '#f5f5f5', color: '#424242' };
     }
   }
 
@@ -138,7 +144,6 @@ export default function CreatePaymentModal({
             transition: 'width 0.2s ease',
           }}>
 
-            {/* Search input */}
             <Form.Group>
               <Form.Label className="fw-semibold small">
                 Search & select claim <span className="text-danger">*</span>
@@ -168,7 +173,6 @@ export default function CreatePaymentModal({
               )}
             </Form.Group>
 
-            {/* Selected claim display */}
             {selectedClaim && !showPanel && (
               <div style={{
                 border: '0.5px solid #667eea',
@@ -176,7 +180,6 @@ export default function CreatePaymentModal({
                 background: '#f3f0ff',
                 overflow: 'hidden',
               }}>
-                {/* Purple left bar */}
                 <div style={{ display: 'flex' }}>
                   <div style={{ width: 4, background: '#667eea', flexShrink: 0 }}></div>
                   <div style={{ padding: '8px 12px', flex: 1 }}>
@@ -216,7 +219,6 @@ export default function CreatePaymentModal({
               </div>
             )}
 
-            {/* Form fields */}
             <Row className="g-2">
               <Col md={6}>
                 <Form.Group>
@@ -283,7 +285,6 @@ export default function CreatePaymentModal({
               </Col>
             </Row>
 
-            {/* Footer */}
             <div style={{
               marginTop: 'auto',
               display: 'flex',
@@ -316,7 +317,7 @@ export default function CreatePaymentModal({
             </div>
           </div>
 
-          {/* ── Right — Style B claim panel ──────────────────────────── */}
+          {/* ── Right — claims panel ──────────────────────────────────── */}
           {showPanel && (
             <div style={{
               width: '48%',
@@ -325,7 +326,6 @@ export default function CreatePaymentModal({
               flexDirection: 'column',
             }}>
 
-              {/* Panel header */}
               <div style={{
                 padding: '10px 14px',
                 background: '#f8f9fa',
@@ -339,7 +339,6 @@ export default function CreatePaymentModal({
                 </div>
               </div>
 
-              {/* Claims list */}
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {claimsLoading ? (
                   <div className="text-center py-4">
@@ -349,7 +348,7 @@ export default function CreatePaymentModal({
                 ) : filteredClaims.length === 0 ? (
                   <div className="text-center py-4">
                     <i className="bi bi-inbox" style={{ fontSize: 32, color: '#dfe4ea' }}></i>
-                    <div className="text-muted small mt-2">No claims found</div>
+                    <div className="text-muted small mt-2">No approved claims found</div>
                   </div>
                 ) : (
                   filteredClaims.map((c) => {
@@ -374,7 +373,6 @@ export default function CreatePaymentModal({
                           if (!isSelected) e.currentTarget.style.background = 'white';
                         }}
                       >
-                        {/* Left border indicator */}
                         <div style={{
                           width: 3,
                           background: isSelected ? '#667eea' : 'transparent',
@@ -382,7 +380,6 @@ export default function CreatePaymentModal({
                           transition: 'background 0.15s',
                         }}></div>
 
-                        {/* Content */}
                         <div style={{ padding: '9px 12px', flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
