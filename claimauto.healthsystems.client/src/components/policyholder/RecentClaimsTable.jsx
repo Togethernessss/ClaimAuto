@@ -17,7 +17,7 @@ export default function RecentClaimsTable({ claims }) {
           size="sm"
           variant="outline-primary"
           className="rounded-pill"
-          onClick={() => navigate('/policyholder/claims')}
+          onClick={() => navigate('/claims')}
         >
           View All <i className="bi bi-arrow-right ms-1"></i>
         </Button>
@@ -48,7 +48,7 @@ export default function RecentClaimsTable({ claims }) {
                   <tr
                     key={c.claimID}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/policyholder/claims/${c.claimID}`)}
+                    onClick={() => navigate(`/claims?focus=${c.claimID}`)}
                   >
                     <td className="ps-4 py-3 fw-semibold font-monospace">CLM-{c.claimID}</td>
                     <td className="py-3 small">{formatDate(c.dateOfService)}</td>

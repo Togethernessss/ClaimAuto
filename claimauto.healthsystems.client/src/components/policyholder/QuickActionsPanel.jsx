@@ -12,7 +12,7 @@ export default function QuickActionsPanel({ claims, activeAppeal }) {
   const handleFileAppeal = () => {
     if (canFileAppeal) {
       const claim = rejected[0];
-      navigate(`/policyholder/appeals/new?claim=${claim.claimID}`);
+      navigate(`/appeals?action=new&claim=${claim.claimID}`);
     }
   };
 
@@ -40,7 +40,7 @@ export default function QuickActionsPanel({ claims, activeAppeal }) {
       icon: 'bi-file-text', title: 'View Policy Document',
       desc: 'Terms, conditions, exclusions',
       color: '#6a1b9a', bg: '#f3e5f5',
-      action: () => navigate('/policyholder/policy'),
+      action: () => navigate('/policies'),
     },
     {
       icon: 'bi-headset', title: 'Contact Support',
