@@ -247,14 +247,21 @@ export default function Claims() {
     setUpdateError(null);
     setUpdateLoading(true);
     try {
-      await updateClaim(updateTarget.claimID, dto);
+      const result = await updateClaim(updateTarget.claimID, dto);
       setShowUpdate(false);
       await loadClaims();
-      setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
+
+      // If Validated was set, backend auto-adjudicated and returns
+      // { claim, adjudication, message, autoAdjudicated: true }
+      if (result?.autoAdjudicated && result?.message) {
+        setSuccessMsg(result.message);
+      } else {
+        setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
+      }
     } catch (err) {
       const msg = err.response?.data?.message
-               || err.response?.data
-               || 'Failed to update claim.';
+              || err.response?.data
+              || 'Failed to update claim.';
       setUpdateError(typeof msg === 'string' ? msg : 'Failed to update claim.');
     } finally {
       setUpdateLoading(false);

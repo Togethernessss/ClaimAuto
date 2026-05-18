@@ -13,10 +13,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class ClaimsController : BaseController
     {
         private readonly IClaimRepository _claimRepo;
+        private readonly IAdjudicationRepository _adjRepo;
 
-        public ClaimsController(IClaimRepository claimRepo)
+        public ClaimsController(
+            IClaimRepository claimRepo,
+            IAdjudicationRepository adjRepo)
         {
             _claimRepo = claimRepo;
+            _adjRepo = adjRepo;
         }
 
         /// <summary>Returns claims visible to the current user. Admins see all; Policyholders see their own.</summary>
@@ -36,6 +40,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claims);
         }
 
+
         /// <summary>Returns a single claim by ID.</summary>
         /// <param name="id">The claim ID.</param>
         /// <response code="200">Returns the claim.</response>
@@ -50,6 +55,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Claim with ID {id} was not found.");
             return Ok(claim);
         }
+
 
         /// <summary>Submits a new insurance claim. Validates ProviderID (must be Hospital role), MemberID, and active PolicyID.</summary>
         /// <param name="dto">Claim details including member, provider, policy, and diagnosis info.</param>
@@ -83,6 +89,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
+
         /// <summary>Updates an existing claim. Admin and InsuranceStaff only.</summary>
         /// <param name="id">The claim ID to update.</param>
         /// <param name="dto">Fields to update.</param>
@@ -103,6 +110,31 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value);
             if (updated == null)
                 return NotFound($"Claim with ID {id} was not found.");
+
+            // ── Auto-trigger adjudication when status = Validated ──────────────────
+            // Production flow: Staff sets Validated → engine runs automatically
+            // No manual "adjudicate" button needed on the frontend
+            if (dto.Status == "Validated")
+            {
+                var adjResult = await _adjRepo.AutoAdjudicateAsync(id);
+
+                if (adjResult != null)
+                {
+                    var message = adjResult.Decision == "PendingReview"
+                        ? $"Claim CLM-{id} validated and routed to manual review queue " +
+                          $"(amount exceeds auto-adjudication threshold)."
+                        : $"Claim CLM-{id} validated and auto-adjudicated. " +
+                          $"Decision: {adjResult.Decision}.";
+
+                    return Ok(new
+                    {
+                        claim = updated,
+                        adjudication = adjResult,
+                        message,
+                        autoAdjudicated = true
+                    });
+                }
+            }
 
             return Ok(updated);
         }
