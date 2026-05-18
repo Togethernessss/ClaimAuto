@@ -24,12 +24,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
-            string? status, int? claimId)
+    int? userId, string? userRole,
+    string? status, int? claimId)
         {
             var query = _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
+                    .ThenInclude(c => c.Member)
                 .AsQueryable();
+
+            // Policyholder sees only payments tied to their own claims
+            // (i.e., the claim's member is enrolled under this Policyholder).
+            // Admin and InsuranceStaff fall through with no filter — they see all.
+            if (userRole == "Policyholder" && userId.HasValue)
+            {
+                query = query.Where(p =>
+                    p.Claim != null &&
+                    p.Claim.Member != null &&
+                    p.Claim.Member.PolicyholderUserID == userId.Value);
+            }
 
             if (!string.IsNullOrEmpty(status))
             {

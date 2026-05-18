@@ -17,7 +17,7 @@ export default function RecentPaymentsCard({ payments }) {
           size="sm"
           variant="outline-primary"
           className="rounded-pill"
-          onClick={() => navigate('/policyholder/payments')}
+          onClick={() => navigate('/payments')}
         >
           View All <i className="bi bi-arrow-right ms-1"></i>
         </Button>
