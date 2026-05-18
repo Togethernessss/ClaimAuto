@@ -12,6 +12,8 @@ import HomePage from "./pages/HomePage";
 import Policies from "./pages/shared/Policies/Policies";
 import Members from './pages/shared/Members/Members';
 import Claims from './pages/shared/Claims/Claims';
+import Adjudication from './pages/shared/Adjudication/Adjudication';
+import Rules from './pages/Admin/Rules/Rules';
 import Payments from "./pages/shared/Payments/Payments";
 import Remittance from "./pages/shared/Remittance/Remittance";
 import Notifications from './pages/shared/Notifications/Notifications';
@@ -43,7 +45,7 @@ export default function App() {
           {/* ── Protected routes ── */}
           <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
 
-            {/* All dashboard paths → Dashboard.jsx → role decides */}
+            {/* All dashboard paths */}
             <Route path="/dashboard"              element={<Dashboard />} />
             <Route path="/admin/dashboard"        element={<Dashboard />} />
             <Route path="/staff/dashboard"        element={<Dashboard />} />
@@ -56,22 +58,22 @@ export default function App() {
 
             {/* Admin only */}
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/rules"      element={<Rules />} />
 
-            {/* Shared modules — built ✅ */}
+            {/* Shared modules ✅ */}
             <Route path="/policies"      element={<Policies />} />
             <Route path="/members"       element={<Members />} />
             <Route path="/claims"        element={<Claims />} />
+            <Route path="/adjudication"  element={<Adjudication />} />
             <Route path="/payments"      element={<Payments />} />
             <Route path="/remittance"    element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
 
-            {/* Coming soon — uncomment as each module is built */}
-            {/* <Route path="/adjudication"   element={<Adjudication />} /> */}
+            {/* Coming soon */}
             {/* <Route path="/fraud"          element={<Fraud />} /> */}
             {/* <Route path="/appeals"        element={<Appeals />} /> */}
             {/* <Route path="/tasks"          element={<Tasks />} /> */}
             {/* <Route path="/reports"        element={<Reports />} /> */}
-            {/* <Route path="/rules"          element={<Rules />} /> */}
             {/* <Route path="/audit-packages" element={<AuditPackages />} /> */}
 
           </Route>
