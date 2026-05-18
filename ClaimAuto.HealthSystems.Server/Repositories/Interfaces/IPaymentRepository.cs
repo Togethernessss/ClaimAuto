@@ -11,29 +11,29 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         Task<PaymentResponseDto?> GetPaymentByIdAsync(int id);
 
-        Task<PaymentResponseDto> CreatePaymentAsync(Payment payment);
+        Task<PaymentResponseDto> CreatePaymentAsync(
+            Payment payment,
+            int createdByUserId);
 
-        Task<PaymentResponseDto?> AuthorizePaymentAsync(int id);
+        Task<PaymentResponseDto?> AuthorizePaymentAsync(
+            int id,
+            int authorizedByUserId);
 
         Task<PaymentResponseDto?> ExecutePaymentAsync(
             int id,
-            string referenceNumber);
+            string referenceNumber,
+            int executedByUserId);
 
-        Task<PaymentResponseDto?> HoldPaymentAsync(int id);
+        Task<PaymentResponseDto?> HoldPaymentAsync(
+            int id,
+            int heldByUserId);
+
+        Task<PaymentResponseDto?> ResumePaymentAsync(
+            int id,
+            int resumedByUserId);
 
         Task<RemittanceResponseDto?> GetRemittanceByPaymentIdAsync(
             int paymentId);
-
-        Task<List<ReconciliationResponseDto>> GetReconciliationsAsync();
-
-        Task<ReconciliationResponseDto> CreateReconciliationAsync(
-            CreateReconciliationDto dto,
-            int performedById);
-
-        Task<RemittanceResponseDto?> AcknowledgeRemittanceAsync(
-            int paymentId);
-
-        Task<PaymentResponseDto?> ResumePaymentAsync(int id);
 
         Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
             int? userId,
@@ -44,6 +44,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             DateTime? dateFrom,
             DateTime? dateTo);
 
-        Task<byte[]?> GetRemittancePdfAsync(int paymentId);   // ← NEW
+        Task<RemittanceResponseDto?> AcknowledgeRemittanceAsync(
+            int paymentId,
+            int acknowledgedByUserId);
+
+        Task<List<ReconciliationResponseDto>> GetReconciliationsAsync();
+
+        Task<ReconciliationResponseDto> CreateReconciliationAsync(
+            CreateReconciliationDto dto,
+            int performedById);
+
+        Task<byte[]?> GetRemittancePdfAsync(int paymentId);
     }
 }
