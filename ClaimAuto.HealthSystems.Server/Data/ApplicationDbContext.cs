@@ -49,14 +49,12 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<ClaimTasks> ClaimTasks { get; set; }
 
-
-
-        //What is Fluent API? It is a way to configure the model using code instead of data annotations. It allows for more complex configurations and is done in the OnModelCreating method of the DbContext.
-        protected override void OnModelCreating(ModelBuilder mb)// Fluent API configurations
+        protected override void OnModelCreating(ModelBuilder mb)
         {
             base.OnModelCreating(mb);
 
-            // Unique Constraints
+            // ── Unique Constraints ───────────────────────────────────────────
+
             mb.Entity<User>()
                 .HasIndex(u => u.Email).IsUnique();
 
@@ -69,10 +67,17 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Policy>()
                 .HasIndex(p => p.PlanCode).IsUnique();
 
+            // ── FIX: allow multiple NULL reference numbers ───────────────────
+            // ReferenceNumber is null until payment is executed.
+            // Without HasFilter, SQL Server treats two NULLs as duplicates
+            // and throws 409 Conflict when creating a second payment.
             mb.Entity<Payment>()
-                .HasIndex(p => p.ReferenceNumber).IsUnique();
+                .HasIndex(p => p.ReferenceNumber)
+                .IsUnique()
+                .HasFilter("[ReferenceNumber] IS NOT NULL");
 
-            // Performance Indexes
+            // ── Performance Indexes ──────────────────────────────────────────
+
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.Status, c.SubmittedAt });
 
@@ -82,7 +87,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Claim>()
                 .HasIndex(c => new { c.MemberID, c.PolicyID });
 
-            // PasswordResetToken — fast lookup by hash, FK to User
+            // ── PasswordResetToken ───────────────────────────────────────────
+
             mb.Entity<PasswordResetToken>()
                 .HasIndex(t => t.TokenHash)
                 .IsUnique();
@@ -93,72 +99,62 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(t => t.UserID)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // ── FK Restrict — avoid cascade cycles ──────────────────────────
 
-            //Restrict all secondary FK paths to avoid cascade cycles
-            // Claim → Provider (User) — already has Claim → Member → User path
             mb.Entity<Claim>()
                 .HasOne(c => c.Provider)
                 .WithMany()
                 .HasForeignKey(c => c.ProviderID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Claim → Policy — already has Claim → Member → Policy path
             mb.Entity<Claim>()
                 .HasOne(c => c.Policy)
                 .WithMany(p => p.Claims)
                 .HasForeignKey(c => c.PolicyID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ClaimDocument → Uploader (User)
             mb.Entity<ClaimDocument>()
                 .HasOne(d => d.Uploader)
                 .WithMany()
                 .HasForeignKey(d => d.UploadedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ClaimDocument → VerifiedBy (User)
             mb.Entity<ClaimDocument>()
                 .HasOne(d => d.VerifiedBy)
                 .WithMany()
                 .HasForeignKey(d => d.VerifiedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // AdjudicationRecord → PerformedBy (User)
             mb.Entity<AdjudicationRecord>()
                 .HasOne(a => a.PerformedBy)
                 .WithMany()
                 .HasForeignKey(a => a.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Appeal → DecisionBy (User)
             mb.Entity<Appeal>()
                 .HasOne(a => a.DecisionBy)
                 .WithMany()
                 .HasForeignKey(a => a.DecisionByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Appeal → FiledBy (User) — already has Claims → Appeals path from User
             mb.Entity<Appeal>()
                 .HasOne(a => a.FiledByUser)
                 .WithMany()
                 .HasForeignKey(a => a.FiledBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // EligibilityCheck → Policy — already has Member → Policy path
             mb.Entity<EligibilityCheck>()
                 .HasOne(e => e.Policy)
                 .WithMany(p => p.EligibilityChecks)
                 .HasForeignKey(e => e.PolicyID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // EligibilityCheck → PerformedBy (User)
             mb.Entity<EligibilityCheck>()
                 .HasOne(e => e.PerformedBy)
                 .WithMany()
                 .HasForeignKey(e => e.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Member → PolicyholderUser (User) — optional FK, no cascade
             mb.Entity<Member>()
                 .HasOne(m => m.PolicyholderUser)
                 .WithMany()
@@ -166,28 +162,24 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Reconciliation → PerformedBy (User)
             mb.Entity<Reconciliation>()
                 .HasOne(r => r.PerformedBy)
                 .WithMany()
                 .HasForeignKey(r => r.PerformedByID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // FraudCase → OpenedBy (User) — already has Claims → FraudCases path from User
             mb.Entity<FraudCase>()
                 .HasOne(f => f.OpenedByUser)
                 .WithMany()
                 .HasForeignKey(f => f.OpenedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Payment → Payee (User) — already has Claims → Payments path from User
             mb.Entity<Payment>()
                 .HasOne(p => p.Payee)
                 .WithMany()
                 .HasForeignKey(p => p.PayeeID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Notification → User — already has Claims → Notifications path from User
             mb.Entity<Notification>()
                 .HasOne(n => n.User)
                 .WithMany()
@@ -198,15 +190,14 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasOne(n => n.Claim)
                 .WithMany(c => c.Notifications)
                 .HasForeignKey(n => n.ClaimID)
-                .IsRequired(false)                        // ClaimID is optional
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Tasks → AssignedTo (User) — already has Claims → Tasks path from User
-            mb.Entity<ClaimTasks>()// Task entity with AssignedTo FK to User
+            mb.Entity<ClaimTasks>()
                 .HasOne(t => t.AssignedToUser)
                 .WithMany()
                 .HasForeignKey(t => t.AssignedTo)
-                .OnDelete(DeleteBehavior.Restrict);// AssignedTo is optional FK to User
+                .OnDelete(DeleteBehavior.Restrict);
 
             mb.Entity<Report>()
                 .HasOne(r => r.GeneratedByUser)
@@ -214,14 +205,16 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(r => r.GeneratedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Remittance 1-to-1 with Payment ─────────────
+            // ── Remittance 1-to-1 with Payment ──────────────────────────────
+
             mb.Entity<Remittance>()
                 .HasOne(r => r.Payment)
                 .WithOne(p => p.Remittance)
                 .HasForeignKey<Remittance>(r => r.PaymentID);
 
-            // Enum → string storage (readable columns) 
-            mb.Entity<User>().Property(u => u.Role).HasConversion<string>();// UserRole enum stored as string
+            // ── Enum → string storage ────────────────────────────────────────
+
+            mb.Entity<User>().Property(u => u.Role).HasConversion<string>();
             mb.Entity<User>().Property(u => u.Status).HasConversion<string>();
             mb.Entity<Claim>().Property(c => c.ClaimType).HasConversion<string>();
             mb.Entity<Claim>().Property(c => c.Status).HasConversion<string>();
@@ -251,8 +244,6 @@ namespace ClaimAuto.HealthSystems.Server.Data
             mb.Entity<Notification>().Property(n => n.Status).HasConversion<string>();
             mb.Entity<ClaimTasks>().Property(t => t.Priority).HasConversion<string>();
             mb.Entity<ClaimTasks>().Property(t => t.Status).HasConversion<string>();
-
-            
         }
     }
 }

@@ -11,6 +11,8 @@ export default function ExecuteModal({
   onHide,
   onConfirm,
 }) {
+  const isValid = referenceNumber.trim().length > 0;
+
   return (
     <Modal show={show} onHide={onHide} centered backdrop="static">
       <Modal.Header closeButton className="border-0 pb-0">
@@ -22,7 +24,8 @@ export default function ExecuteModal({
 
       <Modal.Body>
         <p className="text-muted small mb-3">
-          Enter the bank or transfer reference number to confirm this payment has been executed.
+          Enter the bank or transfer reference number to confirm
+          this payment has been executed.
         </p>
 
         <Form.Group>
@@ -31,7 +34,7 @@ export default function ExecuteModal({
           </Form.Label>
           <Form.Control
             type="text"
-            placeholder="e.g. NEFT/2024/123456"
+            placeholder="e.g. NEFT/2026/123456"
             value={referenceNumber}
             onChange={(e) => onReferenceChange(e.target.value)}
             style={{ borderRadius: 8 }}
@@ -50,16 +53,25 @@ export default function ExecuteModal({
       </Modal.Body>
 
       <Modal.Footer className="border-0">
-        <button className="btn btn-light" onClick={onHide} disabled={loading}>
+        <button
+          className="btn btn-light"
+          onClick={onHide}
+          disabled={loading}
+        >
           Cancel
         </button>
         <button
           className="btn fw-semibold text-white"
           onClick={onConfirm}
-          disabled={loading}
+          disabled={loading || !isValid}
           style={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none', borderRadius: 8, padding: '6px 20px',
+            border: 'none',
+            borderRadius: 8,
+            padding: '6px 20px',
+            opacity: isValid ? 1 : 0.45,
+            cursor: isValid ? 'pointer' : 'not-allowed',
+            transition: 'opacity 0.2s',
           }}
         >
           {loading

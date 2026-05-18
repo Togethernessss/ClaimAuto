@@ -21,9 +21,10 @@ import HoldConfirmModal      from './components/HoldConfirmModal';
 import ResumeConfirmModal    from './components/ResumeConfirmModal';
 import CreatePaymentModal    from './components/CreatePaymentModal';
 
+// ── EMPTY_CREATE: payeeID added so onFieldChange('payeeID') has a field to write to
 const EMPTY_CREATE = {
-  claimID: null, amount: '', currency: 'INR',
-  paymentMethod: 'EFT', scheduledAt: '',
+  claimID: null, payeeID: null, amount: '',
+  currency: 'INR', paymentMethod: 'EFT', scheduledAt: '',
 };
 
 export default function Payments() {
@@ -87,7 +88,7 @@ export default function Payments() {
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
 
-  // Auto-clear toasts
+  // ── Auto-clear toasts ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!successMsg) return;
     const t = setTimeout(() => setSuccessMsg(null), 3000);
@@ -193,8 +194,10 @@ export default function Payments() {
   }
 
   // ── Create ────────────────────────────────────────────────────────────────
+  // FIX: functional update prevents stale closure — both claimID and payeeID
+  // get saved correctly because each update reads latest prev state
   const handleCreateField = (field) => (e) =>
-    setCreateForm({ ...createForm, [field]: e.target.value });
+    setCreateForm(prev => ({ ...prev, [field]: e.target.value }));
 
   async function handleCreate() {
     if (!createForm.claimID || !createForm.amount) {
@@ -206,7 +209,7 @@ export default function Payments() {
     try {
       const dto = new CreatePaymentDto({
         claimID:       createForm.claimID,
-        payeeID:       createForm.claimID,
+        payeeID:       createForm.payeeID,   // FIX: use payeeID (hospital) not claimID
         amount:        parseFloat(createForm.amount),
         currency:      createForm.currency,
         paymentMethod: createForm.paymentMethod,
@@ -230,7 +233,6 @@ export default function Payments() {
   return (
     <Container fluid className="p-0">
 
-      {/* Header */}
       <PaymentsHeader
         successMsg={successMsg}
         errorMsg={errorMsg}
@@ -243,7 +245,6 @@ export default function Payments() {
 
       <div className="px-4 pb-4">
 
-        {/* Filters */}
         <PaymentsFilters
           search={search}
           statusFilter={statusFilter}
@@ -254,12 +255,10 @@ export default function Payments() {
           onStatusChange={setStatusFilter}
         />
 
-        {/* Summary cards */}
         {!loading && !error && (
           <PaymentsSummary payments={payments} />
         )}
 
-        {/* Table */}
         <PaymentsTable
           payments={filtered}
           loading={loading}
@@ -274,7 +273,6 @@ export default function Payments() {
 
       </div>
 
-      {/* Execute Modal */}
       <ExecuteModal
         show={showExecute}
         loading={executeLoading}
@@ -286,7 +284,6 @@ export default function Payments() {
         onConfirm={handleExecute}
       />
 
-      {/* Hold Modal */}
       <HoldConfirmModal
         show={showHold}
         loading={holdLoading}
@@ -296,7 +293,6 @@ export default function Payments() {
         onConfirm={handleHold}
       />
 
-      {/* Resume Modal */}
       <ResumeConfirmModal
         show={showResume}
         loading={resumeLoading}
@@ -306,7 +302,6 @@ export default function Payments() {
         onConfirm={handleResume}
       />
 
-      {/* Create Modal — Staff only */}
       {isStaff && (
         <CreatePaymentModal
           show={showCreate}
