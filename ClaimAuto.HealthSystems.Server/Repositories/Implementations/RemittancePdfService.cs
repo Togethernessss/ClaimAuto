@@ -1,18 +1,94 @@
-﻿using QuestPDF.Fluent;
+﻿using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using ClaimAuto.HealthSystems.Server.Model;
-using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 
 namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 {
     public class RemittancePdfService : IRemittancePdfService
     {
+        private readonly Data.ApplicationDbContext _context;
+
+        public RemittancePdfService(Data.ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
         public byte[] GenerateRemittancePdf(
             Remittance remittance,
             Payment payment)
         {
             QuestPDF.Settings.License = LicenseType.Community;
+
+            var claim = _context.Claims
+                .Include(c => c.Member)
+                    .ThenInclude(m => m.Policy)
+                .FirstOrDefault(c => c.ClaimID == payment.ClaimID);
+
+            var memberName = claim?.Member?.Name ?? "—";
+            var memberNumber = claim?.Member?.MemberNumber ?? "—";
+            var memberDob = claim?.Member?.DOB.ToString("dd MMM yyyy") ?? "—";
+            var planName = claim?.Member?.Policy?.PlanName ?? "—";
+            var planCode = claim?.Member?.Policy?.PlanCode ?? "—";
+            var deductible = claim?.Member?.Policy?.DeductibleAmount ?? 0;
+            var oopMax = claim?.Member?.Policy?.OutOfPocketMax ?? 0;
+            var claimType = claim?.ClaimType.ToString() ?? "—";
+            var claimNotes = string.IsNullOrWhiteSpace(claim?.Notes)
+                               ? "—" : claim!.Notes!;
+            var submittedAt = claim?.SubmittedAt.ToString("dd MMM yyyy") ?? "—";
+
+            var purple = "#667eea";
+            var darkPurple = "#764ba2";
+            var darkText = "#1e2a3a";
+            var grayText = "#9e9e9e";
+            var lightGray = "#e0e0e0";
+            var lightBg = "#f5f5f5";
+            var purpleBg = "#f7f5ff";
+            var greenBg = "#d1f2eb";
+            var greenText = "#085041";
+            var noteBg = "#fafafa";
+
+            // ── SVG Circular Stamp ────────────────────────────────────
+            var stampSvg = @"
+<svg xmlns='http://www.w3.org/2000/svg'
+     width='90' height='90' viewBox='0 0 90 90'>
+  <circle cx='45' cy='45' r='42'
+    fill='none' stroke='#667eea'
+    stroke-width='2.5' opacity='0.7'/>
+  <circle cx='45' cy='45' r='34'
+    fill='none' stroke='#667eea'
+    stroke-width='1' opacity='0.4'/>
+  <circle cx='45' cy='4'  r='2' fill='#667eea' opacity='0.6'/>
+  <circle cx='45' cy='86' r='2' fill='#667eea' opacity='0.6'/>
+  <circle cx='4'  cy='45' r='2' fill='#667eea' opacity='0.6'/>
+  <circle cx='86' cy='45' r='2' fill='#667eea' opacity='0.6'/>
+  <line x1='25' y1='33' x2='65' y2='33'
+    stroke='#667eea' stroke-width='0.8' opacity='0.5'/>
+  <line x1='25' y1='57' x2='65' y2='57'
+    stroke='#667eea' stroke-width='0.8' opacity='0.5'/>
+  <text x='45' y='30'
+    text-anchor='middle'
+    font-family='Helvetica'
+    font-size='7'
+    font-weight='bold'
+    fill='#667eea'
+    opacity='0.8'>CLAIMAUTO</text>
+  <text x='45' y='51'
+    text-anchor='middle'
+    font-family='Helvetica'
+    font-size='14'
+    font-weight='bold'
+    fill='#667eea'
+    opacity='0.85'>PAID</text>
+  <text x='45' y='65'
+    text-anchor='middle'
+    font-family='Helvetica'
+    font-size='7'
+    fill='#667eea'
+    opacity='0.7'>VERIFIED</text>
+</svg>";
 
             return Document.Create(container =>
             {
@@ -21,332 +97,369 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                     page.Size(PageSizes.A4);
                     page.Margin(40);
                     page.DefaultTextStyle(x =>
-                        x.FontSize(11).FontFamily("Arial"));
+                        x.FontSize(11)
+                         .FontFamily("Helvetica")
+                         .FontColor(darkText));
 
                     page.Content().Column(col =>
                     {
-                        // ── Header ────────────────────────────────
+                        // ── HEADER ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            row.RelativeItem().Column(c =>
+                            // Logo + name only — no subtitle
+                            row.RelativeItem().Row(r =>
                             {
-                                c.Item().Text("ClaimAuto Health Systems")
-                                    .FontSize(20).Bold()
-                                    .FontColor("#667eea");
-                                c.Item().Text(
-                                    "Licensed Health Insurance Claims Processor")
-                                    .FontSize(10)
-                                    .FontColor("#9e9e9e");
+                                r.ConstantItem(32).Height(32)
+                                    .Background(purple)
+                                    .AlignCenter()
+                                    .AlignMiddle()
+                                    .Text("C")
+                                    .FontSize(16).Bold()
+                                    .FontColor("#ffffff");
+
+                                r.ConstantItem(8);
+
+                                r.RelativeItem().Column(inner =>
+                                {
+                                    inner.Item()
+                                        .Text("ClaimAuto")
+                                        .FontSize(16).Bold()
+                                        .FontColor(purple);
+                                    inner.Item()
+                                        .Text("Health Insurance")
+                                        .FontSize(9)
+                                        .FontColor(grayText);
+                                });
                             });
-                            row.ConstantItem(140).Column(c =>
+
+                            // Receipt number top right
+                            row.ConstantItem(120).Column(c =>
                             {
                                 c.Item().AlignRight()
+                                    .Text("Receipt No.")
+                                    .FontSize(9)
+                                    .FontColor(grayText);
+                                c.Item().AlignRight()
                                     .Text($"#REM-{remittance.RemittanceID}")
-                                    .FontSize(14).Bold();
+                                    .FontSize(15).Bold()
+                                    .FontColor(darkText);
                                 c.Item().AlignRight()
                                     .Text(remittance.GeneratedAt
                                         .ToString("dd MMM yyyy"))
-                                    .FontSize(11)
-                                    .FontColor("#9e9e9e");
+                                    .FontSize(9)
+                                    .FontColor(grayText);
                             });
                         });
 
-                        col.Item().PaddingVertical(8)
-                            .LineHorizontal(1)
-                            .LineColor("#dee2e6");
+                        col.Item().Height(10);
 
-                        // ── Title bar ─────────────────────────────
-                        col.Item().Background("#667eea")
-                            .Padding(10).Row(row =>
+                        // ── Double divider ────────────────────────────
+                        col.Item().Height(2).Background(purple);
+                        col.Item().Height(2);
+                        col.Item().Height(0.5f).Background(lightGray);
+
+                        col.Item().Height(14);
+
+                        // ── Title ─────────────────────────────────────
+                        col.Item().AlignCenter()
+                            .Text("Payment Receipt")
+                            .FontSize(18).Bold()
+                            .FontColor(darkText);
+
+                        col.Item().Height(18);
+
+                        // ── Local helpers ─────────────────────────────
+                        void SectionHeader(ColumnDescriptor c, string title)
+                        {
+                            c.Item()
+                                .BorderBottom(1).BorderColor(lightGray)
+                                .PaddingBottom(5)
+                                .Text(title)
+                                .FontSize(10).Bold()
+                                .FontColor(purple);
+                            c.Item().Height(7);
+                        }
+
+                        void DetailRow(ColumnDescriptor c,
+                            string label, string value)
+                        {
+                            c.Item().Row(r =>
                             {
-                                row.RelativeItem()
-                                    .Text("REMITTANCE ADVICE")
-                                    .FontSize(13).Bold()
-                                    .FontColor("#ffffff");
-                                row.ConstantItem(80)
-                                    .AlignRight()
-                                    .Text(remittance.Status.ToString()
-                                        .ToUpper())
-                                    .FontSize(11).Bold()
-                                    .FontColor("#ffffff");
+                                r.RelativeItem()
+                                    .Text(label)
+                                    .FontSize(10)
+                                    .FontColor(grayText);
+                                r.RelativeItem().AlignRight()
+                                    .Text(value)
+                                    .FontSize(10).Bold()
+                                    .FontColor(darkText);
                             });
+                            c.Item().Height(4);
+                        }
 
-                        col.Item().Height(16);
-
-                        // ── Two column section ────────────────────
+                        // ── Row 1: Payment details + Paid to ─────────
                         col.Item().Row(row =>
                         {
-                            // Left — Remittance details
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("Remittance Details")
-                                    .FontSize(11).Bold()
-                                    .FontColor("#667eea");
-                                c.Item().PaddingBottom(6)
-                                    .LineHorizontal(1.5f)
-                                    .LineColor("#667eea");
-                                c.Item().Height(6);
-
-                                void RemRow(string label, string value)
-                                {
-                                    c.Item().Row(r =>
-                                    {
-                                        r.RelativeItem()
-                                            .Text(label)
-                                            .FontSize(10)
-                                            .FontColor("#9e9e9e");
-                                        r.RelativeItem()
-                                            .AlignRight()
-                                            .Text(value)
-                                            .FontSize(10).Bold();
-                                    });
-                                    c.Item().Height(4);
-                                }
-
-                                RemRow("Remittance ID",
+                                SectionHeader(c, "Payment Details");
+                                DetailRow(c, "Receipt no.",
                                     $"#REM-{remittance.RemittanceID}");
-                                RemRow("Payment ID",
+                                DetailRow(c, "Payment ID",
                                     $"#PAY-{payment.PaymentID}");
-                                RemRow("Claim ID",
+                                DetailRow(c, "Claim ID",
                                     $"Claim #{payment.ClaimID}");
-                                RemRow("Generated On",
+                                DetailRow(c, "Date issued",
                                     remittance.GeneratedAt
                                         .ToString("dd MMM yyyy"));
-                                RemRow("Sent On",
-                                    remittance.SentToProviderAt
-                                        ?.ToString("dd MMM yyyy")
+                                DetailRow(c, "Executed on",
+                                    payment.ExecutedAt?
+                                        .ToString("dd MMM yyyy, HH:mm")
                                     ?? "—");
                             });
 
-                            row.ConstantItem(20);
+                            row.ConstantItem(24);
 
-                            // Right — Payee details
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("Payee Details")
-                                    .FontSize(11).Bold()
-                                    .FontColor("#667eea");
-                                c.Item().PaddingBottom(6)
-                                    .LineHorizontal(1.5f)
-                                    .LineColor("#667eea");
-                                c.Item().Height(6);
-
-                                void PayRow(string label, string value)
-                                {
-                                    c.Item().Row(r =>
-                                    {
-                                        r.RelativeItem()
-                                            .Text(label)
-                                            .FontSize(10)
-                                            .FontColor("#9e9e9e");
-                                        r.RelativeItem()
-                                            .AlignRight()
-                                            .Text(value)
-                                            .FontSize(10).Bold();
-                                    });
-                                    c.Item().Height(4);
-                                }
-
-                                PayRow("Hospital",
-                                    payment.Payee?.Name ?? "Unknown");
-                                PayRow("Payee ID",
+                                SectionHeader(c, "Paid To");
+                                DetailRow(c, "Hospital",
+                                    payment.Payee?.Name ?? "—");
+                                DetailRow(c, "Payee ID",
                                     $"#{payment.PayeeID}");
-                                PayRow("Method",
+                                DetailRow(c, "Method",
                                     payment.PaymentMethod.ToString());
-                                PayRow("Currency",
-                                    payment.Currency);
+                                DetailRow(c, "Reference no.",
+                                    payment.ReferenceNumber ?? "—");
                             });
                         });
 
-                        col.Item().Height(16);
+                        col.Item().Height(18);
 
-                        // ── Amount highlight box ──────────────────
-                        col.Item().Background("#f3f0ff")
-                            .Border(1.5f).BorderColor("#667eea")
-                            .Padding(14).Row(row =>
+                        // ── Row 2: Member details + Policy details ────
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                SectionHeader(c, "Member Details");
+                                DetailRow(c, "Name", memberName);
+                                DetailRow(c, "Member no.", memberNumber);
+                                DetailRow(c, "Date of birth", memberDob);
+                                DetailRow(c, "Claim type", claimType);
+                                DetailRow(c, "Submitted on", submittedAt);
+                            });
+
+                            row.ConstantItem(24);
+
+                            row.RelativeItem().Column(c =>
+                            {
+                                SectionHeader(c, "Policy Details");
+                                DetailRow(c, "Plan name", planName);
+                                DetailRow(c, "Plan code", planCode);
+                                DetailRow(c, "Deductible",
+                                    $"INR {deductible:N0}");
+                                DetailRow(c, "Out of pocket max",
+                                    $"INR {oopMax:N0}");
+                            });
+                        });
+
+                        col.Item().Height(18);
+
+                        // ── Amount box — compact ──────────────────────
+                        col.Item()
+                            .Border(1).BorderColor("#c5bef5")
+                            .Background(purpleBg)
+                            .Padding(10)
+                            .Row(row =>
                             {
                                 row.RelativeItem().Column(c =>
                                 {
-                                    c.Item().Text(
-                                        "Total Amount Disbursed")
-                                        .FontSize(10)
-                                        .FontColor("#9e9e9e");
-                                    c.Item().Text(
-                                        $"₹{payment.Amount:N0}")
-                                        .FontSize(26).Bold()
-                                        .FontColor("#764ba2");
-                                    c.Item().Text(
-                                        $"{payment.Currency} · " +
-                                        $"{payment.PaymentMethod}")
-                                        .FontSize(10)
-                                        .FontColor("#9e9e9e");
+                                    c.Item()
+                                        .Text("Amount Paid")
+                                        .FontSize(9)
+                                        .FontColor(grayText);
+                                    c.Item().Height(3);
+                                    c.Item()
+                                        .Text($"INR {payment.Amount:N2}")
+                                        .FontSize(18).Bold()
+                                        .FontColor(darkPurple);
+                                    c.Item().Height(2);
+                                    c.Item()
+                                        .Text($"Indian Rupee · " +
+                                              $"{payment.PaymentMethod}")
+                                        .FontSize(9)
+                                        .FontColor(grayText);
                                 });
-                                row.ConstantItem(180)
-                                    .AlignRight().Column(c =>
+
+                                row.RelativeItem()
+                                    .AlignMiddle()
+                                    .AlignRight()
+                                    .Column(c =>
                                     {
-                                        c.Item().AlignRight()
-                                            .Text("Reference Number")
-                                            .FontSize(10)
-                                            .FontColor("#9e9e9e");
-                                        c.Item().AlignRight()
-                                            .Text(payment.ReferenceNumber ?? "—")
-                                            .FontSize(12).Bold();
-                                        c.Item().Height(6);
-                                        c.Item().AlignRight()
-                                            .Text("Executed On")
-                                            .FontSize(10)
-                                            .FontColor("#9e9e9e");
-                                        c.Item().AlignRight()
-                                            .Text(payment.ExecutedAt
-                                                ?.ToString("dd MMM yyyy, HH:mm")
-                                            ?? "—")
-                                            .FontSize(11).Bold();
+                                        c.Item()
+                                            .Background(greenBg)
+                                            .Padding(6)
+                                            .AlignCenter()
+                                            .Text("Payment Sent")
+                                            .FontSize(10).Bold()
+                                            .FontColor(greenText);
                                     });
                             });
 
-                        col.Item().Height(16);
+                        col.Item().Height(14);
 
-                        // ── Claim Details table ───────────────────
-                        col.Item().Text("Claim Details")
-                            .FontSize(11).Bold()
-                            .FontColor("#667eea");
-                        col.Item().PaddingBottom(6)
-                            .LineHorizontal(1.5f)
-                            .LineColor("#667eea");
+                        // ── Treatment notes — grows naturally ─────────
+                        col.Item()
+                            .BorderBottom(1).BorderColor(lightGray)
+                            .PaddingBottom(5)
+                            .Text("Treatment Notes")
+                            .FontSize(10).Bold()
+                            .FontColor(purple);
+                        col.Item().Height(6);
+                        col.Item()
+                            .BorderLeft(3).BorderColor(purple)
+                            .Background(noteBg)
+                            .Padding(8)
+                            .Text(claimNotes)
+                            .FontSize(10).Italic()
+                            .FontColor("#555555");
+
+                        col.Item().Height(14);
+
+                        // ── Claim details table ───────────────────────
+                        col.Item()
+                            .BorderBottom(1).BorderColor(lightGray)
+                            .PaddingBottom(5)
+                            .Text("Claim Details")
+                            .FontSize(10).Bold()
+                            .FontColor(purple);
                         col.Item().Height(6);
 
                         col.Item().Table(table =>
                         {
                             table.ColumnsDefinition(c =>
                             {
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(3);
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(2);
+                                c.RelativeColumn(1.2f);
+                                c.RelativeColumn(2f);
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(1f);
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(1f);
                             });
 
-                            // Normal cell
-                            void DataCell(string text,
-                                string color = "#1e2a3a")
-                            {
-                                table.Cell()
-                                    .Border(0.5f)
-                                    .BorderColor("#dee2e6")
-                                    .Padding(7)
-                                    .Text(text)
-                                    .FontSize(10)
-                                    .FontColor(color);
-                            }
-
-                            // Bold cell
-                            void DataCellBold(string text,
-                                string color = "#1e2a3a")
-                            {
-                                table.Cell()
-                                    .Border(0.5f)
-                                    .BorderColor("#dee2e6")
-                                    .Padding(7)
-                                    .Text(text)
-                                    .FontSize(10).Bold()
-                                    .FontColor(color);
-                            }
-
-                            // Header cell
                             void HeaderCell(string text)
                             {
                                 table.Cell()
-                                    .Background("#f8f9fa")
-                                    .Border(0.5f)
-                                    .BorderColor("#dee2e6")
-                                    .Padding(7)
+                                    .Background(lightBg)
+                                    .BorderBottom(1).BorderColor(lightGray)
+                                    .Padding(6)
                                     .Text(text)
-                                    .FontSize(10).Bold()
-                                    .FontColor("#6c757d");
+                                    .FontSize(9).Bold()
+                                    .FontColor("#555555");
                             }
 
                             HeaderCell("Claim ID");
                             HeaderCell("Provider");
+                            HeaderCell("Type");
                             HeaderCell("Method");
                             HeaderCell("Amount");
                             HeaderCell("Status");
 
-                            DataCell($"Claim #{payment.ClaimID}");
-                            DataCellBold(
-                                payment.Payee?.Name ?? "Unknown");
-                            DataCell(
-                                payment.PaymentMethod.ToString());
-                            DataCellBold(
-                                $"₹{payment.Amount:N0}",
-                                color: "#764ba2");
-                            DataCellBold(
-                                remittance.Status.ToString(),
-                                color: "#633806");
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Padding(6)
+                                .Text($"Claim #{payment.ClaimID}")
+                                .FontSize(10).FontColor(darkText);
+
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Padding(6)
+                                .Text(payment.Payee?.Name ?? "—")
+                                .FontSize(10).Bold().FontColor(darkText);
+
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Padding(6)
+                                .Text(claimType)
+                                .FontSize(10).FontColor(darkText);
+
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Padding(6)
+                                .Text(payment.PaymentMethod.ToString())
+                                .FontSize(10).FontColor(darkText);
+
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Padding(6)
+                                .Text($"INR {payment.Amount:N2}")
+                                .FontSize(10).Bold().FontColor(darkPurple);
+
+                            table.Cell()
+                                .Border(0.5f).BorderColor(lightGray)
+                                .Background(greenBg)
+                                .Padding(6)
+                                .Text("Sent")
+                                .FontSize(10).Bold().FontColor(greenText);
                         });
 
-                        col.Item().Height(16);
+                        col.Item().Height(20);
 
-                        // ── Important notice ──────────────────────
-                        col.Item().BorderLeft(3)
-                            .BorderColor("#667eea")
-                            .PaddingLeft(10)
-                            .Background("#f8f9fa")
-                            .Padding(10).Text(text =>
-                            {
-                                text.Span("Important: ")
-                                    .Bold().FontSize(10);
-                                text.Span(
-                                    "Please acknowledge receipt of " +
-                                    "this remittance advice within " +
-                                    "7 business days by logging into " +
-                                    "the ClaimAuto portal. This " +
-                                    "confirms that the payment has " +
-                                    "been received by your institution.")
-                                    .FontSize(10)
-                                    .FontColor("#6c757d");
-                            });
+                        // ── Double divider ────────────────────────────
+                        col.Item().Height(0.5f).Background(lightGray);
+                        col.Item().Height(2);
+                        col.Item().Height(2).Background(purple);
+                        col.Item().Height(14);
 
-                        col.Item().Height(24);
-
-                        col.Item().LineHorizontal(1)
-                            .LineColor("#dee2e6");
-                        col.Item().Height(10);
-
-                        // ── Footer ────────────────────────────────
+                        // ── Footer ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            row.RelativeItem().Column(c =>
+                            // Left — doc info
+                            row.RelativeItem().AlignMiddle().Column(c =>
                             {
-                                c.Item().Text("Issued by")
-                                    .FontSize(10)
-                                    .FontColor("#9e9e9e");
-                                c.Item().Text(
-                                    "ClaimAuto Health Systems")
-                                    .FontSize(12).Bold()
-                                    .FontColor("#667eea");
-                                c.Item().Text(
-                                    "support@claimauto.com")
-                                    .FontSize(10)
-                                    .FontColor("#9e9e9e");
-                            });
-                            row.RelativeItem().AlignRight().Column(c =>
-                            {
-                                c.Item().AlignRight()
-                                    .Text(
-                                    "This is a system-generated document.")
+                                c.Item()
+                                    .Text("System-generated document · " +
+                                          "No signature required")
                                     .FontSize(9).Italic()
-                                    .FontColor("#9e9e9e");
-                                c.Item().AlignRight()
-                                    .Text("No signature required.")
-                                    .FontSize(9).Italic()
-                                    .FontColor("#9e9e9e");
-                                c.Item().Height(4);
-                                c.Item().AlignRight()
-                                    .Text(
-                                    $"DOC-REM-{remittance.RemittanceID}" +
-                                    $"-{DateTime.UtcNow:yyyyMMdd}")
+                                    .FontColor("#bbbbbb");
+                                c.Item().Height(2);
+                                c.Item()
+                                    .Text($"DOC-REM-{remittance.RemittanceID}" +
+                                          $"-{remittance.GeneratedAt:yyyyMMdd}")
                                     .FontSize(9)
-                                    .FontColor("#9e9e9e");
+                                    .FontColor("#bbbbbb");
+                            });
+
+                            row.ConstantItem(16);
+
+                            // Right — seal ON TOP, ClaimAuto BELOW
+                            row.ConstantItem(160).Column(c =>
+                            {
+                                // Circular SVG stamp
+                                c.Item().AlignCenter()
+                                    .Width(90)
+                                    .Svg(stampSvg);
+
+                                c.Item().Height(6);
+
+                                // ClaimAuto Health Insurance below stamp
+                                c.Item().Row(r =>
+                                {
+                                    r.ConstantItem(18).Height(18)
+                                        .Background(purple)
+                                        .AlignCenter()
+                                        .AlignMiddle()
+                                        .Text("C")
+                                        .FontSize(9).Bold()
+                                        .FontColor("#ffffff");
+
+                                    r.ConstantItem(6);
+
+                                    r.RelativeItem().AlignMiddle()
+                                        .Text("ClaimAuto Health Insurance")
+                                        .FontSize(10).Bold()
+                                        .FontColor(purple);
+                                });
                             });
                         });
                     });

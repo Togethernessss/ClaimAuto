@@ -20,7 +20,7 @@ export default function WelcomeHeader({ user, pendingClaims, unreadCount }) {
         </p>
       </div>
       <div className="d-flex gap-2">
-        <Button variant="outline-primary" size="sm" className="rounded-pill" onClick={() => navigate('/policyholder/notifications')}>
+                <Button variant="outline-primary" size="sm" className="rounded-pill" onClick={() => navigate('/notifications')}>
           <i className="bi bi-bell me-1"></i> Notifications
         </Button>
         <Button variant="outline-secondary" size="sm" className="rounded-pill" onClick={() => window.location.reload()}>
