@@ -54,32 +54,20 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
             var stampSvg = @"
 <svg xmlns='http://www.w3.org/2000/svg'
      width='90' height='90' viewBox='0 0 90 90'>
-
-  <!-- Outer ring -->
   <circle cx='45' cy='45' r='42'
     fill='none' stroke='#667eea'
     stroke-width='2.5' opacity='0.7'/>
-
-  <!-- Inner ring -->
   <circle cx='45' cy='45' r='34'
     fill='none' stroke='#667eea'
     stroke-width='1' opacity='0.4'/>
-
-  <!-- 4 dots -->
   <circle cx='45' cy='4'  r='2' fill='#667eea' opacity='0.6'/>
   <circle cx='45' cy='86' r='2' fill='#667eea' opacity='0.6'/>
   <circle cx='4'  cy='45' r='2' fill='#667eea' opacity='0.6'/>
   <circle cx='86' cy='45' r='2' fill='#667eea' opacity='0.6'/>
-
-  <!-- Top separator line -->
   <line x1='25' y1='33' x2='65' y2='33'
     stroke='#667eea' stroke-width='0.8' opacity='0.5'/>
-
-  <!-- Bottom separator line -->
   <line x1='25' y1='57' x2='65' y2='57'
     stroke='#667eea' stroke-width='0.8' opacity='0.5'/>
-
-  <!-- CLAIMAUTO -->
   <text x='45' y='30'
     text-anchor='middle'
     font-family='Helvetica'
@@ -87,8 +75,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
     font-weight='bold'
     fill='#667eea'
     opacity='0.8'>CLAIMAUTO</text>
-
-  <!-- PAID -->
   <text x='45' y='51'
     text-anchor='middle'
     font-family='Helvetica'
@@ -96,15 +82,12 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
     font-weight='bold'
     fill='#667eea'
     opacity='0.85'>PAID</text>
-
-  <!-- VERIFIED -->
   <text x='45' y='65'
     text-anchor='middle'
     font-family='Helvetica'
     font-size='7'
     fill='#667eea'
     opacity='0.7'>VERIFIED</text>
-
 </svg>";
 
             return Document.Create(container =>
@@ -123,40 +106,33 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                         // ── HEADER ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            row.RelativeItem().Column(c =>
+                            // Logo + name only — no subtitle
+                            row.RelativeItem().Row(r =>
                             {
-                                c.Item().Row(r =>
+                                r.ConstantItem(32).Height(32)
+                                    .Background(purple)
+                                    .AlignCenter()
+                                    .AlignMiddle()
+                                    .Text("C")
+                                    .FontSize(16).Bold()
+                                    .FontColor("#ffffff");
+
+                                r.ConstantItem(8);
+
+                                r.RelativeItem().Column(inner =>
                                 {
-                                    r.ConstantItem(32).Height(32)
-                                        .Background(purple)
-                                        .AlignCenter()
-                                        .AlignMiddle()
-                                        .Text("C")
+                                    inner.Item()
+                                        .Text("ClaimAuto")
                                         .FontSize(16).Bold()
-                                        .FontColor("#ffffff");
-
-                                    r.ConstantItem(8);
-
-                                    r.RelativeItem().Column(inner =>
-                                    {
-                                        inner.Item()
-                                            .Text("ClaimAuto")
-                                            .FontSize(16).Bold()
-                                            .FontColor(purple);
-                                        inner.Item()
-                                            .Text("Health Systems")
-                                            .FontSize(9)
-                                            .FontColor(grayText);
-                                    });
+                                        .FontColor(purple);
+                                    inner.Item()
+                                        .Text("Health Insurance")
+                                        .FontSize(9)
+                                        .FontColor(grayText);
                                 });
-
-                                c.Item().Height(4);
-                                c.Item()
-                                    .Text("Licensed Health Insurance Claims Processor")
-                                    .FontSize(9)
-                                    .FontColor(grayText);
                             });
 
+                            // Receipt number top right
                             row.ConstantItem(120).Column(c =>
                             {
                                 c.Item().AlignRight()
@@ -289,11 +265,11 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
                         col.Item().Height(18);
 
-                        // ── Amount box ────────────────────────────────
+                        // ── Amount box — compact ──────────────────────
                         col.Item()
                             .Border(1).BorderColor("#c5bef5")
                             .Background(purpleBg)
-                            .Padding(16)
+                            .Padding(10)
                             .Row(row =>
                             {
                                 row.RelativeItem().Column(c =>
@@ -302,10 +278,10 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                         .Text("Amount Paid")
                                         .FontSize(9)
                                         .FontColor(grayText);
-                                    c.Item().Height(4);
+                                    c.Item().Height(3);
                                     c.Item()
                                         .Text($"INR {payment.Amount:N2}")
-                                        .FontSize(26).Bold()
+                                        .FontSize(18).Bold()
                                         .FontColor(darkPurple);
                                     c.Item().Height(2);
                                     c.Item()
@@ -315,35 +291,31 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                         .FontColor(grayText);
                                 });
 
-                                row.ConstantItem(16);
-                                row.ConstantItem(1).Background(lightGray);
-                                row.ConstantItem(16);
-
                                 row.RelativeItem()
                                     .AlignMiddle()
-                                    .AlignCenter()
+                                    .AlignRight()
                                     .Column(c =>
                                     {
                                         c.Item()
                                             .Background(greenBg)
-                                            .Padding(10)
+                                            .Padding(6)
                                             .AlignCenter()
                                             .Text("Payment Sent")
-                                            .FontSize(11).Bold()
+                                            .FontSize(10).Bold()
                                             .FontColor(greenText);
                                     });
                             });
 
-                        col.Item().Height(18);
+                        col.Item().Height(14);
 
-                        // ── Treatment notes ───────────────────────────
+                        // ── Treatment notes — grows naturally ─────────
                         col.Item()
                             .BorderBottom(1).BorderColor(lightGray)
                             .PaddingBottom(5)
                             .Text("Treatment Notes")
                             .FontSize(10).Bold()
                             .FontColor(purple);
-                        col.Item().Height(7);
+                        col.Item().Height(6);
                         col.Item()
                             .BorderLeft(3).BorderColor(purple)
                             .Background(noteBg)
@@ -352,7 +324,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                             .FontSize(10).Italic()
                             .FontColor("#555555");
 
-                        col.Item().Height(18);
+                        col.Item().Height(14);
 
                         // ── Claim details table ───────────────────────
                         col.Item()
@@ -361,7 +333,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                             .Text("Claim Details")
                             .FontSize(10).Bold()
                             .FontColor(purple);
-                        col.Item().Height(7);
+                        col.Item().Height(6);
 
                         col.Item().Table(table =>
                         {
@@ -380,7 +352,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 table.Cell()
                                     .Background(lightBg)
                                     .BorderBottom(1).BorderColor(lightGray)
-                                    .Padding(7)
+                                    .Padding(6)
                                     .Text(text)
                                     .FontSize(9).Bold()
                                     .FontColor("#555555");
@@ -395,43 +367,43 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text($"Claim #{payment.ClaimID}")
                                 .FontSize(10).FontColor(darkText);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text(payment.Payee?.Name ?? "—")
                                 .FontSize(10).Bold().FontColor(darkText);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text(claimType)
                                 .FontSize(10).FontColor(darkText);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text(payment.PaymentMethod.ToString())
                                 .FontSize(10).FontColor(darkText);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text($"INR {payment.Amount:N2}")
                                 .FontSize(10).Bold().FontColor(darkPurple);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
                                 .Background(greenBg)
-                                .Padding(7)
+                                .Padding(6)
                                 .Text("Sent")
                                 .FontSize(10).Bold().FontColor(greenText);
                         });
 
-                        col.Item().Height(24);
+                        col.Item().Height(20);
 
                         // ── Double divider ────────────────────────────
                         col.Item().Height(0.5f).Background(lightGray);
@@ -442,24 +414,9 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                         // ── Footer ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            row.RelativeItem().Column(c =>
+                            // Left — doc info
+                            row.RelativeItem().AlignMiddle().Column(c =>
                             {
-                                c.Item().Row(r =>
-                                {
-                                    r.ConstantItem(20).Height(20)
-                                        .Background(purple)
-                                        .AlignCenter()
-                                        .AlignMiddle()
-                                        .Text("C")
-                                        .FontSize(10).Bold()
-                                        .FontColor("#ffffff");
-                                    r.ConstantItem(6);
-                                    r.RelativeItem().AlignMiddle()
-                                        .Text("ClaimAuto Health Systems")
-                                        .FontSize(11).Bold()
-                                        .FontColor(purple);
-                                });
-                                c.Item().Height(6);
                                 c.Item()
                                     .Text("System-generated document · " +
                                           "No signature required")
@@ -473,11 +430,37 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                     .FontColor("#bbbbbb");
                             });
 
-                            row.ConstantItem(20);
+                            row.ConstantItem(16);
 
-                            // ── Circular stamp via SVG ────────────────
-                            row.ConstantItem(90).Height(90)
-                                .Svg(stampSvg);
+                            // Right — seal ON TOP, ClaimAuto BELOW
+                            row.ConstantItem(160).Column(c =>
+                            {
+                                // Circular SVG stamp
+                                c.Item().AlignCenter()
+                                    .Width(90)
+                                    .Svg(stampSvg);
+
+                                c.Item().Height(6);
+
+                                // ClaimAuto Health Insurance below stamp
+                                c.Item().Row(r =>
+                                {
+                                    r.ConstantItem(18).Height(18)
+                                        .Background(purple)
+                                        .AlignCenter()
+                                        .AlignMiddle()
+                                        .Text("C")
+                                        .FontSize(9).Bold()
+                                        .FontColor("#ffffff");
+
+                                    r.ConstantItem(6);
+
+                                    r.RelativeItem().AlignMiddle()
+                                        .Text("ClaimAuto Health Insurance")
+                                        .FontSize(10).Bold()
+                                        .FontColor(purple);
+                                });
+                            });
                         });
                     });
                 });

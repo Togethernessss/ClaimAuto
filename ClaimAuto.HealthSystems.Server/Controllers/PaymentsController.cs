@@ -150,9 +150,9 @@ public class PaymentsController : BaseController
 
     /// <summary>Executes an Authorized payment, moving it to Executed status.</summary>
     /// <param name="id">The payment ID to execute.</param>
-    /// <param name="referenceNumber">The bank/transfer reference number for the executed payment.</param>
+    /// <param name="referenceNumber">The bank reference number.</param>
     /// <response code="200">Payment executed successfully.</response>
-    /// <response code="400">Reference number is missing.</response>
+    /// <response code="400">Reference number is missing or invalid format.</response>
     /// <response code="401">Unauthorized.</response>
     /// <response code="404">Payment not found or not in Authorized status.</response>
     [HttpPut("{id}/execute")]
@@ -169,12 +169,55 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        if (string.IsNullOrEmpty(referenceNumber))
+        // ── Validate reference number ─────────────────────────────
+        if (string.IsNullOrWhiteSpace(referenceNumber))
             return BadRequest(
                 "Reference number is required.");
 
+        // Must follow: PREFIX/YYYYMMDD/IDENTIFIER
+        // e.g. NEFT/20260518/HDFC000123
+        var refRegex = new System.Text.RegularExpressions
+            .Regex(@"^[A-Z]+\/\d{8}\/[A-Z0-9]+$");
+
+        if (!refRegex.IsMatch(referenceNumber.Trim().ToUpper()))
+            return BadRequest(
+                "Invalid reference number format. " +
+                "Use: PREFIX/YYYYMMDD/IDENTIFIER. " +
+                "Examples: NEFT/20260518/HDFC000123, " +
+                "RTGS/20260518/ICICI000456, " +
+                "IMPS/20260518/428512345678, " +
+                "UPI/20260518/TXN8823671234");
+
+        // ── Validate date in reference number ─────────────────────
+        var parts = referenceNumber.Trim().ToUpper().Split('/');
+        var dateStr = parts[1];
+
+        if (!DateTime.TryParseExact(
+                dateStr,
+                "yyyyMMdd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var refDate))
+            return BadRequest(
+                "Invalid date in reference number. " +
+                "Use format YYYYMMDD. " +
+                "Example: 20260518 for 18 May 2026.");
+
+        // Date must not be in the future
+        if (refDate.Date > DateTime.UtcNow.Date)
+            return BadRequest(
+                "Reference number date cannot be in the future.");
+
+        // Date must not be older than 7 days
+        if (refDate.Date < DateTime.UtcNow.Date.AddDays(-7))
+            return BadRequest(
+                "Reference number date is too old. " +
+                "Bank transfers must be referenced within 7 days.");
+
         var response = await _paymentRepository
-            .ExecutePaymentAsync(id, referenceNumber);
+            .ExecutePaymentAsync(
+                id,
+                referenceNumber.Trim().ToUpper());
 
         if (response == null)
             return NotFound(
@@ -183,6 +226,7 @@ public class PaymentsController : BaseController
 
         return Ok(response);
     }
+
 
     /// <summary>Places a payment on hold, preventing further processing.</summary>
     /// <param name="id">The payment ID to hold.</param>
