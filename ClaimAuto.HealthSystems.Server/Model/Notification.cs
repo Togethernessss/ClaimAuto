@@ -34,5 +34,10 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [Required]
         public NotificationStatus Status { get; set; } = NotificationStatus.Unread;
+
+        // ─── Multi-Tenant (Phase 4) ────────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }
