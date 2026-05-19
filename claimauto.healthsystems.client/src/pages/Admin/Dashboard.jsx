@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { checkExpiredPolicies }   from '../../services/policies/policyService';
-import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
+import { checkExpiredPolicies } from '../../services/policies/policyService';
+import { Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
 import InviteUserModal from '../../components/identity/InviteUserModal';
@@ -14,59 +14,90 @@ import EmptyStatePanel from '../../components/dashboard/EmptyStatePanel';
 import SectionHeader from '../../components/dashboard/SectionHeader';
 import QuickAccessGrid from '../../components/dashboard/QuickAccessGrid';
 import { checkExpiredMembers } from '../../services/members/memberService';
+import { getAllKPIs } from '../../services/reports/reportService';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showInvite, setShowInvite] = useState(false);
 
-  const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
+  const myMenu = getMenuForRole(user.role)
+    .filter((m) => m.key !== 'dashboard');
 
-  // ── AUTO-EXPIRE OVERDUE POLICIES ──────────────────────────────────────────
-  // Runs silently once when Admin opens the dashboard.
-  // Finds any Active policies whose EffectiveTo date has passed,
-  // marks them Expired, and creates a Notification for Admin.
-  // No loading state — runs in background, fails silently.
+  const [kpis,        setKpis]        = useState([]);
+  const [kpisLoading, setKpisLoading] = useState(true);
+
   useEffect(() => {
-
-    // Auto-expire overdue policies
     checkExpiredPolicies()
-      .then((result) => {
-        if (result?.expired > 0) {
+      .then((r) => {
+        if (r?.expired > 0)
           console.log(
-            `[ClaimAuto] Auto-expired ${result.expired} ` +
-            `${result.expired === 1 ? 'policy' : 'policies'}: ` +
-            `${result.message}`
+            `[ClaimAuto] Auto-expired ${r.expired} ` +
+            `${r.expired === 1 ? 'policy' : 'policies'}: ` +
+            `${r.message}`
           );
-        }
       })
       .catch(() => {});
 
-    // Auto-expire overdue members
     checkExpiredMembers()
-      .then((result) => {
-        if (result?.expired > 0) {
+      .then((r) => {
+        if (r?.expired > 0)
           console.log(
-            `[ClaimAuto] Auto-expired ${result.expired} ` +
-            `${result.expired === 1 ? 'member' : 'members'}.`
+            `[ClaimAuto] Auto-expired ${r.expired} ` +
+            `${r.expired === 1 ? 'member' : 'members'}.`
           );
-        }
       })
       .catch(() => {});
 
-  }, []); // ← empty array = runs ONCE when dashboard first loads
-  // ─────────────────────────────────────────────────────────────────────────
-  // TODO: wire to real APIs when ready
-  //   stats → GET /api/users, /api/claims, /api/payments, /api/fraud
-  //   kpis  → GET /api/reports/kpis
+    getAllKPIs()
+      .then((data) => setKpis(data))
+      .catch(() => setKpis([]))
+      .finally(() => setKpisLoading(false));
+  }, []);
+
+  function getKPI(name) {
+    return kpis.find(k => k.name === name);
+  }
+
+  // ── Percent — always raw value capped at 100 ──────────────────
+  function getPercent(kpi) {
+    if (!kpi || kpi.currentValue === 0) return 0;
+    return Math.min(Math.round(kpi.currentValue), 100);
+  }
+
+  // ── Status ────────────────────────────────────────────────────
+  function getStatus(kpi, invertLower = false) {
+    if (!kpi || kpi.currentValue === 0) return 'No data';
+    if (invertLower) {
+      return kpi.currentValue <= kpi.target
+        ? 'On target' : 'Below target';
+    }
+    return kpi.currentValue >= kpi.target
+      ? 'On target' : 'Below target';
+  }
+
+  // ── Color — blue if on target, red if not ────────────────────
+  function getColor(kpi, invertLower = false) {
+    if (!kpi || kpi.currentValue === 0) return '#9e9e9e';
+    if (invertLower) {
+      return kpi.currentValue <= kpi.target
+        ? '#0d6efd' : '#ef4444';
+    }
+    return kpi.currentValue >= kpi.target
+      ? '#0d6efd' : '#ef4444';
+  }
+
+  const adjKPI    = getKPI('Auto-Adjudication Rate');
+  const tatKPI    = getKPI('Average TAT');
+  const denialKPI = getKPI('Denial Rate');
+  const fraudKPI  = getKPI('Fraud Flag Rate');
 
   return (
     <Container fluid className="p-0">
 
-      {/* ── Welcome Banner — full width ──────────────────────────────────── */}
       <WelcomeBanner
         emoji="👑"
-                actions={[
+        actions={[
           {
             label: 'Invite User',
             icon: 'bi-envelope-plus',
@@ -88,10 +119,8 @@ export default function AdminDashboard() {
         ]}
       />
 
-      {/* ── All content below banner gets padding ────────────────────────── */}
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar ────────────────────────────────────────── */}
         <PriorityActionBar
           accentColor="danger"
           icon="bi-exclamation-triangle-fill"
@@ -101,7 +130,8 @@ export default function AdminDashboard() {
           buttonIcon="bi-list-stars"
           onButtonClick={() => navigate('/audit-logs')}
         />
-        {/* ── Stat Cards ─────────────────────────────────────────────────── */}
+
+        {/* ── Stat Cards ─────────────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -145,29 +175,73 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/* ── KPI Section ────────────────────────────────────────────────── */}
+        {/* ── KPI Section ────────────────────────────────────── */}
         <SectionHeader title="System Performance Metrics" live />
 
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Auto-Adjudication" target="Target: ≥ 80%"
-              status="No data" color="#764ba2" percent={0} />
+            <CircularKPI
+              value={kpisLoading ? '…' :
+                adjKPI ? `${adjKPI.currentValue}` : '—'}
+              unit="%"
+              label="Auto-Adjudication"
+              target="Target: ≥ 80%"
+              status={kpisLoading ? 'Loading…' :
+                getStatus(adjKPI)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(adjKPI)}
+              percent={kpisLoading ? 0 :
+                getPercent(adjKPI)}
+            />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="hrs" label="Average TAT" target="Target: ≤ 4 hrs"
-              status="No data" color="#0d6efd" percent={0} />
+            <CircularKPI
+              value={kpisLoading ? '…' :
+                tatKPI ? `${tatKPI.currentValue}` : '—'}
+              unit="hrs"
+              label="Average TAT"
+              target="Target: ≤ 4 hrs"
+              status={kpisLoading ? 'Loading…' :
+                getStatus(tatKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(tatKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(tatKPI)}
+            />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Denial Rate" target="Target: < 10%"
-              status="No data" color="#f59e0b" percent={0} />
+            <CircularKPI
+              value={kpisLoading ? '…' :
+                denialKPI ? `${denialKPI.currentValue}` : '—'}
+              unit="%"
+              label="Denial Rate"
+              target="Target: < 10%"
+              status={kpisLoading ? 'Loading…' :
+                getStatus(denialKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(denialKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(denialKPI)}
+            />
           </Col>
           <Col md={6} lg={3}>
-            <CircularKPI value="—" unit="%" label="Fraud Flag Rate" target="Target: < 5%"
-              status="No data" color="#dc3545" percent={0} />
+            <CircularKPI
+              value={kpisLoading ? '…' :
+                fraudKPI ? `${fraudKPI.currentValue}` : '—'}
+              unit="%"
+              label="Fraud Flag Rate"
+              target="Target: < 5%"
+              status={kpisLoading ? 'Loading…' :
+                getStatus(fraudKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(fraudKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(fraudKPI)}
+            />
           </Col>
         </Row>
 
-        {/* ── Activity + Approvals panels ────────────────────────────────── */}
+        {/* ── Activity + Approvals ────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col lg={7}>
             <DashboardPanel
@@ -183,7 +257,6 @@ export default function AdminDashboard() {
               />
             </DashboardPanel>
           </Col>
-
           <Col lg={5}>
             <DashboardPanel
               icon="bi-check2-circle"
@@ -200,16 +273,13 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/*Quick Access*/}
         <h5 className="fw-semibold mb-3">Quick Access</h5>
-        
-                <QuickAccessGrid
+        <QuickAccessGrid
           items={myMenu}
           onItemClick={(item) => navigate(item.path)}
         />
       </div>
 
-      {/* ── Invite User Modal (controlled by WelcomeBanner button) ── */}
       <InviteUserModal
         show={showInvite}
         onClose={() => setShowInvite(false)}
