@@ -149,6 +149,8 @@ namespace ClaimAuto.HealthSystems.Server
 
             app.MapFallbackToFile("/index.html");//Added this line to configure a fallback route that serves the index.html file for any requests that do not match existing routes, which is useful for single-page applications (SPAs) that rely on client-side routing.
 
+            await DbSeeder.SeedAsync(app);
+
             app.Run();//Added this line to start the application and listen for incoming HTTP requests, effectively running the web server and making the API available to clients.
         }
     }
