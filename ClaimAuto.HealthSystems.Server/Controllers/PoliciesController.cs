@@ -97,7 +97,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (exists)
                 return Conflict($"A policy with PlanCode '{dto.PlanCode}' already exists.");
 
-            var created = await _policyRepo.CreatePolicyAsync(dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var created = await _policyRepo.CreatePolicyAsync(dto, userId.Value, userOrgId);
             return CreatedAtAction(nameof(GetPolicyById), new { id = created.PolicyID }, created);
         }
 

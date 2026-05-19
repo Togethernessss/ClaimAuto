@@ -80,8 +80,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest(
                     "Invalid scope. Use: Operational, Regulatory, Financial, Fraud");
 
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
             var response = await _reportRepository
-                .GenerateReportAsync(dto, userId.Value);
+                .GenerateReportAsync(dto, userId.Value, userOrgId);
 
             return CreatedAtAction(
                 nameof(GetReportById),
@@ -164,9 +165,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest(
                     "PeriodStart must be before PeriodEnd.");
 
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
             var response = await _reportRepository
                 .GenerateAuditPackageAsync(
-                    periodStart, periodEnd, userId.Value);
+                    periodStart, periodEnd, userId.Value, userOrgId);
 
             return CreatedAtAction(
                 nameof(GetAllAuditPackages),

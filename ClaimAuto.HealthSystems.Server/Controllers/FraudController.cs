@@ -285,7 +285,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ResolveFraudCase(int id, [FromBody] ResolveFraudCaseDto dto)
         {
-            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
+            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id, GetLoggedInUserOrgId());
             if (fc == null)
                 return NotFound(new { message = $"Fraud case {id} not found." });
 

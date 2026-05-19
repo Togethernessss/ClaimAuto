@@ -121,9 +121,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // No manual "adjudicate" button needed on the frontend
             if (dto.Status == "Validated")
             {
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(id);
+                if (dto.Status == "Validated")
+                {
+                    var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+                    var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);
 
-                if (adjResult != null)
+                    if (adjResult != null)
                 {
                     var message = adjResult.Decision == "PendingReview"
                         ? $"Claim CLM-{id} validated and routed to manual review queue " +

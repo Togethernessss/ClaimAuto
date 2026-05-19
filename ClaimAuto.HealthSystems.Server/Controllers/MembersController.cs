@@ -121,7 +121,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // Step 3: Create the member
-            var created = await _memberRepo.CreateMemberAsync(dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var created = await _memberRepo.CreateMemberAsync(dto, userId.Value, userOrgId);
             if (created == null)
                 return BadRequest("Policy not found or is not active. Cannot enroll member under an inactive/expired policy.");
 
