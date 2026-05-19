@@ -9,6 +9,8 @@
     <BuildOutputFolder>$(MSBuildProjectDirectory)\dist</BuildOutputFolder>
   </PropertyGroup>
   <ItemGroup>
+    <Folder Include="src\pages\shared\Appeals\components\" />
+    <Folder Include="src\pages\shared\Appeals\utils\" />
     <Folder Include="src\pages\shared\Fraud\components\" />
     <Folder Include="src\pages\shared\Fraud\utils\" />
   </ItemGroup>
