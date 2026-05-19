@@ -19,6 +19,8 @@ import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
+import AppealsList    from './pages/appeals/AppealsList';
+import AppealDetails  from './pages/appeals/AppealDetails';
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -64,6 +66,8 @@ export default function App() {
             <Route path="/payments"      element={<Payments />} />
             <Route path="/remittance"    element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/appeals"       element={<AppealsList />} />
+            <Route path="/appeals/:id"   element={<AppealDetails />} />
 
             {/* Coming soon — uncomment as each module is built */}
             {/* <Route path="/adjudication"   element={<Adjudication />} /> */}
