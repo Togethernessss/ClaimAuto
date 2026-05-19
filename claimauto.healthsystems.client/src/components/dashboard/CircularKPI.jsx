@@ -9,7 +9,7 @@ export default function CircularKPI({
   color,
   percent = 0,
 }) {
-  const radius       = 50;
+  const radius        = 50;
   const circumference = 2 * Math.PI * radius;
 
   // ── Always clamp between 0 and 100 ───────────────────────────

@@ -34,17 +34,13 @@ export default function StaffDashboard() {
     return kpis.find(k => k.name === name);
   }
 
-  // ── Percent — raw value for auto-adj, inverted for others ────
-  function getPercent(kpi, invertLower = false) {
+  // ── Percent — always raw value capped at 100 ──────────────────
+  function getPercent(kpi) {
     if (!kpi || kpi.currentValue === 0) return 0;
-    if (invertLower) {
-      return Math.min(Math.round(
-        (kpi.target / kpi.currentValue) * 100), 100);
-    }
     return Math.min(Math.round(kpi.currentValue), 100);
   }
 
-  // ── Status — on target or below target ───────────────────────
+  // ── Status ────────────────────────────────────────────────────
   function getStatus(kpi, invertLower = false) {
     if (!kpi || kpi.currentValue === 0) return 'No data';
     if (invertLower) {
@@ -55,7 +51,7 @@ export default function StaffDashboard() {
       ? 'On target' : 'Below target';
   }
 
-  // ── Color — blue if on target, red if below ──────────────────
+  // ── Color — blue if on target, red if not ────────────────────
   function getColor(kpi, invertLower = false) {
     if (!kpi || kpi.currentValue === 0) return '#9e9e9e';
     if (invertLower) {
@@ -165,7 +161,7 @@ export default function StaffDashboard() {
               color={kpisLoading ? '#9e9e9e' :
                 getColor(tatKPI, true)}
               percent={kpisLoading ? 0 :
-                getPercent(tatKPI, true)}
+                getPercent(tatKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -180,7 +176,7 @@ export default function StaffDashboard() {
               color={kpisLoading ? '#9e9e9e' :
                 getColor(denialKPI, true)}
               percent={kpisLoading ? 0 :
-                getPercent(denialKPI, true)}
+                getPercent(denialKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -195,7 +191,7 @@ export default function StaffDashboard() {
               color={kpisLoading ? '#9e9e9e' :
                 getColor(fraudKPI, true)}
               percent={kpisLoading ? 0 :
-                getPercent(fraudKPI, true)}
+                getPercent(fraudKPI)}
             />
           </Col>
         </Row>
