@@ -169,7 +169,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // OLD: await _userRepo.GetUserByRoleAsync("ClaimsProcessor")
             // NEW: await _userRepo.GetUserByRoleAsync(UserRole.InsuranceStaff)
             // Your enum has "InsuranceStaff" not "ClaimsProcessor"
-            var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff);
+            var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff, GetLoggedInUserOrgId());
             var assignee = staffUsers.FirstOrDefault();
             if (assignee != null)
             {
@@ -223,7 +223,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── FIX: Your enum has "InsuranceStaff", not "ClaimsProcessor" ──
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] DecideAppealDto dto)
         {
-            var appeal = await _appealRepo.GetAppealByIdAsync(id);
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, GetLoggedInUserOrgId());
             if (appeal == null)
                 return NotFound(new { message = $"Appeal {id} not found." });
 
