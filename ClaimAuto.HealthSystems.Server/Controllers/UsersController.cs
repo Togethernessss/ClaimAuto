@@ -40,7 +40,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
         {
-            var users = await _userRepository.GetAllUsersAsync();
+            var userOrgId = GetLoggedInUserOrgId();
+            var users = await _userRepository.GetAllUsersAsync(userOrgId);
 
             var response = users.Select(u => new UserResponseDto
             {
@@ -69,7 +70,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<UserResponseDto>> GetUser(int id)
         {
-            var user = await _userRepository.GetUserByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var user = await _userRepository.GetUserByIdAsync(id, userOrgId);
             if (user == null)
                 return NotFound($"User with ID {id} not found.");
 
@@ -96,7 +98,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {
-            var users = await _userRepository.GetUsersByRoleAsync(role);
+            var userOrgId = GetLoggedInUserOrgId();
+            var users = await _userRepository.GetUsersByRoleAsync(role, userOrgId);
 
             var response = users.Select(u => new UserResponseDto
             {

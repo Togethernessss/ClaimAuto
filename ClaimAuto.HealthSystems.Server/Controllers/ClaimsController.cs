@@ -29,14 +29,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <response code="200">Returns list of claims.</response>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAllClaims(
+       public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
             [FromQuery] string? priority)
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
 
-            var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole);
+            var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole, userOrgId);
             return Ok(claims);
         }
 
@@ -50,7 +51,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+
+            var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
             if (claim == null)
                 return NotFound($"Claim with ID {id} was not found.");
             return Ok(claim);
@@ -74,6 +77,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+
             if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
                 var exists = await _claimRepo.ExternalClaimRefExistsAsync(dto.ExternalClaimRef);
@@ -81,7 +86,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     return Conflict($"A claim with ExternalClaimRef '{dto.ExternalClaimRef}' already exists.");
             }
 
-            var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value);
+            var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value, userOrgId);
             if (created == null)
                 return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
                                   "MemberID, and PolicyID (must be Active) all exist and are valid.");

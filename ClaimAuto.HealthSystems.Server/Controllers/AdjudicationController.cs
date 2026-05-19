@@ -31,9 +31,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> AutoAdjudicate(int claimId) 
+        public async Task<IActionResult> AutoAdjudicate(int claimId)
         {
-            var result = await _adjRepo.AutoAdjudicateAsync(claimId);
+            var userOrgId = GetLoggedInUserOrgId();
+            var result = await _adjRepo.AutoAdjudicateAsync(claimId, userOrgId);
 
             if (result == null)
                 return NotFound($"Claim with ID {claimId} was not found.");
@@ -84,7 +85,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("Notes are required for manual adjudication. " +
                                   "Please document your reason for this decision.");
 
-            var result = await _adjRepo.ManualAdjudicateAsync(dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();
+            var result = await _adjRepo.ManualAdjudicateAsync(dto, userId.Value, userOrgId);
 
             if (result == null)
                 return NotFound($"Claim with ID {dto.ClaimID} was not found.");
@@ -101,7 +103,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetRuleTrace(int claimId)
         {
-            var trace = await _adjRepo.GetRuleTraceAsync(claimId);
+            var userOrgId = GetLoggedInUserOrgId();
+            var trace = await _adjRepo.GetRuleTraceAsync(claimId, userOrgId);
 
             if (trace == null)
                 return NotFound($"No adjudication record found for Claim {claimId}. " +
@@ -118,10 +121,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpGet("{claimId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetAdjudication(int claimId) 
+        public async Task<IActionResult> GetAdjudication(int claimId)
         {
-            var record = await _adjRepo.GetAdjudicationAsync(claimId);
-            
+            var userOrgId = GetLoggedInUserOrgId();
+            var record = await _adjRepo.GetAdjudicationAsync(claimId, userOrgId);
+
 
             if (record == null)
                 return NotFound($"No adjudication record found for Claim {claimId}. " +

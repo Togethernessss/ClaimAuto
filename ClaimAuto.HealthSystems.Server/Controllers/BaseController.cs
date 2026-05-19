@@ -28,9 +28,22 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // ── GET LOGGED IN USER NAME ──────────────────────────────────────────────
+        // ── GET LOGGED IN USER NAME ──────────────────────────────────────────────
         protected string? GetLoggedInUserName()
         {
             return User.FindFirst(ClaimTypes.Name)?.Value;
+        }
+
+        // ── GET LOGGED IN USER ORGANIZATION ID (Phase 4) ─────────────────────────
+        // Returns the org_id claim from the JWT, parsed as an int.
+        // Returns null if the user has no org (e.g., legacy users without OrganizationID).
+        // Controllers pass this into repositories to scope queries to one tenant.
+        protected int? GetLoggedInUserOrgId()
+        {
+            var claim = User.FindFirst("org_id")?.Value;
+            if (int.TryParse(claim, out int orgId))
+                return orgId;
+            return null;
         }
     }
 }

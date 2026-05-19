@@ -20,10 +20,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _notificationRepo = notificationRepo;
         }
 
-        public async Task<FraudScore?> GetFraudScoreByClaimIdAsync(int claimId)
+        public async Task<FraudScore?> GetFraudScoreByClaimIdAsync(int claimId, int? userOrgId = null)
         {
-            return await _context.FraudScores
-                .FirstOrDefaultAsync(fs => fs.ClaimID == claimId);
+            var query = _context.FraudScores.Where(fs => fs.ClaimID == claimId);
+            if (userOrgId.HasValue)
+                query = query.Where(fs => fs.OrganizationID == userOrgId.Value);
+            return await query.FirstOrDefaultAsync();
         }
 
         public async Task<FraudScore> ScoreClaimAsync(int claimId)
@@ -123,9 +125,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<List<FraudCase>> GetAllFraudCasesAsync(
-            string? status, string? priority)
+            string? status, string? priority, int? userOrgId = null)
         {
             var query = _context.FraudCases.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
 
             if (!string.IsNullOrEmpty(status))
             {
@@ -144,15 +150,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        public async Task<FraudCase?> GetFraudCaseByIdAsync(int id)
+        public async Task<FraudCase?> GetFraudCaseByIdAsync(int id, int? userOrgId = null)
         {
-            return await _context.FraudCases.FindAsync(id);
+            var query = _context.FraudCases.Where(fc => fc.CaseID == id);
+            if (userOrgId.HasValue)
+                query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
+            return await query.FirstOrDefaultAsync();
         }
-
-        public async Task<FraudCase?> GetFraudCaseByClaimIdAsync(int claimId)
+        public async Task<FraudCase?> GetFraudCaseByClaimIdAsync(int claimId, int? userOrgId = null)
         {
-            return await _context.FraudCases
-                .FirstOrDefaultAsync(fc => fc.ClaimID == claimId);
+            var query = _context.FraudCases.Where(fc => fc.ClaimID == claimId);
+            if (userOrgId.HasValue)
+                query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
+            return await query.FirstOrDefaultAsync();
         }
 
         public async Task<FraudCase> CreateFraudCaseAsync(FraudCase fraudCase)

@@ -26,13 +26,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ── GET ALL PAYMENTS ──────────────────────────────────────────
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
     int? userId, string? userRole,
-    string? status, int? claimId)
+    string? status, int? claimId,
+    int? userOrgId = null)
         {
             var query = _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
                     .ThenInclude(c => c.Member)
                 .AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+        
 
             // Policyholder sees only payments tied to their own claims
             // (i.e., the claim's member is enrolled under this Policyholder).
@@ -59,14 +66,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payments.Select(p => MapPayment(p)).ToList();
         }
 
+
+        
         // ── GET PAYMENT BY ID ─────────────────────────────────────────
-        public async Task<PaymentResponseDto?> GetPaymentByIdAsync(int id)
+        public async Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null)
         {
-            var payment = await _context.Payments
+            var query = _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
                 .Include(p => p.Remittance)
-                .FirstOrDefaultAsync(p => p.PaymentID == id);
+                .AsQueryable();
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            var payment = await query.FirstOrDefaultAsync(p => p.PaymentID == id);
 
             return payment == null ? null : MapPayment(payment);
         }

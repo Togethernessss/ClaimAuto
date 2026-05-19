@@ -16,9 +16,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ── Role-based filtering ──
-        public async Task<List<Appeal>> GetAllAppealsAsync(int userId, string role)
+        // ── Role-based + tenant filtering ──
+        public async Task<List<Appeal>> GetAllAppealsAsync(int userId, string role, int? userOrgId = null)
         {
             var query = _context.Appeals.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
 
             var staffRoles = new[] { "Admin", "InsuranceStaff" };
             if (!staffRoles.Contains(role))
@@ -30,14 +35,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .OrderByDescending(a => a.FiledAt)
                 .ToListAsync();
         }
-
         // In AppealRepository.GetAppealByIdAsync:
-        public async Task<Appeal?> GetAppealByIdAsync(int id)
+        // In AppealRepository.GetAppealByIdAsync:
+        public async Task<Appeal?> GetAppealByIdAsync(int id, int? userOrgId = null)
         {
-            return await _context.Appeals
+            var query = _context.Appeals
                 .Include(a => a.DecisionBy)      // loads the User object
                 .Include(a => a.FiledByUser)     // if you have this navigation too
-                .FirstOrDefaultAsync(a => a.AppealID == id);
+                .AsQueryable();
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+
+            return await query.FirstOrDefaultAsync(a => a.AppealID == id);
         }
 
         public async Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId)
@@ -74,7 +85,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         DueDate = DateTime.UtcNow.AddDays(7),
                         Priority = TaskPriority.High,          // enum
                         Status = TaskStatus.Pending,           // enum
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = appeal.OrganizationID, // ← Phase 4: inherit from appeal
                     };
 
                     _context.ClaimTasks.Add(task);

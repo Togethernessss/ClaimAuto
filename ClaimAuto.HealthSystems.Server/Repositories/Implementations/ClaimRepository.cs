@@ -190,7 +190,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  SUBMIT CLAIM — hospital submits a new claim
         // ══════════════════════════════════════════════════════════════════
-        public async Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId)
+        public async Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId, int? userOrgId = null)
         {
             // ── Validate Provider exists and is a Hospital ───────────────
             // Allow Hospital for regular claims, Policyholder for reimbursement
@@ -245,6 +245,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Priority = priority,
                 SourceChannel = sourceChannel,
                 Notes = dto.Notes,
+                OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
             };
 
             _db.Claims.Add(claim);
