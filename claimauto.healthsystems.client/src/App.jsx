@@ -14,6 +14,7 @@ import Members from './pages/shared/Members/Members';
 import Claims from './pages/shared/Claims/Claims';
 import Adjudication from './pages/shared/Adjudication/Adjudication';
 import Rules from './pages/Admin/Rules/Rules';
+import Fraud from './pages/shared/Fraud/Fraud';
 import Payments from "./pages/shared/Payments/Payments";
 import Remittance from "./pages/shared/Remittance/Remittance";
 import Notifications from './pages/shared/Notifications/Notifications';
@@ -70,7 +71,7 @@ export default function App() {
             <Route path="/notifications" element={<Notifications />} />
 
             {/* Coming soon */}
-            {/* <Route path="/fraud"          element={<Fraud />} /> */}
+          <Route path="/fraud" element={<Fraud />} />
             {/* <Route path="/appeals"        element={<Appeals />} /> */}
             {/* <Route path="/tasks"          element={<Tasks />} /> */}
             {/* <Route path="/reports"        element={<Reports />} /> */}
