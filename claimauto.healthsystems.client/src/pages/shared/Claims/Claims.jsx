@@ -9,7 +9,6 @@ import {
   submitClaim,
   updateClaim,
   deleteClaim,
-  addClaimLine,
   uploadDocument,
 } from '../../../services/claims/claimService';
 import { getAllMembers } from '../../../services/members/memberService';
@@ -155,19 +154,29 @@ export default function Claims() {
     setSubmitError(null);
     setSubmitLoading(true);
     try {
-      const created = await submitClaim(formData);
-
-      // Add claim lines sequentially after claim is created
-      for (const line of lines) {
-        await addClaimLine(created.claimID, line);
-      }
+      // Send lines inside the payload so backend creates them BEFORE
+      // running fraud scoring + adjudication. This ensures line statuses
+      // (Approved/Denied) are set correctly by the adjudication engine.
+      const payload = { ...formData, lines: lines ?? [] };
+      const result = await submitClaim(payload);
+      const claimId = result?.claim?.claimID ?? result?.claimID;
 
       setShowSubmit(false);
       await loadClaims();
-      setSuccessMsg(
-        `Claim CLM-${created.claimID} submitted successfully ` +
-        `with ${lines.length} service line${lines.length !== 1 ? 's' : ''}.`
-      );
+
+      if (result?.fraudDetected) {
+        setSuccessMsg(
+          `⚠️ CLM-${claimId} submitted but BLOCKED — ` +
+          `Fraud score ${result.fraudScore}/100. Check Fraud Detection page.`
+        );
+      } else if (result?.message) {
+        setSuccessMsg(result.message);
+      } else {
+        setSuccessMsg(
+          `Claim CLM-${claimId} submitted successfully ` +
+          `with ${lines.length} service line${lines.length !== 1 ? 's' : ''}.`
+        );
+      }
     } catch (err) {
       const msg = err.response?.data?.message
                || err.response?.data
@@ -183,11 +192,12 @@ export default function Claims() {
     setReimbursementError(null);
     setReimbursementLoading(true);
     try {
-      const created = await submitClaim(formData);
+      const result = await submitClaim(formData);
+      const claimId = result?.claim?.claimID ?? result?.claimID;
       setShowReimbursement(false);
       await loadClaims();
       setSuccessMsg(
-        `Reimbursement CLM-${created.claimID} submitted. ` +
+        `Reimbursement CLM-${claimId} submitted. ` +
         `Attach your bills to speed up processing.`
       );
     } catch (err) {
@@ -251,18 +261,9 @@ export default function Claims() {
       setShowUpdate(false);
       await loadClaims();
 
-      if (result?.fraudDetected) {
-        // Fraud detected — claim blocked, fraud case opened
-        setSuccessMsg(
-          `⚠️ CLM-${updateTarget.claimID} validated — Fraud score ${result.fraudScore}/100. ` +
-          `Claim blocked pending investigation. Check Fraud Detection page.`
-        );
-      } else if (result?.autoAdjudicated && result?.message) {
-        // Clean — adjudication ran normally
-        setSuccessMsg(result.message);
-      } else {
-        setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
-      }
+      // UpdateClaim is now priority-only (+ Admin override to Rejected)
+      // No fraud/adjudication runs here — that happens automatically on submit
+      setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
     } catch (err) {
       const msg = err.response?.data?.message
               || err.response?.data

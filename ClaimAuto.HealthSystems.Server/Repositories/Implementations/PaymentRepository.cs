@@ -85,22 +85,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                // Remittance only for hospital claims — NOT for Reimbursement.
-                // For Reimbursement, the payee is the Policyholder directly, no remittance needed.
-                var claim = await _context.Claims
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.ClaimID == payment.ClaimID);
-
-                if (claim != null && claim.ClaimType != ClaimType.Reimbursement)
-                {
-                    var remittance = new Remittance
-                    {
-                        PaymentID = payment.PaymentID,
-                        GeneratedAt = DateTime.UtcNow,
-                        Status = RemittanceStatus.Generated
-                    };
-                    _context.Remittances.Add(remittance);
-                }
+                // NOTE: Remittance is NOT created here.
+                // It is created automatically when staff Executes the payment (ExecutePaymentAsync).
+                // Remittance = bank transfer confirmation — it only exists after money moves.
+                // Reimbursement claims never get a Remittance (payee is Policyholder directly).
 
                 // ── Audit log ─────────────────────────────────────────
                 _context.AuditLogs.Add(new AuditLog
@@ -203,24 +191,36 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment.Claim != null)
                 payment.Claim.Status = ClaimStatus.Paid;
 
-            if (payment.Remittance != null)
+            // ── Create Remittance on Execute (not on Create) ──────────────
+            // Remittance = bank transfer confirmation — created only when money moves.
+            // Reimbursement claims: payee is the Policyholder directly — no remittance.
+            // All other claim types (Inpatient, Outpatient, Pharmacy, Emergency): create remittance.
+            Remittance? remittance = null;
+            if (payment.Claim != null && payment.Claim.ClaimType != ClaimType.Reimbursement)
             {
-                payment.Remittance.Status = RemittanceStatus.Sent;
-                payment.Remittance.SentToProviderAt = DateTime.UtcNow;
+                remittance = new Remittance
+                {
+                    PaymentID = payment.PaymentID,
+                    GeneratedAt = DateTime.UtcNow,
+                    Status = RemittanceStatus.Sent,
+                    SentToProviderAt = DateTime.UtcNow,
+                };
 
                 try
                 {
-                    payment.Remittance.RemitFilePDF =
-                        _pdfService.GenerateRemittancePdf(
-                            payment.Remittance, payment);
+                    remittance.RemitFilePDF =
+                        _pdfService.GenerateRemittancePdf(remittance, payment);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine(
                         $"[PDF ERROR] Payment {id}: " +
                         $"{ex.Message}\n{ex.StackTrace}");
-                    payment.Remittance.RemitFilePDF = null;
+                    remittance.RemitFilePDF = null;
                 }
+
+                _context.Remittances.Add(remittance);
+                payment.Remittance = remittance;
             }
 
             // ── Audit log ─────────────────────────────────────────────

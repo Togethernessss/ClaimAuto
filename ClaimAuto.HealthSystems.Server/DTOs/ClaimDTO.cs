@@ -14,6 +14,7 @@
         public string Priority { get; set; } = "Normal";        // "Normal","High","Urgent"
         public string SourceChannel { get; set; } = string.Empty; // "Portal","EDI","API","BatchCSV"
         public string? Notes { get; set; }   // ← ADD: Policyholder describes treatment
+        public List<AddClaimLineDto>? Lines { get; set; }
     }
 
     // ── ClaimResponseDto 
