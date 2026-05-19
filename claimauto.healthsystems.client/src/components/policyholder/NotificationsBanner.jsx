@@ -28,7 +28,7 @@ export default function NotificationsBanner({ notifications, onUpdate }) {
 
   const handleClick = async (notif) => {
     await markNotificationRead(notif.notificationID);
-    navigate('/policyholder/notifications');
+        navigate('/notifications');
   };
 
   return (

@@ -1,25 +1,162 @@
+// ═════════════════════════════════════════════════════════════════════════════
+// Policyholder Dashboard Service
+// Calls 6 backend endpoints in parallel, then runs each response through a
+// MAPPER so the existing 11 dashboard components can consume the data
+// without ANY changes to their code.
+// ═════════════════════════════════════════════════════════════════════════════
+
+import { getActivePolicies }                          from '../policies/policyService';
+import { getAllClaims }                               from '../claims/claimService';
+import {
+  getMyNotifications,
+  markAsRead,
+  dismissNotification,
+} from '../notifications/notificationService';
+import { getAllMembers }                              from '../members/memberService';
+import { getAllPayments }                             from '../payments/paymentService';
+import {
+  getAllAppeals,
+  withdrawAppeal,
+} from '../appeals/appealService';
+
+// Demo imports (still here as a fallback you can toggle for offline dev)
 import {
   demoPolicy, demoClaims, demoNotifications,
   demoAppeals, demoMembers, demoPayments,
 } from '../../data/policyholderDashboardData';
 
-// ⚙️ Toggle this when backend services are wired up
-const USE_DEMO = true;
+// 🔌 Set to true to render the dashboard from demo data instead of the API.
+// Useful when the backend is down during local development.
+const USE_DEMO = false;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// IMPORT YOUR REAL SERVICES HERE (uncomment when ready)
-// ─────────────────────────────────────────────────────────────────────────────
-// import { getActivePolicies }   from '../policies/policyService';
-// import { getAllClaims }        from '../claims/claimService';
-// import { getMyNotifications, markAsRead, dismissNotification } from '../notifications/notificationService';
-// import { getAllAppeals, withdrawAppeal }   from '../appeals/appealService';
-// import { getAllMembers }       from '../members/memberService';
-// import { getPayments }         from '../payments/paymentService';
+// ═════════════════════════════════════════════════════════════════════════════
+// MAPPERS — translate backend DTO shape ➜ component-expected shape
+// ═════════════════════════════════════════════════════════════════════════════
 
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Policy mapper.
+ * Backend has no `coverageAmount` column. We try to parse it from
+ * `coverageRulesJSON` (the seed stores it there). If that fails, we derive
+ * an estimate from outOfPocketMax. This keeps `CoverageUtilization` working.
+ */
+function mapPolicy(p) {
+  if (!p) return null;
+
+  let coverageAmount = null;
+  if (p.coverageRulesJSON) {
+    try {
+      const rules = JSON.parse(p.coverageRulesJSON);
+      coverageAmount = rules.coverageAmount ?? rules.annualLimit ?? null;
+    } catch { /* malformed JSON — ignore and fall through */ }
+  }
+
+  if (coverageAmount == null && p.outOfPocketMax) {
+    coverageAmount = Number(p.outOfPocketMax) * 15;
+  }
+
+  return {
+    policyID:         p.policyID,
+    planCode:         p.planCode,
+    planName:         p.planName,
+    coverageAmount:   coverageAmount ?? 0,
+    deductibleAmount: p.deductibleAmount ?? 0,
+    outOfPocketMax:   p.outOfPocketMax ?? 0,
+    effectiveFrom:    p.effectiveFrom,
+    effectiveTo:      p.effectiveTo,
+    status:           p.status,
+  };
+}
+
+/**
+ * Claim mapper.
+ * Renames backend fields to what the dashboard components expect.
+ * Tries to extract "Procedure at Hospital" from the Notes field
+ * (the seed encodes it this way). Falls back to claimType + providerName.
+ */
+function mapClaim(c) {
+  let procedureName = c.claimType;
+  let hospitalName  = c.providerName;
+
+  if (c.notes && typeof c.notes === 'string') {
+    const parts = c.notes.split(' at ');
+    if (parts.length === 2) {
+      procedureName = parts[0].trim();
+      hospitalName  = parts[1].trim();
+    }
+  }
+
+  const isApprovedOrPaid = ['Approved', 'Paid'].includes(c.status);
+
+  return {
+    claimID:         c.claimID,
+    memberID:        c.memberID,
+    dateOfService:   c.submittedAt,
+    hospitalName,
+    procedureName,
+    amount:          c.totalBilledAmount,
+    approvedAmount:  isApprovedOrPaid ? c.totalBilledAmount : null,
+    status:          c.status,
+  };
+}
+
+/**
+ * Member mapper.
+ * Backend has no `relation` column. We try to parse it from `contactInfoJSON`
+ * (the seed stores it there). Eligibility endpoint is blocked for Policyholder,
+ * so we infer eligibility from the Member.Status field.
+ */
+function mapMember(m) {
+  return {
+    memberID:  m.memberID,
+    name:      m.name,
+    relation:  parseRelation(m.contactInfoJSON) ?? 'Family Member',
+    dob:       m.dob,
+    eligible:  m.status === 'Active',
+  };
+}
+
+function parseRelation(json) {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return parsed.relation ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Payment mapper.
+ * Renames executedAt ➜ paidAt, paymentMethod ➜ mode, referenceNumber ➜ reference.
+ * Normalizes backend statuses (Executed/Authorized/Pending) into the
+ * UI-friendly Paid/Processing labels that RecentPaymentsCard expects.
+ */
+function mapPayment(p) {
+  let uiStatus = 'Processing';
+  if (p.status === 'Executed')      uiStatus = 'Paid';
+  else if (p.status === 'OnHold')   uiStatus = 'On Hold';
+
+  return {
+    paymentID:  p.paymentID,
+    claimID:    p.claimID,
+    amount:     p.amount,
+    paidAt:     p.executedAt ?? p.createdAt,
+    mode:       p.paymentMethod,
+    status:     uiStatus,
+    reference:  p.referenceNumber,
+  };
+}
+
+// Notification and Appeal shapes already match — pass through.
+function mapNotification(n) { return n; }
+function mapAppeal(a)       { return a; }
+
+// ═════════════════════════════════════════════════════════════════════════════
 // FETCH ALL DASHBOARD DATA
-// Uses 6 existing endpoints in parallel — no new backend needed
-// ─────────────────────────────────────────────────────────────────────────────
+// 6 endpoints called in parallel. Each wrapped in `safe()` so that a single
+// endpoint failure (e.g., 403 on a permissions edge case) doesn't blow up
+// the entire dashboard — that section just shows empty.
+// ═════════════════════════════════════════════════════════════════════════════
 export async function fetchDashboardData() {
   if (USE_DEMO) {
     await new Promise((r) => setTimeout(r, 300));
@@ -33,44 +170,57 @@ export async function fetchDashboardData() {
     };
   }
 
-  // REAL BACKEND VERSION (uncomment when ready)
-  // const [policies, claims, notifications, appeals, members, payments] = await Promise.all([
-  //   getActivePolicies(),           // GET /api/policies/active
-  //   getAllClaims(),                // GET /api/claims (role-scoped on backend)
-  //   getMyNotifications(),          // GET /api/notifications
-  //   getAllAppeals(),               // GET /api/appeals (role-scoped on backend)
-  //   getAllMembers(),               // GET /api/members
-  //   getPayments(),                 // GET /api/payments
-  // ]);
-  //
-  // return {
-  //   policy: policies[0] || null,
-  //   claims, notifications, appeals, members, payments,
-  // };
+  const safe = (promise, fallback) =>
+    promise.catch((err) => {
+      console.warn(
+        '[Dashboard] partial failure:',
+        err.response?.status,
+        err.config?.url,
+        err.response?.data?.message ?? '',
+      );
+      return fallback;
+    });
+
+  const [policies, claims, notifications, appeals, members, payments] =
+    await Promise.all([
+      safe(getActivePolicies(),   []),
+      safe(getAllClaims(),        []),
+      safe(getMyNotifications(),  []),
+      safe(getAllAppeals(),       []),
+      safe(getAllMembers(),       []),
+      safe(getAllPayments(),      []),
+    ]);
+
+  return {
+    policy:        policies.length > 0 ? mapPolicy(policies[0]) : null,
+    claims:        claims.map(mapClaim),
+    notifications: notifications.map(mapNotification),
+    appeals:       appeals.map(mapAppeal),
+    members:       members.map(mapMember),
+    payments:      payments.map(mapPayment),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOTIFICATION ACTIONS — uses existing NotificationsController endpoints
+// NOTIFICATION ACTIONS — real backend
 // ─────────────────────────────────────────────────────────────────────────────
-
 export async function markNotificationRead(notificationID) {
   if (USE_DEMO) return { success: true };
-  // return await markAsRead(notificationID);    // PUT /api/notifications/{id}/read
+  return await markAsRead(notificationID);
 }
 
 export async function dismissNotificationById(notificationID) {
   if (USE_DEMO) return { success: true };
-  // return await dismissNotification(notificationID);   // PUT /api/notifications/{id}/dismiss
+  return await dismissNotification(notificationID);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APPEAL ACTIONS — uses existing AppealsController endpoints
+// APPEAL ACTIONS — real backend
 // ─────────────────────────────────────────────────────────────────────────────
-
 export async function withdrawAppealById(appealID) {
   if (USE_DEMO) {
     alert(`Demo: Appeal APP-${appealID} would be withdrawn.`);
     return { success: true };
   }
-  // return await withdrawAppeal(appealID);   // PUT /api/appeals/{id}/withdraw
+  return await withdrawAppeal(appealID);
 }

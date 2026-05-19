@@ -51,7 +51,7 @@ export default function ActiveAppealCard({ appeal, onUpdate }) {
               size="sm"
               variant="outline-primary"
               className="rounded-pill flex-grow-1"
-              onClick={() => navigate(`/policyholder/appeals/${appeal.appealID}`)}
+              onClick={() => navigate(`/appeals?focus=${appeal.appealID}`)}
             >
               <i className="bi bi-eye me-1"></i> Details
             </Button>

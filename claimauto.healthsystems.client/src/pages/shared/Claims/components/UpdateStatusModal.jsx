@@ -100,6 +100,19 @@ export default function UpdateStatusModal({
                     <strong>{statusLabel(status)}</strong>
                   </Form.Text>
                 )}
+
+                {/* Validated warning — auto-adjudication trigger */}
+                {status === 'Validated' && (
+                  <Alert variant="warning" className="small py-2 mt-2 mb-0">
+                    <i className="bi bi-lightning-fill me-2"></i>
+                    <strong>Auto-Adjudication will trigger immediately.</strong>
+                    <div className="mt-1" style={{ fontSize: 11 }}>
+                      The engine will evaluate this claim against all active rules.
+                      If the amount exceeds ₹5,00,000 it will be routed to the
+                      manual review queue instead.
+                    </div>
+                  </Alert>
+                )}
               </Form.Group>
             </Col>
 
@@ -126,7 +139,13 @@ export default function UpdateStatusModal({
           {/* Status transition guidance */}
           <div className="mt-3 small text-muted">
             <i className="bi bi-info-circle me-1"></i>
-            Typical flow: Submitted → Under Review → Adjudicated → Approved / Rejected → Paid
+            Flow: Submitted → Under Review →{' '}
+            <span style={{ color: '#e65100', fontWeight: 600 }}>Validated</span>
+            {' '}→ <span style={{ color: '#764ba2' }}>Auto-Adjudicated</span>
+            {' '}→ Approved / Rejected → Paid
+            <div className="mt-1">
+              Setting <strong>Validated</strong> triggers the adjudication engine automatically.
+            </div>
           </div>
         </Modal.Body>
 

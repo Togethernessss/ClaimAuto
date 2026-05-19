@@ -6,9 +6,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
     public interface IPaymentRepository
     {
         Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
+            int? userId,
+            string? userRole,
             string? status,
             int? claimId);
-
         Task<PaymentResponseDto?> GetPaymentByIdAsync(int id);
 
         Task<PaymentResponseDto> CreatePaymentAsync(

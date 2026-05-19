@@ -23,7 +23,7 @@ export default function ClaimStatsRow({ claims }) {
           <Card
             className="border-0 shadow-sm h-100"
             style={{ cursor: 'pointer', transition: 'all .2s', borderRadius: 12 }}
-            onClick={() => navigate(`/policyholder/claims${s.filter ? `?status=${s.filter}` : ''}`)}
+            onClick={() => navigate(`/claims${s.filter ? `?status=${s.filter}` : ''}`)}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = ''; }}
           >

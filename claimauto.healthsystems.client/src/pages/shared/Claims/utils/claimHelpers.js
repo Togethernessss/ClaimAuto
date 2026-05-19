@@ -146,6 +146,7 @@ export const HOSPITAL_CLAIM_TYPES = [
 export const CLAIM_STATUSES = [
   'Submitted',
   'UnderReview',
+  'Validated',
   'Adjudicated',
   'Approved',
   'Paid',

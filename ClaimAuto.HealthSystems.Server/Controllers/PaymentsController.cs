@@ -20,16 +20,34 @@ public class PaymentsController : BaseController
         _paymentRepository = paymentRepository;
     }
 
-    /// <summary>Returns all payments with optional filters.</summary>
+    /// <summary>
+    /// Returns payments with optional filters.
+    /// Admin and InsuranceStaff see all payments.
+    /// Policyholder sees only payments tied to their own claims (auto-filtered).
+    /// </summary>
+    /// <param name="status">Filter by payment status.</param>
+    /// <param name="claimId">Filter by claim ID.</param>
+    /// <response code="200">Returns list of payments.</response>
+    /// <response code="401">Unauthorized — invalid token.</response>
     [HttpGet]
-    [Authorize(Roles = "Admin,InsuranceStaff")]
+    [Authorize(Roles = "Admin,InsuranceStaff,Policyholder")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllPayments(
         [FromQuery] string? status,
         [FromQuery] int? claimId)
     {
+        var userId = GetLoggedInUserId();
+        var userRole = GetLoggedInUserRole();
+
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
         var response = await _paymentRepository
-            .GetAllPaymentsAsync(status, claimId);
+            .GetAllPaymentsAsync(
+                userId, userRole,
+                status, claimId);
+
         return Ok(response);
     }
 
