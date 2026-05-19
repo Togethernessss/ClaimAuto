@@ -57,5 +57,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             int performedById);
 
         Task<byte[]?> GetRemittancePdfAsync(int paymentId);
+
+        Task<byte[]?> GetReconciliationPdfAsync(int reconId);
     }
 }

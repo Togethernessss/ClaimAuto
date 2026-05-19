@@ -12,16 +12,16 @@ import {
 } from '../../../services/payments/paymentService';
 import { CreatePaymentDto } from '../../../models/payments/PaymentDto';
 
-import PaymentsHeader        from './components/PaymentsHeader';
-import PaymentsFilters       from './components/PaymentsFilters';
-import PaymentsSummary       from './components/PaymentsSummary';
-import PaymentsTable         from './components/PaymentsTable';
-import ExecuteModal          from './components/ExecuteModal';
-import HoldConfirmModal      from './components/HoldConfirmModal';
-import ResumeConfirmModal    from './components/ResumeConfirmModal';
-import CreatePaymentModal    from './components/CreatePaymentModal';
+import PaymentsHeader       from './components/PaymentsHeader';
+import PaymentsFilters      from './components/PaymentsFilters';
+import PaymentsSummary      from './components/PaymentsSummary';
+import PaymentsTable        from './components/PaymentsTable';
+import ExecuteModal         from './components/ExecuteModal';
+import HoldConfirmModal     from './components/HoldConfirmModal';
+import ResumeConfirmModal   from './components/ResumeConfirmModal';
+import CreatePaymentModal   from './components/CreatePaymentModal';
+import ReconciliationTab    from './components/ReconciliationTab';
 
-// ── EMPTY_CREATE: payeeID added so onFieldChange('payeeID') has a field to write to
 const EMPTY_CREATE = {
   claimID: null, payeeID: null, amount: '',
   currency: 'INR', paymentMethod: 'EFT', scheduledAt: '',
@@ -31,46 +31,49 @@ export default function Payments() {
   const { user } = useAuth();
   const isStaff  = canAccess(user?.role, ['InsuranceStaff']);
 
-  // ── List state ────────────────────────────────────────────────────────────
+  // ── Active tab ────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('payments');
+
+  // ── List state ────────────────────────────────────────────────
   const [payments,   setPayments]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg,   setErrorMsg]   = useState(null);
 
-  // ── Filter + search state ─────────────────────────────────────────────────
+  // ── Filter + search ───────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('All');
   const [search,       setSearch]       = useState('');
 
-  // ── Action loading ────────────────────────────────────────────────────────
+  // ── Action loading ────────────────────────────────────────────
   const [actionLoading, setActionLoading] = useState(null);
 
-  // ── Execute modal ─────────────────────────────────────────────────────────
+  // ── Execute modal ─────────────────────────────────────────────
   const [showExecute,      setShowExecute]      = useState(false);
   const [executePaymentId, setExecutePaymentId] = useState(null);
   const [referenceNumber,  setReferenceNumber]  = useState('');
   const [executeError,     setExecuteError]     = useState(null);
   const [executeLoading,   setExecuteLoading]   = useState(false);
 
-  // ── Hold modal ────────────────────────────────────────────────────────────
+  // ── Hold modal ────────────────────────────────────────────────
   const [showHold,    setShowHold]    = useState(false);
   const [holdTarget,  setHoldTarget]  = useState(null);
   const [holdError,   setHoldError]   = useState(null);
   const [holdLoading, setHoldLoading] = useState(false);
 
-  // ── Resume modal ──────────────────────────────────────────────────────────
+  // ── Resume modal ──────────────────────────────────────────────
   const [showResume,    setShowResume]    = useState(false);
   const [resumeTarget,  setResumeTarget]  = useState(null);
   const [resumeError,   setResumeError]   = useState(null);
   const [resumeLoading, setResumeLoading] = useState(false);
 
-  // ── Create modal ──────────────────────────────────────────────────────────
+  // ── Create modal ──────────────────────────────────────────────
   const [showCreate,    setShowCreate]    = useState(false);
   const [createForm,    setCreateForm]    = useState(EMPTY_CREATE);
   const [createError,   setCreateError]   = useState(null);
   const [createLoading, setCreateLoading] = useState(false);
 
-  // ── Load payments ─────────────────────────────────────────────────────────
+  // ── Load payments ─────────────────────────────────────────────
   const loadPayments = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -88,7 +91,7 @@ export default function Payments() {
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
 
-  // ── Auto-clear toasts ─────────────────────────────────────────────────────
+  // ── Auto-clear toasts ─────────────────────────────────────────
   useEffect(() => {
     if (!successMsg) return;
     const t = setTimeout(() => setSuccessMsg(null), 3000);
@@ -101,7 +104,7 @@ export default function Payments() {
     return () => clearTimeout(t);
   }, [errorMsg]);
 
-  // ── Filtered list ─────────────────────────────────────────────────────────
+  // ── Filtered list ─────────────────────────────────────────────
   const filtered = payments.filter((p) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -111,7 +114,7 @@ export default function Payments() {
     );
   });
 
-  // ── Authorize ─────────────────────────────────────────────────────────────
+  // ── Authorize ─────────────────────────────────────────────────
   async function handleAuthorize(id) {
     setActionLoading(id);
     try {
@@ -125,7 +128,7 @@ export default function Payments() {
     }
   }
 
-  // ── Execute ───────────────────────────────────────────────────────────────
+  // ── Execute ───────────────────────────────────────────────────
   function openExecuteModal(id) {
     setExecutePaymentId(id);
     setReferenceNumber('');
@@ -142,7 +145,9 @@ export default function Payments() {
     try {
       await executePayment(executePaymentId, referenceNumber.trim());
       setShowExecute(false);
-      setSuccessMsg(`Payment #PAY-${executePaymentId} executed successfully.`);
+      setSuccessMsg(
+        `Payment #PAY-${executePaymentId} executed successfully.`
+      );
       loadPayments();
     } catch {
       setExecuteError('Failed to execute payment.');
@@ -151,7 +156,7 @@ export default function Payments() {
     }
   }
 
-  // ── Hold ──────────────────────────────────────────────────────────────────
+  // ── Hold ──────────────────────────────────────────────────────
   function openHoldModal(payment) {
     setHoldTarget(payment);
     setHoldError(null);
@@ -163,7 +168,9 @@ export default function Payments() {
     try {
       await holdPayment(holdTarget.paymentID);
       setShowHold(false);
-      setSuccessMsg(`Payment #PAY-${holdTarget.paymentID} placed on hold.`);
+      setSuccessMsg(
+        `Payment #PAY-${holdTarget.paymentID} placed on hold.`
+      );
       loadPayments();
     } catch {
       setHoldError('Failed to hold payment.');
@@ -172,7 +179,7 @@ export default function Payments() {
     }
   }
 
-  // ── Resume ────────────────────────────────────────────────────────────────
+  // ── Resume ────────────────────────────────────────────────────
   function openResumeModal(payment) {
     setResumeTarget(payment);
     setResumeError(null);
@@ -184,7 +191,9 @@ export default function Payments() {
     try {
       await resumePayment(resumeTarget.paymentID);
       setShowResume(false);
-      setSuccessMsg(`Payment #PAY-${resumeTarget.paymentID} resumed to Pending.`);
+      setSuccessMsg(
+        `Payment #PAY-${resumeTarget.paymentID} resumed to Pending.`
+      );
       loadPayments();
     } catch {
       setResumeError('Failed to resume payment.');
@@ -193,9 +202,7 @@ export default function Payments() {
     }
   }
 
-  // ── Create ────────────────────────────────────────────────────────────────
-  // FIX: functional update prevents stale closure — both claimID and payeeID
-  // get saved correctly because each update reads latest prev state
+  // ── Create ────────────────────────────────────────────────────
   const handleCreateField = (field) => (e) =>
     setCreateForm(prev => ({ ...prev, [field]: e.target.value }));
 
@@ -209,7 +216,7 @@ export default function Payments() {
     try {
       const dto = new CreatePaymentDto({
         claimID:       createForm.claimID,
-        payeeID:       createForm.payeeID,   // FIX: use payeeID (hospital) not claimID
+        payeeID:       createForm.payeeID,
         amount:        parseFloat(createForm.amount),
         currency:      createForm.currency,
         paymentMethod: createForm.paymentMethod,
@@ -224,7 +231,9 @@ export default function Payments() {
       const msg = err.response?.data?.message
                || err.response?.data
                || 'Failed to create payment.';
-      setCreateError(typeof msg === 'string' ? msg : 'Failed to create payment.');
+      setCreateError(
+        typeof msg === 'string' ? msg : 'Failed to create payment.'
+      );
     } finally {
       setCreateLoading(false);
     }
@@ -236,6 +245,8 @@ export default function Payments() {
       <PaymentsHeader
         successMsg={successMsg}
         errorMsg={errorMsg}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         onCreateClick={() => {
           setCreateForm(EMPTY_CREATE);
           setCreateError(null);
@@ -243,33 +254,43 @@ export default function Payments() {
         }}
       />
 
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-4 pt-4">
 
-        <PaymentsFilters
-          search={search}
-          statusFilter={statusFilter}
-          filteredCount={filtered.length}
-          totalCount={payments.length}
-          loading={loading}
-          onSearchChange={setSearch}
-          onStatusChange={setStatusFilter}
-        />
+        {/* ── Payments tab ───────────────────────────────────── */}
+        {activeTab === 'payments' && (
+          <>
+            <PaymentsFilters
+              search={search}
+              statusFilter={statusFilter}
+              filteredCount={filtered.length}
+              totalCount={payments.length}
+              loading={loading}
+              onSearchChange={setSearch}
+              onStatusChange={setStatusFilter}
+            />
 
-        {!loading && !error && (
-          <PaymentsSummary payments={payments} />
+            {!loading && !error && (
+              <PaymentsSummary payments={payments} />
+            )}
+
+            <PaymentsTable
+              payments={filtered}
+              loading={loading}
+              error={error}
+              actionLoading={actionLoading}
+              onRetry={loadPayments}
+              onAuthorize={handleAuthorize}
+              onOpenExecute={openExecuteModal}
+              onOpenHold={openHoldModal}
+              onOpenResume={openResumeModal}
+            />
+          </>
         )}
 
-        <PaymentsTable
-          payments={filtered}
-          loading={loading}
-          error={error}
-          actionLoading={actionLoading}
-          onRetry={loadPayments}
-          onAuthorize={handleAuthorize}
-          onOpenExecute={openExecuteModal}
-          onOpenHold={openHoldModal}
-          onOpenResume={openResumeModal}
-        />
+        {/* ── Reconciliation tab ─────────────────────────────── */}
+        {activeTab === 'reconciliation' && (
+          <ReconciliationTab />
+        )}
 
       </div>
 
