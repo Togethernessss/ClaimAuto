@@ -19,6 +19,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private const int MAX_MFA_ATTEMPTS = 5;
         private const int LOCKOUT_MINUTES = 15;
 
+        // Password login lockout settings (OWASP A07)
+        private const int MAX_LOGIN_ATTEMPTS = 5;
+        private const int LOGIN_LOCKOUT_MINUTES = 15;
+
         public AuthRepository(
             ApplicationDbContext db,
             IConfiguration config,
@@ -30,11 +34,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ── User lookups ────────────────────────────────────────────
+        // Both methods now Include() the Organization so callers can
+        // access user.Organization.Name without a second DB roundtrip.
         public Task<User?> GetUserByEmailAsync(string email) =>
-            _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            _db.Users
+                .Include(u => u.Organization)
+                .FirstOrDefaultAsync(u => u.Email == email);
 
         public Task<User?> GetUserByIdAsync(int id) =>
-            _db.Users.FindAsync(id).AsTask();
+            _db.Users
+                .Include(u => u.Organization)
+                .FirstOrDefaultAsync(u => u.UserID == id);
 
         public Task<bool> EmailExistsAsync(string email) =>
             _db.Users.AnyAsync(u => u.Email == email);
@@ -88,23 +98,29 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+                       var claimsList = new List<System.Security.Claims.Claim>
             {
-        new System.Security.Claims.Claim(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
-        new System.Security.Claims.Claim(JwtRegisteredClaimNames.Email, user.Email),
-        new System.Security.Claims.Claim(ClaimTypes.Name, user.Name),
-        new System.Security.Claims.Claim(ClaimTypes.Role, user.Role.ToString()),
-        new System.Security.Claims.Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-    };
+                new(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
+                new(JwtRegisteredClaimNames.Email, user.Email),
+                new(ClaimTypes.Name, user.Name),
+                new(ClaimTypes.Role, user.Role.ToString()),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            // Multi-tenant claim — only added if user has an organization
+            if (user.OrganizationID.HasValue)
+                claimsList.Add(new System.Security.Claims.Claim("org_id", user.OrganizationID.Value.ToString()));
+
+            var claims = claimsList.ToArray();
 
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(
-                    Convert.ToDouble(_config["Jwt:ExpireMinutes"])),
-                signingCredentials: credentials
-            );
+                double.TryParse(_config["Jwt:ExpireMinutes"], out var em) && em > 0 ? em : 60),
+            signingCredentials: credentials
+);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
@@ -191,6 +207,37 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         public Task ResetMfaFailedAttemptsAsync(int userId) =>
             ClearLockoutAsync(userId);
+
+        // ─── Password login lockout (OWASP A07) ──────────────────────────
+        // Mirrors the MFA lockout pattern but uses LoginFailedAttempts
+        // and LoginLockoutEnd fields on the User entity.
+
+        public Task<bool> IsLoginLockedOutAsync(User user)
+        {
+            if (user.LoginFailedAttempts < MAX_LOGIN_ATTEMPTS) return Task.FromResult(false);
+            if (user.LoginLockoutEnd == null) return Task.FromResult(false);
+            return Task.FromResult(user.LoginLockoutEnd > DateTime.UtcNow);
+        }
+
+        public async Task RecordFailedLoginAttemptAsync(User user)
+        {
+            user.LoginFailedAttempts++;
+            if (user.LoginFailedAttempts >= MAX_LOGIN_ATTEMPTS)
+                user.LoginLockoutEnd = DateTime.UtcNow.AddMinutes(LOGIN_LOCKOUT_MINUTES);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            await LogAuthActionAsync(user.UserID, "LoginFailed");
+        }
+
+        public async Task ResetLoginAttemptsAsync(int userId)
+        {
+            var u = await _db.Users.FindAsync(userId);
+            if (u == null) return;
+            u.LoginFailedAttempts = 0;
+            u.LoginLockoutEnd = null;
+            u.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
 
         // ── MFA setup / confirm / disable ───────────────────────────
         public async Task<(string secretKey, string qrCodeUri)> InitiateMfaSetupAsync(int userId)

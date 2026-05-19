@@ -18,16 +18,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  GET ALL CLAIMS — with role-based filtering and optional filters
         // ══════════════════════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════════
+        //  GET ALL CLAIMS — with role-based + tenant filtering
+        // ══════════════════════════════════════════════════════════════════
         public async Task<List<ClaimResponseDto>> GetAllClaimsAsync(
-            string? status, string? priority, int? userId, string? userRole)
+            string? status, string? priority, int? userId, string? userRole,
+            int? userOrgId = null)
         {
             var query = _db.Claims.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            // When userOrgId is supplied (from Phase 4 controllers), restrict
+            // results to claims owned by that organization. When null (current
+            // callers), no filter — backward compatible.
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
 
             // ── Role-based filtering ─────────────────────────────────────
             // Hospital sees only claims they submitted
             if (userRole == "Hospital" && userId.HasValue)
                 query = query.Where(c => c.ProviderID == userId.Value);
-
             // Policyholder sees only claims linked to their member record
             if (userRole == "Policyholder" && userId.HasValue)
             {
@@ -77,9 +87,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  GET CLAIM BY ID — full detail with lines, documents, adjudication
         // ══════════════════════════════════════════════════════════════════
-        public async Task<ClaimDetailResponseDto?> GetClaimByIdAsync(int claimId)
+        // ══════════════════════════════════════════════════════════════════
+        //  GET CLAIM BY ID — full detail + tenant ownership check
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<ClaimDetailResponseDto?> GetClaimByIdAsync(int claimId, int? userOrgId = null)
         {
-            var claim = await _db.Claims
+            var query = _db.Claims
                 .Include(c => c.Provider)
                 .Include(c => c.Member)
                 .Include(c => c.Policy)
@@ -88,7 +101,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .ThenInclude(d => d.Uploader)
                 .Include(c => c.AdjudicationRecords)
                     .ThenInclude(a => a.PerformedBy)
-                .FirstOrDefaultAsync(c => c.ClaimID == claimId);
+                .AsQueryable();
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            // If userOrgId is supplied and doesn't match the claim's org,
+            // treat as "not found" (don't reveal cross-tenant existence).
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync(c => c.ClaimID == claimId);
 
             if (claim == null) return null;
 

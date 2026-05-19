@@ -32,12 +32,19 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public bool MFAEnabled { get; set; } = false;
 
         [MaxLength(128)]
-        public string? MFASecretKey { get; set; }         
+        public string? MFASecretKey { get; set; }
 
-        public DateTime? MFACodeExpiry { get; set; }      
+        public DateTime? MFACodeExpiry { get; set; }
 
-        public int MFAFailedAttempts { get; set; } = 0;   
+        public int MFAFailedAttempts { get; set; } = 0;
 
+        // ─── Password login lockout (OWASP A07) ──────────────────────────
+        // Increments on every failed password attempt. Resets on success.
+        // When >= MAX_LOGIN_ATTEMPTS, LoginLockoutEnd is set N minutes ahead
+        // and the user is rejected until that time passes.
+        public int LoginFailedAttempts { get; set; } = 0;
+
+        public DateTime? LoginLockoutEnd { get; set; }
 
         [Required]
         public AccountStatus Status { get; set; }
@@ -49,6 +56,15 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
+        // ─── Multi-Tenant: which insurance company this user belongs to ─────
+        // Nullable to keep migration safe — existing users get backfilled by
+        // the seed script. Going forward, registration sets this required.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
+
+        // Navigation
         public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>(); // 1-to-many with AuditLog
+    
     }
 }

@@ -1,9 +1,18 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, Button } from 'react-bootstrap';
 import { findRejectedClaims } from '../../data/policyholderDashboardData';
+import { useAuth } from '../../security/AuthContext';
 
 export default function QuickActionsPanel({ claims, activeAppeal }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Multi-tenant: use the user's organization support email if available,
+  // otherwise fall back to a generic platform contact.
+  const supportEmail = user?.organizationSupportEmail || 'support@claimauto.com';
+  const supportSubject = user?.organizationName
+    ? `${user.organizationName} — Policyholder Support Request`
+    : 'Policyholder Support Request';
 
   const rejected = findRejectedClaims(claims);
   const canFileAppeal = rejected.length > 0 && !activeAppeal;
@@ -17,7 +26,7 @@ export default function QuickActionsPanel({ claims, activeAppeal }) {
   };
 
   const handleContactSupport = () => {
-    window.location.href = 'mailto:support@claimauto.com?subject=Policyholder Support Request';
+    window.location.href = `mailto:${supportEmail}?subject=${encodeURIComponent(supportSubject)}`;
   };
 
   const handlePrintDashboard = () => {

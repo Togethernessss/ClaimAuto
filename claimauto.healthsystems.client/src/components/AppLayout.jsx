@@ -13,6 +13,122 @@ function AppealBell() {
     const [count, setCount] = useState(0);
 
     const isStaff = user?.role === 'Admin' || user?.role === 'InsuranceStaff';
+export default function AppLayout() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [sidebarOpen,   setSidebarOpen]   = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const handleScroll = (e) => {
+    const el = e.target;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
+    setShowScrollTop(nearBottom);
+  };
+
+  const scrollToTop = () => {
+    document.getElementById('main-content').scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <NotificationProvider>
+      <div style={{ height: '100vh', overflow: 'hidden', backgroundColor: '#f3f0ff' }}>
+
+        {/* ─── Top navbar ─── */}
+        <nav
+          className="navbar navbar-dark shadow-sm px-4"
+          style={{
+            background: 'linear-gradient(135deg, #667eea 10%, #764ba2 100%)',
+            height: 60,
+            position: 'fixed',
+            top: 0, left: 0, right: 0,
+            zIndex: 1030,
+          }}
+        >
+        <div className="d-flex align-items-center">
+            <button
+              className="btn btn-link text-white p-0 me-3"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              style={{ fontSize: 22, textDecoration: 'none' }}
+            >
+              <i className="bi bi-list"></i>
+            </button>
+            <span className="navbar-brand fw-bold mb-0 me-3">
+              <i className="bi bi-heart-pulse-fill text-danger me-2"></i>
+              ClaimAuto
+            </span>
+
+            {/* ─── Multi-tenant branding pill ────────────────────────
+                Shows the user's insurance organization in a small pill
+                colored with that organization's brand color. Hides on
+                mobile to keep the navbar uncluttered. */}
+            {user?.organizationName && (
+              <div
+                className="d-none d-md-flex align-items-center gap-2 px-2 py-1 rounded-pill"
+                style={{
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  fontSize: 12,
+                }}
+                title={`Powered by ${user.organizationName}`}
+              >
+                <span
+                  className="rounded-circle d-inline-block"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    background: user.organizationBrandColor || '#ffffff',
+                    boxShadow: `0 0 6px ${user.organizationBrandColor || '#ffffff'}99`,
+                  }}
+                />
+                <span className="text-white opacity-75" style={{ fontSize: 11 }}>for</span>
+                <span className="text-white fw-semibold">{user.organizationName}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="d-flex align-items-center gap-3">
+            <NotificationBell />
+            <button
+              className="btn btn-outline-light btn-sm"
+              onClick={() => navigate('/profile')}
+              title="My Profile"
+            >
+              <i className="bi bi-person-circle me-1"></i> Profile
+            </button>
+          </div>
+        </nav>
+
+        {/* ─── Sidebar ─── */}
+        <div
+          style={{
+            position: 'fixed',
+            top: 60, left: 0, bottom: 0,
+            width: 250, overflowY: 'auto',
+            zIndex: 1020,
+            transform: sidebarOpen ? 'translateX(0)' : 'translateX(-250px)',
+            transition: 'transform 0.3s ease',
+          }}
+        >
+          <Sidebar />
+        </div>
+
+        {/* ─── Main content ─── */}
+        <main
+          id="main-content"
+          onScroll={handleScroll}
+          style={{
+            position: 'absolute',
+            top: 60,
+            left: sidebarOpen ? 250 : 0,
+            right: 0, bottom: 0,
+            padding: '16px 0 0 0',
+            overflowY: 'auto',
+            transition: 'left 0.3s ease',
+            backgroundColor: '#f3f0ff',
+          }}
+        >
+          <Outlet />
+        </main>
 
     const refresh = useCallback(async () => {
         try {

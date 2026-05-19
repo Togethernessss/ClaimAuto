@@ -21,13 +21,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         //MFA token (intermediate, 10-min)
         string GenerateMfaToken(User user);
-        int? ValidateMfaToken(string mfaToken);   // null on failure
+        int? ValidateMfaToken(string mfaToken);
 
         //MFA lockout state 
         Task ResetMfaFailedAttemptsAsync(int userId);
         Task<bool> IsLockedOutAsync(User user);
         Task RecordFailedMfaAttemptAsync(User user);
         Task ClearLockoutAsync(int userId);
+
+        // Password login lockout (OWASP A07) — mirrors the MFA lockout pattern
+        Task<bool> IsLoginLockedOutAsync(User user);
+        Task RecordFailedLoginAttemptAsync(User user);
+        Task ResetLoginAttemptsAsync(int userId);
 
         //MFA state transitions
         Task<(string secretKey, string qrCodeUri)> InitiateMfaSetupAsync(int userId);
@@ -44,8 +49,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<User> RegisterInvitedUserAsync(User user, string tempPassword);
 
         // Password reset (forgot-password flow)
-        Task<string?> CreatePasswordResetTokenAsync(string email);   // returns raw token, or null if email not found
-        Task<int?> ValidatePasswordResetTokenAsync(string rawToken); // returns userId on success
+        Task<string?> CreatePasswordResetTokenAsync(string email);
+        Task<int?> ValidatePasswordResetTokenAsync(string rawToken);
         Task<bool> ResetPasswordWithTokenAsync(string rawToken, string newPasswordHash);
     }
 }

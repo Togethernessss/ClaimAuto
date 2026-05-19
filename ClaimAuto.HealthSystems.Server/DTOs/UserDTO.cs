@@ -1,6 +1,7 @@
 ﻿namespace ClaimAuto.HealthSystems.Server.DTOs
 {
     // ── CreateUserDto
+    // ── CreateUserDto
     public class CreateUserDto
     {
         public string Name { get; set; } = string.Empty;
@@ -10,6 +11,7 @@
         public string? Phone { get; set; }
         public string? Department { get; set; }              // only for InsuranceStaff and Admin
         public bool MFAEnabled { get; set; } = false;
+        public int? OrganizationID { get; set; }             // ← which insurance company they're registering under
     }
 
     // ── InviteUserDto — admin invites a user; no password (system generates one)
@@ -29,7 +31,7 @@
         public string Password { get; set; } = string.Empty;
     }
 
-    // ── UserResponseDto 
+        // ── UserResponseDto 
     public class UserResponseDto
     {
         public int UserID { get; set; }
@@ -43,7 +45,18 @@
         public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        // ─── Multi-tenant — which insurance company this user belongs to ───
+        // ─── Multi-tenant — which insurance company this user belongs to ───
+        public int? OrganizationID { get; set; }
+        public string? OrganizationName { get; set; }
+        public string? OrganizationShortCode { get; set; }
+        public string? OrganizationBrandColor { get; set; }
+        public string? OrganizationLogoUrl { get; set; }
+        public string? OrganizationSupportEmail { get; set; }   // ← NEW
+        public string? OrganizationSupportPhone { get; set; }   // ← NEW
     }
+}
 
     // ── UpdateUserDto 
     public class UpdateUserDto
@@ -93,4 +106,3 @@
         public string MfaToken { get; set; } = string.Empty;       // Temporary token from login
         public string Code { get; set; } = string.Empty;           // 6-digit code from app
     }
-}
