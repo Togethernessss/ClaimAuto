@@ -13,5 +13,7 @@
     <Folder Include="src\pages\shared\Appeals\utils\" />
     <Folder Include="src\pages\shared\Fraud\components\" />
     <Folder Include="src\pages\shared\Fraud\utils\" />
+    <Folder Include="src\pages\shared\Tasks\components\" />
+    <Folder Include="src\pages\shared\Tasks\utils\" />
   </ItemGroup>
 </Project>
