@@ -5,15 +5,20 @@ import { canAccess } from '../../../../security/permissions';
 export default function PaymentsHeader({
   successMsg,
   errorMsg,
+  activeTab,
+  onTabChange,
   onCreateClick,
 }) {
   const { user } = useAuth();
-  const isStaff = canAccess(user?.role, ['InsuranceStaff']);
+  const isStaff  = canAccess(user?.role, ['InsuranceStaff']);
+  const isAdmin  = canAccess(user?.role, ['Admin']);
+  const canReconcile = isStaff || isAdmin;
 
   return (
-    <div className="px-4 pt-3 mb-4">
+    <div className="px-4 pt-3 mb-0">
 
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      {/* ── Title + New Payment button ──────────────────────── */}
+      <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
         <div className="d-flex align-items-center">
           <i className="bi bi-credit-card fs-2 text-primary me-3"></i>
           <div>
@@ -24,7 +29,7 @@ export default function PaymentsHeader({
           </div>
         </div>
 
-        {isStaff && (
+        {isStaff && activeTab === 'payments' && (
           <button
             className="btn fw-semibold text-white rounded-pill px-4"
             onClick={onCreateClick}
@@ -39,15 +44,68 @@ export default function PaymentsHeader({
         )}
       </div>
 
+      {/* ── Tabs ───────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        gap: 0,
+        borderBottom: '2px solid #e9ecef',
+        marginBottom: 0,
+      }}>
+        <button
+          onClick={() => onTabChange('payments')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '10px 20px',
+            fontWeight: 600,
+            fontSize: 14,
+            color: activeTab === 'payments' ? '#667eea' : '#6c757d',
+            borderBottom: activeTab === 'payments'
+              ? '2px solid #667eea' : '2px solid transparent',
+            marginBottom: -2,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          <i className="bi bi-credit-card me-2"></i>
+          Payments
+        </button>
+
+        {canReconcile && (
+          <button
+            onClick={() => onTabChange('reconciliation')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '10px 20px',
+              fontWeight: 600,
+              fontSize: 14,
+              color: activeTab === 'reconciliation' ? '#667eea' : '#6c757d',
+              borderBottom: activeTab === 'reconciliation'
+                ? '2px solid #667eea' : '2px solid transparent',
+              marginBottom: -2,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            <i className="bi bi-clipboard-data me-2"></i>
+            Reconciliation
+          </button>
+        )}
+      </div>
+
+      {/* ── Toasts ─────────────────────────────────────────── */}
       {successMsg && (
-        <Alert variant="success" className="d-flex align-items-center py-2 mb-0 mt-3">
+        <Alert variant="success"
+          className="d-flex align-items-center py-2 mb-0 mt-3">
           <i className="bi bi-check-circle-fill me-2"></i>
           {successMsg}
         </Alert>
       )}
 
       {errorMsg && (
-        <Alert variant="danger" className="d-flex align-items-center py-2 mb-0 mt-3">
+        <Alert variant="danger"
+          className="d-flex align-items-center py-2 mb-0 mt-3">
           <i className="bi bi-exclamation-triangle-fill me-2"></i>
           {errorMsg}
         </Alert>

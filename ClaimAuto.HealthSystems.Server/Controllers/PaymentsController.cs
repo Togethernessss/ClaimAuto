@@ -1,7 +1,9 @@
 ﻿using ClaimAuto.HealthSystems.Server.Controllers;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -376,5 +378,29 @@ public class PaymentsController : BaseController
             nameof(GetReconciliations),
             new { id = response.ReconID },
             response);
+    }
+
+    /// <summary>Downloads the PDF for a reconciliation report.</summary>
+    [HttpGet("reconciliation/{id}/pdf")]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReconciliationPdf(int id)
+    {
+        var userId = GetLoggedInUserId();
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
+        var pdfBytes = await _paymentRepository
+            .GetReconciliationPdfAsync(id);
+
+        if (pdfBytes == null || pdfBytes.Length == 0)
+            return NotFound(
+                $"Reconciliation {id} not found.");
+
+        return File(
+            pdfBytes,
+            "application/pdf",
+            $"Reconciliation-REC-{id}.pdf");
     }
 }

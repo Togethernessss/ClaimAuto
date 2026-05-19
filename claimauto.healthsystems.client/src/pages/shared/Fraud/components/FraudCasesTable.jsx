@@ -43,8 +43,8 @@ export default function FraudCasesTable({
     return (
         <div className="table-responsive">
             <Table hover className="align-middle mb-0">
-                <thead>
-                    <tr style={{ background: '#f8f9ff' }}>
+                <thead className="table-light">
+                    <tr>
                         <th>Case ID</th>
                         <th>Claim ID</th>
                         <th>Priority</th>
