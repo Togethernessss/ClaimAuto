@@ -11,6 +11,7 @@ import AuditLogs from "./pages/Admin/AuditLogs";
 import HomePage from "./pages/HomePage";
 import Appeals from './pages/shared/Appeals/Appeals';
 import Policies from "./pages/shared/Policies/Policies";
+import Tasks from './pages/shared/Tasks/Tasks';
 import Members from './pages/shared/Members/Members';
 import Claims from './pages/shared/Claims/Claims';
 import Adjudication from './pages/shared/Adjudication/Adjudication';
@@ -74,7 +75,7 @@ export default function App() {
             {/* Coming soon */}
             <Route path="/fraud" element={<Fraud />} />
             <Route path="/appeals"        element={<Appeals />} /> 
-            {/* <Route path="/tasks"          element={<Tasks />} /> */}
+            <Route path="/tasks"          element={<Tasks />} /> 
             {/* <Route path="/reports"        element={<Reports />} /> */}
             {/* <Route path="/audit-packages" element={<AuditPackages />} /> */}
 
