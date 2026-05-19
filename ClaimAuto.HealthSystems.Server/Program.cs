@@ -43,6 +43,7 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IAppealRepository, AppealRepository>();
             builder.Services.AddScoped<ITaskRepository, TaskRepository>();
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+            builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 
             // Register PDF generation service
             builder.Services.AddScoped<IRemittancePdfService, RemittancePdfService>();
@@ -144,6 +145,12 @@ namespace ClaimAuto.HealthSystems.Server
 
             app.UseAuthentication();//Added this line to enable authentication middleware, which allows the application to authenticate users based on the configured authentication scheme (in this case, JWT tokens).
             app.UseAuthorization();
+
+            // Security gate: invited users with MustChangePassword=true can ONLY
+            // hit POST /api/auth/change-password — everything else is 403.
+            // Must run AFTER auth (needs the user principal) and BEFORE controllers.
+            app.UseMiddleware<MustChangePasswordMiddleware>();
+
 
             app.MapControllers();
 

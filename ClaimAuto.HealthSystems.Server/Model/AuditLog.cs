@@ -27,5 +27,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [Required]
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

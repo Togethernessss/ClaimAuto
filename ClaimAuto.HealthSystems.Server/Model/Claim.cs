@@ -47,8 +47,17 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public SourceChannel SourceChannel { get; set; }
 
+        
         [MaxLength(500)]
         public string? Notes { get; set; }   // ← ADD
+
+        // ─── Multi-Tenant (Phase 1) ───────────────────────────────────────
+        // Which insurance company owns this claim. Nullable during rollout —
+        // backfilled to Star Health (Org 1) by the migration data step.
+        // Phase 4 controllers will require this on writes.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
 
         // Navigation
         public ICollection<ClaimLine> ClaimLines { get; set; } = new List<ClaimLine>();

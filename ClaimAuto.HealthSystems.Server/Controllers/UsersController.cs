@@ -191,6 +191,23 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
                 return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
 
+            // ─── Multi-tenant: invited user inherits inviting Admin's organization ───
+            // Admin's JWT carries their own OrganizationID. We look the Admin up to
+            // get it, then assign the same org to the invited user. This enforces
+            // tenant isolation — Admins can only invite into their own workspace.
+            var adminUserId = GetLoggedInUserId();
+            if (adminUserId == null)
+                return Unauthorized("Invalid token.");
+
+            var admin = await _authRepository.GetUserByIdAsync(adminUserId.Value);
+            if (admin == null)
+                return Unauthorized("Inviting admin not found.");
+
+            if (admin.OrganizationID == null)
+                return BadRequest(
+                    "Your admin account is not linked to an organization. " +
+                    "Contact a platform administrator before inviting users.");
+
             // 2. Generate temp password
             var tempPassword = TempPasswordGenerator.Generate(12);
 
@@ -201,7 +218,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Email = dto.Email,
                 Role = role,
                 Phone = dto.Phone,
-                Department = dto.Department
+                Department = dto.Department,
+                OrganizationID = admin.OrganizationID   // ← inherits Admin's org
             };
 
             var created = await _authRepository.RegisterInvitedUserAsync(user, tempPassword);

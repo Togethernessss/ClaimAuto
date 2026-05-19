@@ -1,8 +1,15 @@
 import { Alert, Button } from 'react-bootstrap';
 import { daysUntil, formatDate } from '../../data/policyholderDashboardData';
+import { useAuth } from '../../security/AuthContext';
 
 export default function RenewalAlert({ policy }) {
+  const { user } = useAuth();
   if (!policy) return null;
+
+  const supportEmail = user?.organizationSupportEmail || 'support@claimauto.com';
+  const supportSubject = user?.organizationName
+    ? `${user.organizationName} — Policy Renewal Request`
+    : 'Policy Renewal Request';
 
   const days = daysUntil(policy.effectiveTo);
   if (days === null || days > 90 || days < 0) return null;
@@ -24,7 +31,7 @@ export default function RenewalAlert({ policy }) {
         variant={variant}
         size="sm"
         className="rounded-pill fw-semibold"
-        onClick={() => window.location.href = 'mailto:support@claimauto.com?subject=Policy Renewal Request'}
+        onClick={() => window.location.href = `mailto:${supportEmail}?subject=${encodeURIComponent(supportSubject)}`}
       >
         <i className="bi bi-envelope me-1"></i> Contact Support
       </Button>

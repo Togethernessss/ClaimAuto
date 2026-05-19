@@ -36,7 +36,7 @@ export default function AppLayout() {
             zIndex: 1030,
           }}
         >
-          <div className="d-flex align-items-center">
+        <div className="d-flex align-items-center">
             <button
               className="btn btn-link text-white p-0 me-3"
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -44,10 +44,38 @@ export default function AppLayout() {
             >
               <i className="bi bi-list"></i>
             </button>
-            <span className="navbar-brand fw-bold mb-0">
+            <span className="navbar-brand fw-bold mb-0 me-3">
               <i className="bi bi-heart-pulse-fill text-danger me-2"></i>
               ClaimAuto
             </span>
+
+            {/* ─── Multi-tenant branding pill ────────────────────────
+                Shows the user's insurance organization in a small pill
+                colored with that organization's brand color. Hides on
+                mobile to keep the navbar uncluttered. */}
+            {user?.organizationName && (
+              <div
+                className="d-none d-md-flex align-items-center gap-2 px-2 py-1 rounded-pill"
+                style={{
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  fontSize: 12,
+                }}
+                title={`Powered by ${user.organizationName}`}
+              >
+                <span
+                  className="rounded-circle d-inline-block"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    background: user.organizationBrandColor || '#ffffff',
+                    boxShadow: `0 0 6px ${user.organizationBrandColor || '#ffffff'}99`,
+                  }}
+                />
+                <span className="text-white opacity-75" style={{ fontSize: 11 }}>for</span>
+                <span className="text-white fw-semibold">{user.organizationName}</span>
+              </div>
+            )}
           </div>
 
           <div className="d-flex align-items-center gap-3">

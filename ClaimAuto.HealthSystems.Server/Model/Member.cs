@@ -37,10 +37,17 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         // Which Policyholder user owns this member
         // Nullable — Admin/Staff enrolled members may not have a linked policyholder
+        // Which Policyholder user owns this member
+        // Nullable — Admin/Staff enrolled members may not have a linked policyholder
         public int? PolicyholderUserID { get; set; }
 
         [ForeignKey("PolicyholderUserID")]
         public User? PolicyholderUser { get; set; }
+
+        // ─── Multi-Tenant (Phase 1) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
 
         // Navigation
         public ICollection<Claim> Claims { get; set; } = new List<Claim>();

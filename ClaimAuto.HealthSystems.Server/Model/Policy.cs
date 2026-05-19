@@ -38,7 +38,15 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         // Tracks when advance expiry notifications were sent
         // Null = notification not sent yet
+        // Tracks when advance expiry notifications were sent
+        // Null = notification not sent yet
         public DateTime? NotifiedAt7Days { get; set; }
         public DateTime? NotifiedAt2Hours { get; set; }
+
+        // ─── Multi-Tenant (Phase 1) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }
+

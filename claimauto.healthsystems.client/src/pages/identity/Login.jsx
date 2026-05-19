@@ -8,6 +8,7 @@ import { login as loginApi } from '../../services/identity/authService';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);   // ← NEW
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -73,19 +74,32 @@ export default function Login() {
               />
             </Form.Group>
 
-            <Form.Group className="mb-4">
+                        <Form.Group className="mb-4">
               <Form.Label className="small fw-semibold">
                 <i className="bi bi-key me-1"></i> Password
               </Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <InputGroup>
+                <Form.Control
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <i className={`bi bi-eye${showPassword ? '-slash' : ''}`}></i>
+                </Button>
+              </InputGroup>
             </Form.Group>
 
+            
             <div className="text-end mb-3">
               <Link to="/forgot-password" className="small text-decoration-none">
                 Forgot password?

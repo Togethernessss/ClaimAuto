@@ -21,5 +21,12 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
 
         public string? PackageURI { get; set; }
+
+      
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }
