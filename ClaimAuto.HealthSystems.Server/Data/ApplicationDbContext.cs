@@ -109,6 +109,13 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<Notification>()
+                .HasOne(n => n.Organization)
+                .WithMany()
+                .HasForeignKey(n => n.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // ─── Multi-Tenant Phase 2: 11 secondary entities ─────────────
             mb.Entity<FraudCase>()
                 .HasOne(f => f.Organization).WithMany().HasForeignKey(f => f.OrganizationID)

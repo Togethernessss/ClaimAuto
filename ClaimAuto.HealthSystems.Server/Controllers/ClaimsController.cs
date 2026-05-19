@@ -158,7 +158,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                             Severity = NotificationSeverity.Critical,
                             CreatedAt = DateTime.UtcNow,
                             Status = NotificationStatus.Unread,
-                            OrganizationID = userOrgId,   // ← Phase 4: tenant stamp (if Notification has this field)
+                            //OrganizationID = userOrgId,   // ← Phase 4: tenant stamp (if Notification has this field)
                         };
 
                         await _fraudRepo.CreateFraudCaseWithNotificationAsync(
