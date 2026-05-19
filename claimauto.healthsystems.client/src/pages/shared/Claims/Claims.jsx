@@ -251,9 +251,14 @@ export default function Claims() {
       setShowUpdate(false);
       await loadClaims();
 
-      // If Validated was set, backend auto-adjudicated and returns
-      // { claim, adjudication, message, autoAdjudicated: true }
-      if (result?.autoAdjudicated && result?.message) {
+      if (result?.fraudDetected) {
+        // Fraud detected — claim blocked, fraud case opened
+        setSuccessMsg(
+          `⚠️ CLM-${updateTarget.claimID} validated — Fraud score ${result.fraudScore}/100. ` +
+          `Claim blocked pending investigation. Check Fraud Detection page.`
+        );
+      } else if (result?.autoAdjudicated && result?.message) {
+        // Clean — adjudication ran normally
         setSuccessMsg(result.message);
       } else {
         setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
