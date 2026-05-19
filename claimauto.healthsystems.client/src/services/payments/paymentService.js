@@ -59,3 +59,11 @@ export async function createReconciliation(dto) {
   const res = await api.post('/api/payments/reconciliation', dto);
   return res.data;
 }
+
+export async function getReconciliationPdf(id) {
+  const res = await api.get(
+    `/api/payments/reconciliation/${id}/pdf`,
+    { responseType: 'blob' }
+  );
+  return res.data;
+}
