@@ -5,16 +5,16 @@ import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import { NotificationProvider } from '../security/NotificationContext';
 import { getAllAppeals } from '../services/appeals/appealService';
-
+ 
 // ─── Appeal Bell (navbar icon with badge) ────────────────
 function AppealBell() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [count, setCount] = useState(0);
-
+ 
   const isStaff = user?.role === 'Admin' ||
                   user?.role === 'InsuranceStaff';
-
+ 
   const refresh = useCallback(async () => {
     try {
       const data = await getAllAppeals();
@@ -27,15 +27,15 @@ function AppealBell() {
       // silent
     }
   }, []);
-
+ 
   useEffect(() => {
     refresh();
     const interval = setInterval(refresh, 30000);
     return () => clearInterval(interval);
   }, [refresh]);
-
+ 
   if (!isStaff || count === 0) return null;
-
+ 
   return (
     <button
       onClick={() => navigate('/appeals')}
@@ -71,26 +71,26 @@ function AppealBell() {
     </button>
   );
 }
-
+ 
 // ─── Main Layout ─────────────────────────────────────────
 export default function AppLayout() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen,   setSidebarOpen]   = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
-
+ 
   const handleScroll = (e) => {
     const el = e.target;
     const nearBottom =
       el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
     setShowScrollTop(nearBottom);
   };
-
+ 
   const scrollToTop = () => {
     document.getElementById('main-content')
       .scrollTo({ top: 0, behavior: 'smooth' });
   };
-
+ 
   return (
     <NotificationProvider>
       <div style={{
@@ -98,7 +98,7 @@ export default function AppLayout() {
         overflow: 'hidden',
         backgroundColor: '#f3f0ff',
       }}>
-
+ 
         {/* ─── Top navbar ─── */}
         <nav
           className="navbar navbar-dark shadow-sm px-4"
@@ -123,7 +123,7 @@ export default function AppLayout() {
               <i className="bi bi-heart-pulse-fill text-danger me-2"></i>
               ClaimAuto
             </span>
-
+ 
             {/* ─── Multi-tenant branding pill ──────────────────────
                 Shows the user's insurance organization in a small
                 pill colored with that organization's brand color.
@@ -159,7 +159,7 @@ export default function AppLayout() {
               </div>
             )}
           </div>
-
+ 
           <div className="d-flex align-items-center gap-3">
             <AppealBell />
             <NotificationBell />
@@ -172,7 +172,7 @@ export default function AppLayout() {
             </button>
           </div>
         </nav>
-
+ 
         {/* ─── Sidebar ─── */}
         <div
           style={{
@@ -187,7 +187,7 @@ export default function AppLayout() {
         >
           <Sidebar />
         </div>
-
+ 
         {/* ─── Main content ─── */}
         <main
           id="main-content"
@@ -205,7 +205,7 @@ export default function AppLayout() {
         >
           <Outlet />
         </main>
-
+ 
         {/* ─── Scroll to top button ─── */}
         {showScrollTop && (
           <button
@@ -232,7 +232,7 @@ export default function AppLayout() {
             <i className="bi bi-arrow-up"></i>
           </button>
         )}
-
+ 
       </div>
     </NotificationProvider>
   );

@@ -151,7 +151,11 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
 
             mb.Entity<AuditLog>()
-                .HasOne(l => l.Organization).WithMany().HasForeignKey(l => l.OrganizationID)
+     .HasOne(l => l.Organization).WithMany().HasForeignKey(l => l.OrganizationID)
+     .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Rule>()
+                .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
 
             mb.Entity<Claim>()

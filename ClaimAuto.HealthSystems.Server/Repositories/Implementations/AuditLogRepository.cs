@@ -16,10 +16,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<List<AuditLogResponseDto>> GetAllAsync(
-            int? userId,
-            string? resourceType,
-            string? action,
-            int limit)
+    int? userId,
+    string? resourceType,
+    string? action,
+    int limit,
+    int? userOrgId = null)
         {
             // Start with ALL audit logs — we will narrow it down below
             // Include(a => a.User) does a JOIN with the Users table
@@ -28,6 +29,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Include(a => a.User)
                 .AsQueryable();
 
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
             // FILTER 1 — If caller passes ?userId=3, show only logs for that user
             // Example: Admin wants to see everything "Staff John" has done
             if (userId.HasValue)
@@ -62,13 +66,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        public async Task<AuditLogResponseDto?> GetByIdAsync(int auditId)
+        public async Task<AuditLogResponseDto?> GetByIdAsync(int auditId, int? userOrgId = null)
         {
             // Find one specific audit log by its own ID
             // Useful when Admin clicks on a specific log entry to see full details
-            return await _db.AuditLogs
+            var query = _db.AuditLogs
                 .Include(a => a.User)
-                .Where(a => a.AuditID == auditId)
+                .Where(a => a.AuditID == auditId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(a => new AuditLogResponseDto
                 {
                     AuditID = a.AuditID,

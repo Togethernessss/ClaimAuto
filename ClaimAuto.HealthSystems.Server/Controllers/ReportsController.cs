@@ -29,8 +29,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllReports(
             [FromQuery] string? scope)
         {
+            var userOrgId = GetLoggedInUserOrgId();
             var response = await _reportRepository
-                .GetAllReportsAsync(scope);
+                .GetAllReportsAsync(scope, userOrgId);
 
             return Ok(response);
         }
@@ -44,8 +45,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetReportById(int id)
         {
+            var userOrgId = GetLoggedInUserOrgId();
             var response = await _reportRepository
-                .GetReportByIdAsync(id);
+                .GetReportByIdAsync(id, userOrgId);
 
             if (response == null)
                 return NotFound($"Report {id} not found.");
@@ -94,11 +96,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllKPIs()
         {
+            var userOrgId = GetLoggedInUserOrgId();
             var response = await _reportRepository
-                .GetAllKPIsAsync();
+                .GetAllKPIsAsync(userOrgId);
 
             return Ok(response);
         }
+     
 
 
         /// <summary>Updates a KPI record. Admin only.</summary>
@@ -129,8 +133,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllAuditPackages()
         {
+            var userOrgId = GetLoggedInUserOrgId();
             var response = await _reportRepository
-                .GetAllAuditPackagesAsync();
+                .GetAllAuditPackagesAsync(userOrgId);
 
             return Ok(response);
         }

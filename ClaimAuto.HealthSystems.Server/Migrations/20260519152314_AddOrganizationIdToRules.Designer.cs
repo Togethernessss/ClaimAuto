@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260519152314_AddOrganizationIdToRules")]
+    partial class AddOrganizationIdToRules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -907,6 +910,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ReconID"));
 
+                    b.Property<string>("BankStatementURI")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DiscrepanciesJSON")
                         .HasColumnType("nvarchar(max)");
 
@@ -924,9 +930,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<DateTime>("PeriodStart")
                         .HasColumnType("datetime2");
-
-                    b.Property<byte[]>("ReconFilePDF")
-                        .HasColumnType("varbinary(max)");
 
                     b.Property<DateTime?>("ReconciledAt")
                         .HasColumnType("datetime2");

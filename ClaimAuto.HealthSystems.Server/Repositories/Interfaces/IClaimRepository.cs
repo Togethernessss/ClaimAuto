@@ -32,7 +32,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Hospital submits a new claim
         // Validates: ProviderID, MemberID, PolicyID must exist
         // Returns null if validation fails
-        Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId);
+        Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId, int? userOrgId = null);
 
         // Used by: PUT /api/claims/{id}
         // Staff updates claim status or priority

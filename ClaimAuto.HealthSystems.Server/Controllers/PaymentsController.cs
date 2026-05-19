@@ -41,6 +41,7 @@ public class PaymentsController : BaseController
     {
         var userId = GetLoggedInUserId();
         var userRole = GetLoggedInUserRole();
+        var userOrgId = GetLoggedInUserOrgId();
 
         if (userId == null)
             return Unauthorized("Invalid token.");
@@ -48,7 +49,8 @@ public class PaymentsController : BaseController
         var response = await _paymentRepository
             .GetAllPaymentsAsync(
                 userId, userRole,
-                status, claimId);
+                status, claimId,
+                userOrgId);
 
         return Ok(response);
     }
@@ -60,8 +62,9 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPaymentById(int id)
     {
+        var userOrgId = GetLoggedInUserOrgId();
         var response = await _paymentRepository
-            .GetPaymentByIdAsync(id);
+            .GetPaymentByIdAsync(id, userOrgId);
 
         if (response == null)
             return NotFound($"Payment {id} not found.");
@@ -82,6 +85,8 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
+        var userOrgId = GetLoggedInUserOrgId();
+
         if (dto.ClaimID <= 0)
             return BadRequest("Invalid ClaimID.");
 
@@ -100,7 +105,8 @@ public class PaymentsController : BaseController
             Amount = dto.Amount,
             Currency = dto.Currency,
             PaymentMethod = paymentMethod,
-            ScheduledAt = dto.ScheduledAt
+            ScheduledAt = dto.ScheduledAt,
+            OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
         };
 
         var response = await _paymentRepository

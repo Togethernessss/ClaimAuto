@@ -15,9 +15,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _db = db;
         }
 
-        public async Task<List<PolicyResponseDto>> GetAllPoliciesAsync()
+        public async Task<List<PolicyResponseDto>> GetAllPoliciesAsync(int? userOrgId = null)
         {
-            return await _db.Policies
+            var query = _db.Policies.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(p => new PolicyResponseDto
                 {
                     PolicyID = p.PolicyID,
@@ -34,16 +40,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }).ToListAsync();
         }
 
-        public async Task<List<PolicyResponseDto>> GetActivePoliciesAsync()
+        public async Task<List<PolicyResponseDto>> GetActivePoliciesAsync(int? userOrgId = null)
         {
             var today = DateTime.UtcNow;
-
-            return await _db.Policies
+            var query = _db.Policies
                 .Where(p =>
                     p.Status == Model.PolicyStatus.Active &&
                     p.EffectiveFrom <= today &&
                     (p.EffectiveTo == null || p.EffectiveTo >= today)
-                )
+                );
+
+            // ── Multi-tenant filter (Phase 3)
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(p => new PolicyResponseDto
                 {
                     PolicyID = p.PolicyID,
@@ -60,10 +71,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        public async Task<PolicyResponseDto?> GetPolicyByIdAsync(int policyId)
+        public async Task<PolicyResponseDto?> GetPolicyByIdAsync(int policyId, int? userOrgId = null)
         {
-            return await _db.Policies
-                .Where(p => p.PolicyID == policyId)
+            var query = _db.Policies.Where(p => p.PolicyID == policyId);
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(p => new PolicyResponseDto
                 {
                     PolicyID = p.PolicyID,
@@ -88,9 +104,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .AnyAsync(p => p.PlanCode == planCode);
         }
 
-        public async Task<PolicyResponseDto> CreatePolicyAsync(CreatePolicyDto dto, int createdByUserId)
+        public async Task<PolicyResponseDto> CreatePolicyAsync(CreatePolicyDto dto, int createdByUserId, int? userOrgId = null)
         {
-            
+
             var policy = new Policy
             {
                 PlanCode = dto.PlanCode,
@@ -100,7 +116,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 OutOfPocketMax = dto.OutOfPocketMax,
                 EffectiveFrom = dto.EffectiveFrom,
                 EffectiveTo = dto.EffectiveTo,
-                Status = PolicyStatus.Active
+                Status = PolicyStatus.Active,
+                OrganizationID = userOrgId,    // ← Phase 4: tenant stamp
             };
 
             _db.Policies.Add(policy);
