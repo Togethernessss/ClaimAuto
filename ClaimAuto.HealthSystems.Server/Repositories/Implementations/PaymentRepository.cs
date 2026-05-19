@@ -88,13 +88,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                var remittance = new Remittance
+                // Remittance only for hospital claims — NOT for Reimbursement.
+                // For Reimbursement, the payee is the Policyholder directly, no remittance needed.
+                var claim = await _context.Claims
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ClaimID == payment.ClaimID);
+
+                if (claim != null && claim.ClaimType != ClaimType.Reimbursement)
                 {
-                    PaymentID = payment.PaymentID,
-                    GeneratedAt = DateTime.UtcNow,
-                    Status = RemittanceStatus.Generated
-                };
-                _context.Remittances.Add(remittance);
+                    var remittance = new Remittance
+                    {
+                        PaymentID = payment.PaymentID,
+                        GeneratedAt = DateTime.UtcNow,
+                        Status = RemittanceStatus.Generated
+                    };
+                    _context.Remittances.Add(remittance);
+                }
 
                 // ── Audit log ─────────────────────────────────────────
                 _context.AuditLogs.Add(new AuditLog

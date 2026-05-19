@@ -101,15 +101,17 @@ export default function UpdateStatusModal({
                   </Form.Text>
                 )}
 
-                {/* Validated warning — auto-adjudication trigger */}
+                {/* Validated warning — fraud screening + auto-adjudication trigger */}
                 {status === 'Validated' && (
                   <Alert variant="warning" className="small py-2 mt-2 mb-0">
                     <i className="bi bi-lightning-fill me-2"></i>
-                    <strong>Auto-Adjudication will trigger immediately.</strong>
+                    <strong>Fraud screening + Auto-Adjudication will trigger immediately.</strong>
                     <div className="mt-1" style={{ fontSize: 11 }}>
-                      The engine will evaluate this claim against all active rules.
-                      If the amount exceeds ₹5,00,000 it will be routed to the
-                      manual review queue instead.
+                      <strong>Step 1 — Fraud Screening:</strong> Claim is scored against 4 risk factors.
+                      If score ≥ 70, a fraud case is auto-opened and the claim is blocked for investigation.
+                      <br />
+                      <strong>Step 2 — Adjudication</strong> (only if fraud score is clean):
+                      The engine evaluates all active rules. Amounts over ₹5,00,000 go to manual review.
                     </div>
                   </Alert>
                 )}
@@ -141,10 +143,12 @@ export default function UpdateStatusModal({
             <i className="bi bi-info-circle me-1"></i>
             Flow: Submitted → Under Review →{' '}
             <span style={{ color: '#e65100', fontWeight: 600 }}>Validated</span>
+            {' '}→ <span style={{ color: '#dc3545', fontWeight: 600 }}>Fraud Screening</span>
             {' '}→ <span style={{ color: '#764ba2' }}>Auto-Adjudicated</span>
             {' '}→ Approved / Rejected → Paid
             <div className="mt-1">
-              Setting <strong>Validated</strong> triggers the adjudication engine automatically.
+              Setting <strong>Validated</strong> runs fraud screening first,
+              then adjudication if the claim is clean.
             </div>
           </div>
         </Modal.Body>

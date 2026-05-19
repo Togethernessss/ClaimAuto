@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,13 +15,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     {
         private readonly IClaimRepository _claimRepo;
         private readonly IAdjudicationRepository _adjRepo;
+        private readonly IFraudRepository _fraudRepo;
 
         public ClaimsController(
             IClaimRepository claimRepo,
-            IAdjudicationRepository adjRepo)
+            IAdjudicationRepository adjRepo,
+            IFraudRepository fraudRepo) 
         {
             _claimRepo = claimRepo;
             _adjRepo = adjRepo;
+            _fraudRepo  = fraudRepo; 
         }
 
         /// <summary>Returns claims visible to the current user. Admins see all; Policyholders see their own.</summary>
@@ -111,33 +115,81 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (updated == null)
                 return NotFound($"Claim with ID {id} was not found.");
 
-            // ── Auto-trigger adjudication when status = Validated ──────────────────
-            // Production flow: Staff sets Validated → engine runs automatically
-            // No manual "adjudicate" button needed on the frontend
+            // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on Validated ──────────────
             if (dto.Status == "Validated")
             {
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(id);
+                // Step 1 — Run fraud scoring (only if not already scored)
+                var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(id);
+                if (existingScore == null)
+                {
+                    var fraudScore = await _fraudRepo.ScoreClaimAsync(id);
 
+                    // High risk (≥70) → auto-open fraud case, block adjudication
+                    if (fraudScore.ScoreValue >= 70)
+                    {
+                        var fraudCase = new FraudCase
+                        {
+                            ClaimID = id,
+                            OpenedAt = DateTime.UtcNow,
+                            OpenedBy = userId.Value,
+                            Priority = FraudCasePriority.High,
+                            Status = FraudCaseStatus.Open,
+                            InvestigationNotes =
+                                $"Auto-opened on validation. " +
+                                $"Fraud score: {fraudScore.ScoreValue}/100. " +
+                                $"Factors: {fraudScore.FactorsJSON}"
+                        };
+
+                        var notification = new Notification
+                        {
+                            UserID = userId.Value,
+                            ClaimID = id,
+                            Message = $"Fraud alert on CLM-{id}: score {fraudScore.ScoreValue}/100. " +
+                                        $"Claim is blocked pending fraud investigation.",
+                            Category = NotificationCategory.Exception,
+                            Severity = NotificationSeverity.Critical,
+                            CreatedAt = DateTime.UtcNow,
+                            Status = NotificationStatus.Unread
+                        };
+
+                        await _fraudRepo.CreateFraudCaseWithNotificationAsync(
+                            fraudCase, notification);
+
+                        return Ok(new
+                        {
+                            claim = updated,
+                            fraudScore = fraudScore.ScoreValue,
+                            fraudDetected = true,
+                            autoAdjudicated = false,
+                            message = $"CLM-{id} validated but BLOCKED — " +
+                                             $"fraud score {fraudScore.ScoreValue}/100. " +
+                                             $"Fraud case opened for investigation."
+                        });
+                    }
+                }
+
+                // Step 2 — No fraud (or already scored clean) → run adjudication
+                var adjResult = await _adjRepo.AutoAdjudicateAsync(id);
                 if (adjResult != null)
                 {
                     var message = adjResult.Decision == "PendingReview"
-                        ? $"Claim CLM-{id} validated and routed to manual review queue " +
-                          $"(amount exceeds auto-adjudication threshold)."
-                        : $"Claim CLM-{id} validated and auto-adjudicated. " +
-                          $"Decision: {adjResult.Decision}.";
+                        ? $"CLM-{id} validated and routed to manual review queue."
+                        : $"CLM-{id} validated and auto-adjudicated. Decision: {adjResult.Decision}.";
 
                     return Ok(new
                     {
                         claim = updated,
                         adjudication = adjResult,
-                        message,
-                        autoAdjudicated = true
+                        fraudDetected = false,
+                        autoAdjudicated = true,
+                        message
                     });
                 }
             }
 
             return Ok(updated);
         }
+
 
         /// <summary>Permanently deletes a claim. Only Rejected claims can be deleted. Admin only.</summary>
         /// <param name="id">The claim ID to delete.</param>
