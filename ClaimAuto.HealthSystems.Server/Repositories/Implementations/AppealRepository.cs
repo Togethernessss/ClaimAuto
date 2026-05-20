@@ -69,11 +69,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 await _context.SaveChangesAsync();
 
                 // Step 2 — Auto-create Task for staff
-                var staffRoles = new[] { "InsuranceStaff", "Admin" };
                 var staffUser = await _context.Users
-    .FirstOrDefaultAsync(u =>
-        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
-        && u.Status == AccountStatus.Active);
+                    .FirstOrDefaultAsync(u =>
+                        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                        && u.Status == AccountStatus.Active);
 
                 if (staffUser != null)
                 {
@@ -115,7 +114,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             appeal.DecisionAt = DateTime.UtcNow;
             appeal.DecisionByID = decidedById;
 
-            // Parse outcome string → enum
             if (Enum.TryParse<AppealOutcome>(outcome, true, out var parsedOutcome))
             {
                 appeal.Outcome = parsedOutcome;
@@ -135,6 +133,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             appeal.Status = AppealStatus.Withdrawn;
             await _context.SaveChangesAsync();
             return appeal;
+        }
+
+        public async Task UpdateAppealAsync(Appeal appeal)
+        {
+            _context.Appeals.Update(appeal);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<Subrogation> CreateSubrogationAsync(Subrogation subrogation)

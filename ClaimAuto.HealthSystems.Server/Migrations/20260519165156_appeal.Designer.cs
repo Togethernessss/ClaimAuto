@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260519165156_appeal")]
+    partial class appeal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -53,17 +56,12 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<int?>("PerformedByID")
                         .HasColumnType("int");
 
                     b.HasKey("AdjID");
 
                     b.HasIndex("ClaimID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PerformedByID");
 
@@ -99,9 +97,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("FiledBy")
                         .HasColumnType("int");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("Outcome")
                         .HasColumnType("nvarchar(max)");
 
@@ -120,8 +115,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("DecisionByID");
 
                     b.HasIndex("FiledBy");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("Appeals");
                 });
@@ -142,9 +135,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("DetailsJSON")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("ResourceID")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -160,8 +150,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("AuditID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("UserID");
 
@@ -182,9 +170,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("PackageURI")
                         .HasColumnType("nvarchar(max)");
 
@@ -195,8 +180,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("PackageID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("AuditPackages");
                 });
@@ -228,9 +211,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
 
                     b.Property<int>("PolicyID")
                         .HasColumnType("int");
@@ -264,8 +244,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("ExternalClaimRef")
                         .IsUnique()
                         .HasFilter("[ExternalClaimRef] IS NOT NULL");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PolicyID");
 
@@ -401,9 +379,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -417,8 +392,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("AssignedTo");
 
                     b.HasIndex("ClaimID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("ClaimTasks");
                 });
@@ -435,9 +408,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int>("MemberID")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("OrganizationID")
                         .HasColumnType("int");
 
                     b.Property<int?>("PerformedByID")
@@ -459,8 +429,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("CheckID");
 
                     b.HasIndex("MemberID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PerformedByID");
 
@@ -492,9 +460,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("OpenedBy")
                         .HasColumnType("int");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("Outcome")
                         .HasColumnType("nvarchar(max)");
 
@@ -514,8 +479,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("ClaimID");
 
                     b.HasIndex("OpenedBy");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("FraudCases");
                 });
@@ -537,9 +500,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("ScoreValue")
                         .HasColumnType("decimal(5,2)");
 
@@ -550,8 +510,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("ScoreID");
 
                     b.HasIndex("ClaimID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("FraudScores");
                 });
@@ -575,9 +533,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("ReportingPeriod")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -586,8 +541,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("decimal(10,2)");
 
                     b.HasKey("KPIID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("KPIs");
                 });
@@ -625,9 +578,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<int>("PolicyID")
                         .HasColumnType("int");
 
@@ -643,8 +593,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("MemberNumber")
                         .IsUnique()
                         .HasFilter("[MemberNumber] IS NOT NULL");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PolicyID");
 
@@ -675,9 +623,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("datetime2");
 
@@ -696,60 +641,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("ClaimID");
 
-                    b.HasIndex("OrganizationID");
-
                     b.HasIndex("UserID");
 
                     b.ToTable("Notifications");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Organization", b =>
-                {
-                    b.Property<int>("OrganizationID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OrganizationID"));
-
-                    b.Property<string>("BrandColor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("LogoUrl")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("ShortCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("SupportEmail")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("SupportPhone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("OrganizationID");
-
-                    b.HasIndex("ShortCode")
-                        .IsUnique();
-
-                    b.ToTable("Organizations");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
@@ -815,9 +709,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime?>("ExecutedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<int>("PayeeID")
                         .HasColumnType("int");
 
@@ -839,8 +730,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("PaymentID");
 
                     b.HasIndex("ClaimID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PayeeID");
 
@@ -877,9 +766,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime?>("NotifiedAt7Days")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<decimal?>("OutOfPocketMax")
                         .HasColumnType("decimal(12,2)");
 
@@ -899,8 +785,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasKey("PolicyID");
 
-                    b.HasIndex("OrganizationID");
-
                     b.HasIndex("PlanCode")
                         .IsUnique();
 
@@ -915,11 +799,11 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ReconID"));
 
-                    b.Property<string>("DiscrepanciesJSON")
+                    b.Property<string>("BankStatementURI")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
+                    b.Property<string>("DiscrepanciesJSON")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PaymentsSummaryJSON")
                         .HasColumnType("nvarchar(max)");
@@ -933,15 +817,10 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime>("PeriodStart")
                         .HasColumnType("datetime2");
 
-                    b.Property<byte[]>("ReconFilePDF")
-                        .HasColumnType("varbinary(max)");
-
                     b.Property<DateTime?>("ReconciledAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("ReconID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.HasIndex("PerformedByID");
 
@@ -997,9 +876,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("MetricsJSON")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<string>("ParametersJSON")
                         .HasColumnType("nvarchar(max)");
 
@@ -1013,8 +889,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("ReportID");
 
                     b.HasIndex("GeneratedBy");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("Reports");
                 });
@@ -1049,9 +923,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
@@ -1070,8 +941,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("CreatedBy");
 
-                    b.HasIndex("OrganizationID");
-
                     b.ToTable("Rules");
                 });
 
@@ -1088,9 +957,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<DateTime>("InitiatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
 
                     b.Property<decimal?>("RecoverableAmount")
                         .HasColumnType("decimal(12,2)");
@@ -1111,8 +977,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("SubroID");
 
                     b.HasIndex("ClaimID");
-
-                    b.HasIndex("OrganizationID");
 
                     b.ToTable("Subrogations");
                 });
@@ -1137,12 +1001,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int>("LoginFailedAttempts")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("LoginLockoutEnd")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("MFACodeExpiry")
                         .HasColumnType("datetime2");
 
@@ -1163,9 +1021,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -1191,8 +1046,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("OrganizationID");
-
                     b.ToTable("Users");
                 });
 
@@ -1204,19 +1057,12 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "PerformedBy")
                         .WithMany()
                         .HasForeignKey("PerformedByID")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Claim");
-
-                    b.Navigation("Organization");
 
                     b.Navigation("PerformedBy");
                 });
@@ -1240,46 +1086,22 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Claim");
 
                     b.Navigation("DecisionBy");
 
                     b.Navigation("FiledByUser");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditLog", b =>
                 {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "User")
                         .WithMany("AuditLogs")
                         .HasForeignKey("UserID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Organization");
-
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditPackage", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Claim", b =>
@@ -1289,11 +1111,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasForeignKey("MemberID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Policy", "Policy")
                         .WithMany("Claims")
@@ -1308,8 +1125,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Member");
-
-                    b.Navigation("Organization");
 
                     b.Navigation("Policy");
 
@@ -1367,16 +1182,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("AssignedToUser");
 
                     b.Navigation("Claim");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.EligibilityCheck", b =>
@@ -1386,11 +1194,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasForeignKey("MemberID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "PerformedBy")
                         .WithMany()
@@ -1404,8 +1207,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Member");
-
-                    b.Navigation("Organization");
 
                     b.Navigation("PerformedBy");
 
@@ -1426,16 +1227,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Claim");
 
                     b.Navigation("OpenedByUser");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.FraudScore", b =>
@@ -1446,33 +1240,11 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Claim");
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.KPI", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Member", b =>
                 {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Policy", "Policy")
                         .WithMany("Members")
                         .HasForeignKey("PolicyID")
@@ -1483,8 +1255,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .WithMany()
                         .HasForeignKey("PolicyholderUserID")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
 
                     b.Navigation("Policy");
 
@@ -1498,11 +1268,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasForeignKey("ClaimID")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "User")
                         .WithMany()
                         .HasForeignKey("UserID")
@@ -1510,8 +1275,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Claim");
-
-                    b.Navigation("Organization");
 
                     b.Navigation("User");
                 });
@@ -1535,11 +1298,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "Payee")
                         .WithMany()
                         .HasForeignKey("PayeeID")
@@ -1548,34 +1306,15 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Navigation("Claim");
 
-                    b.Navigation("Organization");
-
                     b.Navigation("Payee");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Policy", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Reconciliation", b =>
                 {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "PerformedBy")
                         .WithMany()
                         .HasForeignKey("PerformedByID")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
 
                     b.Navigation("PerformedBy");
                 });
@@ -1599,14 +1338,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("GeneratedByUser");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Rule", b =>
@@ -1617,14 +1349,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("CreatedByUser");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Subrogation", b =>
@@ -1635,24 +1360,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Claim");
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.User", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany("Users")
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Claim", b =>
@@ -1681,11 +1389,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Navigation("Claims");
 
                     b.Navigation("EligibilityChecks");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Organization", b =>
-                {
-                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Payment", b =>
