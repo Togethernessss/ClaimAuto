@@ -110,9 +110,31 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             mb.Entity<Notification>()
-                .HasOne(n => n.Organization)
+    .HasOne(n => n.Organization)
+    .WithMany()
+    .HasForeignKey(n => n.OrganizationID)
+    .IsRequired(false)
+    .OnDelete(DeleteBehavior.Restrict);
+
+            // ── Multi-Tenant FK configs added in Phase 4.1 (post-merge) ──
+            mb.Entity<ClaimLine>()
+                .HasOne(cl => cl.Organization)
                 .WithMany()
-                .HasForeignKey(n => n.OrganizationID)
+                .HasForeignKey(cl => cl.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<ClaimDocument>()
+                .HasOne(cd => cd.Organization)
+                .WithMany()
+                .HasForeignKey(cd => cd.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Remittance>()
+                .HasOne(r => r.Organization)
+                .WithMany()
+                .HasForeignKey(r => r.OrganizationID)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 

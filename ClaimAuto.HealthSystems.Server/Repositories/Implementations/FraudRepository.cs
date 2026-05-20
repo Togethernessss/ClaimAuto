@@ -28,7 +28,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return await query.FirstOrDefaultAsync();
         }
 
-        public async Task<FraudScore> ScoreClaimAsync(int claimId)
+        // ══════════════════════════════════════════════════════════════════
+        //  SCORE CLAIM — 5-factor fraud engine, stamps tenant (Phase 4)
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<FraudScore> ScoreClaimAsync(int claimId, int? userOrgId = null)
         {
             var claim = await _context.Claims
                 .Include(c => c.ClaimLines)
@@ -44,6 +47,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Select(cl => cl.ServiceCode)
                 .ToList();
 
+            // Factor 1: duplicate service code
             var hasDuplicateServiceCode = await _context.ClaimLines
                 .Where(cl => cl.Claim.MemberID == claim.MemberID
                     && cl.ClaimID != claimId
@@ -56,6 +60,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 scoreValue += 25;
             }
 
+            // Factor 2: provider high billing frequency in last 30 days
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
 
             var providerClaimCount = await _context.Claims
@@ -69,6 +74,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 scoreValue += 20;
             }
 
+            // Factor 3: amount spike (≥300% of provider's average)
             var providerAvg = await _context.Claims
                 .Where(c => c.ProviderID == claim.ProviderID
                     && c.ClaimID != claimId)
@@ -84,6 +90,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
+            // Factor 4 & 5: first-time provider OR repeated procedure pattern
             var providerTotalClaims = await _context.Claims
                 .Where(c => c.ProviderID == claim.ProviderID)
                 .CountAsync();
@@ -116,7 +123,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ScoringModel = "RuleBasedV1",
                 ScoreValue = scoreValue,
                 FactorsJSON = JsonSerializer.Serialize(factors),
-                GeneratedAt = DateTime.UtcNow
+                GeneratedAt = DateTime.UtcNow,
+                OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
             };
 
             _context.FraudScores.Add(fraudScore);
@@ -129,7 +137,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var query = _context.FraudCases.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
                 query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
 
@@ -157,6 +164,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
             return await query.FirstOrDefaultAsync();
         }
+
         public async Task<FraudCase?> GetFraudCaseByClaimIdAsync(int claimId, int? userOrgId = null)
         {
             var query = _context.FraudCases.Where(fc => fc.ClaimID == claimId);

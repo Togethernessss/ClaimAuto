@@ -14,20 +14,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
     public class ClaimsController : BaseController
     {
         private readonly IClaimRepository _claimRepo;
-        private readonly IFraudRepository _fraudRepo;
         private readonly IAdjudicationRepository _adjRepo;
+        private readonly IFraudRepository _fraudRepo;
 
         public ClaimsController(
             IClaimRepository claimRepo,
-            IFraudRepository fraudRepo,
-            IAdjudicationRepository adjRepo)
+            IAdjudicationRepository adjRepo,
+            IFraudRepository fraudRepo)
         {
             _claimRepo = claimRepo;
-            _fraudRepo = fraudRepo;
             _adjRepo = adjRepo;
+            _fraudRepo = fraudRepo;
         }
 
-        /// <summary>Returns claims visible to the current user.</summary>
+        /// <summary>Returns claims visible to the current user. Admins see all; Policyholders see their own.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllClaims(
@@ -36,7 +36,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
-            var userOrgId = GetLoggedInUserOrgId();
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
 
             var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole, userOrgId);
             return Ok(claims);
@@ -48,7 +48,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
-            var userOrgId = GetLoggedInUserOrgId();
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
 
             var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
             if (claim == null)
@@ -56,9 +56,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claim);
         }
 
-        /// <summary>
-        /// Submits a new insurance claim and immediately runs fraud scoring + auto-adjudication.
-        /// </summary>
+        /// <summary>Submits a new insurance claim.</summary>
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -70,107 +68,25 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            var userOrgId = GetLoggedInUserOrgId();
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
 
             if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
-                var exists = await _claimRepo.ExternalClaimRefExistsAsync(dto.ExternalClaimRef);
+                // ★ FIX 2.4 — scope uniqueness check per tenant
+                var exists = await _claimRepo.ExternalClaimRefExistsAsync(dto.ExternalClaimRef, userOrgId);
                 if (exists)
                     return Conflict($"A claim with ExternalClaimRef '{dto.ExternalClaimRef}' already exists.");
             }
 
             var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value, userOrgId);
             if (created == null)
-                return BadRequest(
-                    "Validation failed — check that ProviderID (must be Hospital role), " +
-                    "MemberID, and PolicyID (must be Active) all exist and are valid.");
-
-            // ── Add claim lines BEFORE fraud/adjudication ──────────────────
-            if (dto.Lines != null && dto.Lines.Any())
-            {
-                foreach (var line in dto.Lines)
-                {
-                    await _claimRepo.AddClaimLineAsync(created.ClaimID, line, userId.Value);
-                }
-            }
-
-            // ── STEP 1: Auto fraud scoring ─────────────────────────────────
-            var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(created.ClaimID);
-            if (existingScore == null)
-            {
-                var fraudScore = await _fraudRepo.ScoreClaimAsync(created.ClaimID);
-
-                if (fraudScore.ScoreValue >= 70)
-                {
-                    var fraudCase = new FraudCase
-                    {
-                        ClaimID = created.ClaimID,
-                        OpenedAt = DateTime.UtcNow,
-                        OpenedBy = userId.Value,
-                        Priority = FraudCasePriority.High,
-                        Status = FraudCaseStatus.Open,
-                        InvestigationNotes =
-                            $"Auto-opened on submission. " +
-                            $"Fraud score: {fraudScore.ScoreValue}/100. " +
-                            $"Factors: {fraudScore.FactorsJSON}",
-                        OrganizationID = userOrgId,                      // ← SaaS FIX
-                    };
-
-                    var notification = new Notification
-                    {
-                        UserID = userId.Value,
-                        ClaimID = created.ClaimID,
-                        Message = $"Fraud alert on CLM-{created.ClaimID}: " +
-                                    $"score {fraudScore.ScoreValue}/100. " +
-                                    $"Claim is blocked pending fraud investigation.",
-                        Category = NotificationCategory.Exception,
-                        Severity = NotificationSeverity.Critical,
-                        CreatedAt = DateTime.UtcNow,
-                        Status = NotificationStatus.Unread
-                    };
-
-                    await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
-
-                    return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
-                    {
-                        claim = created,
-                        fraudDetected = true,
-                        fraudScore = fraudScore.ScoreValue,
-                        message = $"CLM-{created.ClaimID} submitted but BLOCKED — " +
-                                        $"fraud score {fraudScore.ScoreValue}/100. " +
-                                        $"Fraud case opened for investigation."
-                    });
-                }
-
-                // ── STEP 2: Auto adjudication (fraud score is clean) ───────
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(created.ClaimID);
-
-                var adjMessage = adjResult?.Decision switch
-                {
-                    "Denied" => $"CLM-{created.ClaimID} submitted and auto-denied by adjudication engine.",
-                    "PendingReview" => $"CLM-{created.ClaimID} submitted and routed to manual review queue.",
-                    "Paid" => $"CLM-{created.ClaimID} submitted and approved. Payment created automatically.",
-                    "Partial" => $"CLM-{created.ClaimID} submitted and partially approved. Payment created automatically.",
-                    _ => $"CLM-{created.ClaimID} submitted successfully."
-                };
-
-                return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
-                {
-                    claim = created,
-                    fraudDetected = false,
-                    autoAdjudicated = true,
-                    adjudication = adjResult,
-                    message = adjMessage
-                });
-            }
+                return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
+                                  "MemberID, and PolicyID (must be Active) all exist and are valid.");
 
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
-        /// <summary>
-        /// Updates a claim's PRIORITY only. Status is set automatically by the system.
-        /// Admin can additionally override status to Rejected in exceptional cases.
-        /// </summary>
+        /// <summary>Updates an existing claim. Admin and InsuranceStaff only.</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -179,21 +95,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
         {
             var userId = GetLoggedInUserId();
-            var userRole = GetLoggedInUserRole();
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
-
-            var userOrgId = GetLoggedInUserOrgId();                              // ← SaaS FIX
-
-            // ── Verify claim belongs to this org before updating ──            // ← SaaS FIX
-            var existing = await _claimRepo.GetClaimByIdAsync(id, userOrgId);    // ← SaaS FIX
-            if (existing == null)                                                 // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");           // ← SaaS FIX
-
-            // Staff can only change priority.
-            // Admin can additionally override status to Rejected.
-            if (userRole != "Admin" && !string.IsNullOrEmpty(dto.Status))
-                dto = new UpdateClaimDto { Priority = dto.Priority, Status = null };
 
             var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value);
             if (updated == null)
@@ -202,12 +105,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on Validated ──────────────
             if (dto.Status == "Validated")
             {
+                var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+
                 // Step 1 — Run fraud scoring (only if not already scored)
                 var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(id, userOrgId);
                 if (existingScore == null)
                 {
-                    var fraudScore = await _fraudRepo.ScoreClaimAsync(id);
+                    // ★ FIX 3.1 — pass tenant so new FraudScore is stamped
+                    var fraudScore = await _fraudRepo.ScoreClaimAsync(id, userOrgId);
 
+                    // High risk (≥70) → auto-open fraud case, block adjudication
                     if (fraudScore.ScoreValue >= 70)
                     {
                         var fraudCase = new FraudCase
@@ -233,7 +140,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                             Category = NotificationCategory.Exception,
                             Severity = NotificationSeverity.Critical,
                             CreatedAt = DateTime.UtcNow,
-                            Status = NotificationStatus.Unread
+                            Status = NotificationStatus.Unread,
+                            OrganizationID = userOrgId,
                         };
 
                         await _fraudRepo.CreateFraudCaseWithNotificationAsync(
@@ -252,7 +160,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     }
                 }
 
-                // Step 2 — No fraud → run adjudication
+                // Step 2 — No fraud (or already scored clean) → run adjudication
                 var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);
                 if (adjResult != null)
                 {
@@ -274,7 +182,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        /// <summary>Permanently deletes a claim. Only Rejected claims. Admin only.</summary>
+        /// <summary>Permanently deletes a claim. Only Rejected claims can be deleted. Admin only.</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -287,12 +195,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // ── Verify claim belongs to this org before deleting ──              // ← SaaS FIX
-            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
-            if (claim == null)                                                     // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+            // ★ FIX 2.3 — CRITICAL: tenant ownership check on delete
+            var userOrgId = GetLoggedInUserOrgId();
+            var result = await _claimRepo.DeleteClaimAsync(id, userId.Value, userOrgId);
 
-            var result = await _claimRepo.DeleteClaimAsync(id, userId.Value);
             return result switch
             {
                 "ok" => Ok($"Claim {id} has been deleted successfully."),
@@ -313,16 +219,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // ── Verify claim belongs to this org before adding line ──           // ← SaaS FIX
-            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
-            if (claim == null)                                                     // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
-
             var created = await _claimRepo.AddClaimLineAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found.");
 
-            return CreatedAtAction(nameof(GetClaimLines), new { id }, created);
+            return CreatedAtAction(nameof(GetClaimLines), new { id = id }, created);
         }
 
         /// <summary>Returns all line items for a specific claim.</summary>
@@ -330,12 +231,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimLines(int id)
         {
-            // ── Verify claim belongs to this org before returning lines ──       // ← SaaS FIX
-            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
-            if (claim == null)                                                     // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
-
-            var lines = await _claimRepo.GetClaimLinesAsync(id);
+            // ★ FIX 2.1 — tenant-scoped read
+            var userOrgId = GetLoggedInUserOrgId();
+            var lines = await _claimRepo.GetClaimLinesAsync(id, userOrgId);
             return Ok(lines);
         }
 
@@ -350,16 +248,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // ── Verify claim belongs to this org before uploading ──             // ← SaaS FIX
-            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
-            if (claim == null)                                                     // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
-
             var created = await _claimRepo.UploadDocumentAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found or user is invalid.");
 
-            return CreatedAtAction(nameof(GetClaimDocuments), new { id }, created);
+            return CreatedAtAction(nameof(GetClaimDocuments), new { id = id }, created);
         }
 
         /// <summary>Returns all documents attached to a specific claim.</summary>
@@ -367,12 +260,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimDocuments(int id)
         {
-            // ── Verify claim belongs to this org before returning docs ──        // ← SaaS FIX
-            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
-            if (claim == null)                                                     // ← SaaS FIX
-                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
-
-            var docs = await _claimRepo.GetClaimDocumentsAsync(id);
+            // ★ FIX 2.2 — tenant-scoped read
+            var userOrgId = GetLoggedInUserOrgId();
+            var docs = await _claimRepo.GetClaimDocumentsAsync(id, userOrgId);
             return Ok(docs);
         }
     }

@@ -33,5 +33,14 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [Required]
         public LineStatus LineStatus { get; set; } = LineStatus.Pending;
+
+        
+
+        // ─── Multi-Tenant (Phase 4) ────────────────────────────────────────
+        // Each claim line inherits its tenant from the parent Claim.
+        // Stored explicitly here for direct query filtering without a JOIN.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

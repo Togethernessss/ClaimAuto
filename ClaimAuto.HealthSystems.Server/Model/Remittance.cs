@@ -23,5 +23,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [Required]
         public RemittanceStatus Status { get; set; } = RemittanceStatus.Generated;
+
+        // ─── Multi-Tenant (Phase 4) ────────────────────────────────────────
+        // Each remittance inherits its tenant from the parent Payment.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

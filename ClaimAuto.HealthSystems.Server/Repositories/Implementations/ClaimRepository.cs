@@ -16,9 +16,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  GET ALL CLAIMS — with role-based filtering and optional filters
-        // ══════════════════════════════════════════════════════════════════
-        // ══════════════════════════════════════════════════════════════════
         //  GET ALL CLAIMS — with role-based + tenant filtering
         // ══════════════════════════════════════════════════════════════════
         public async Task<List<ClaimResponseDto>> GetAllClaimsAsync(
@@ -27,38 +24,30 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var query = _db.Claims.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
-            // When userOrgId is supplied (from Phase 4 controllers), restrict
-            // results to claims owned by that organization. When null (current
-            // callers), no filter — backward compatible.
+            // ── Multi-tenant filter (Phase 4) ────────────────────────────
             if (userOrgId.HasValue)
                 query = query.Where(c => c.OrganizationID == userOrgId.Value);
 
             // ── Role-based filtering ─────────────────────────────────────
-            // Hospital sees only claims they submitted
             if (userRole == "Hospital" && userId.HasValue)
                 query = query.Where(c => c.ProviderID == userId.Value);
-            // Policyholder sees only claims linked to their member record
+
             if (userRole == "Policyholder" && userId.HasValue)
             {
                 var myMemberIds = await _db.Members
-                .Where(m => m.PolicyholderUserID == userId.Value)
-                .Select(m => m.MemberID)
-                .ToListAsync();
+                    .Where(m => m.PolicyholderUserID == userId.Value)
+                    .Select(m => m.MemberID)
+                    .ToListAsync();
 
                 query = query.Where(c =>
-                    c.ProviderID == userId.Value ||          // their own reimbursement claims
-                    myMemberIds.Contains(c.MemberID)         // hospital claims for their members
+                    c.ProviderID == userId.Value ||
+                    myMemberIds.Contains(c.MemberID)
                 );
             }
 
-            // Admin and InsuranceStaff see all claims — no filter needed
-
-            // ── Optional status filter ───────────────────────────────────
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<ClaimStatus>(status, out var parsedStatus))
                 query = query.Where(c => c.Status == parsedStatus);
 
-            // ── Optional priority filter ─────────────────────────────────
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<ClaimPriority>(priority, out var parsedPriority))
                 query = query.Where(c => c.Priority == parsedPriority);
 
@@ -85,9 +74,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  GET CLAIM BY ID — full detail with lines, documents, adjudication
-        // ══════════════════════════════════════════════════════════════════
-        // ══════════════════════════════════════════════════════════════════
         //  GET CLAIM BY ID — full detail + tenant ownership check
         // ══════════════════════════════════════════════════════════════════
         public async Task<ClaimDetailResponseDto?> GetClaimByIdAsync(int claimId, int? userOrgId = null)
@@ -103,9 +89,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .ThenInclude(a => a.PerformedBy)
                 .AsQueryable();
 
-            // ── Multi-tenant ownership check (Phase 3) ───────────────────
-            // If userOrgId is supplied and doesn't match the claim's org,
-            // treat as "not found" (don't reveal cross-tenant existence).
             if (userOrgId.HasValue)
                 query = query.Where(c => c.OrganizationID == userOrgId.Value);
 
@@ -113,7 +96,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (claim == null) return null;
 
-            // Get the latest adjudication record (if any)
             var latestAdj = claim.AdjudicationRecords
                 .OrderByDescending(a => a.ExecutedAt)
                 .FirstOrDefault();
@@ -135,7 +117,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ReceivedAt = claim.ReceivedAt,
                 Notes = claim.Notes,
 
-                // ── Nested claim lines ───────────────────────────────
                 ClaimLines = claim.ClaimLines.Select(l => new ClaimLineResponseDto
                 {
                     LineID = l.LineID,
@@ -149,7 +130,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     LineStatus = l.LineStatus.ToString()
                 }).ToList(),
 
-                // ── Nested claim documents ───────────────────────────
                 ClaimDocuments = claim.ClaimDocuments.Select(d => new ClaimDocumentResponseDto
                 {
                     DocID = d.DocID,
@@ -162,7 +142,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = d.Status.ToString()
                 }).ToList(),
 
-                // ── Adjudication (null if not yet adjudicated) ───────
                 Adjudication = latestAdj == null ? null : new AdjudicationResponseDto
                 {
                     AdjID = latestAdj.AdjID,
@@ -179,12 +158,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  CHECK IF EXTERNAL CLAIM REF EXISTS — duplicate detection
+        //  CHECK IF EXTERNAL CLAIM REF EXISTS — per-tenant uniqueness (Phase 4)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<bool> ExternalClaimRefExistsAsync(string externalClaimRef)
+        public async Task<bool> ExternalClaimRefExistsAsync(string externalClaimRef, int? userOrgId = null)
         {
-            return await _db.Claims
-                .AnyAsync(c => c.ExternalClaimRef == externalClaimRef);
+            var query = _db.Claims.Where(c => c.ExternalClaimRef == externalClaimRef);
+
+            // ── Multi-tenant filter (Phase 4) ────────────────────────────
+            // Two different orgs may legitimately use the same ExternalClaimRef.
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            return await query.AnyAsync();
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -192,32 +177,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         public async Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId, int? userOrgId = null)
         {
-            // ── Validate Provider exists and is a Hospital ───────────────
-            // Allow Hospital for regular claims, Policyholder for reimbursement
             var provider = await _db.Users.FindAsync(dto.ProviderID);
             if (provider == null) return null;
 
             if (dto.ClaimType == "Reimbursement")
             {
-                // Policyholder submitting for out-of-pocket reimbursement
                 if (provider.Role != UserRole.Policyholder) return null;
             }
             else
             {
-                // Hospital submitting on behalf of patient
                 if (provider.Role != UserRole.Hospital) return null;
             }
 
-            // ── Validate Member exists ───────────────────────────────────
             var member = await _db.Members.FindAsync(dto.MemberID);
             if (member == null) return null;
 
-            // ── Validate Policy exists and is active ─────────────────────
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
                 return null;
 
-            // ── Parse enums from string ──────────────────────────────────
             if (!Enum.TryParse<ClaimType>(dto.ClaimType, out var claimType))
                 return null;
 
@@ -227,7 +205,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (!Enum.TryParse<SourceChannel>(dto.SourceChannel, out var sourceChannel))
                 return null;
 
-            // ── Create the claim ─────────────────────────────────────────
             var now = DateTime.UtcNow;
 
             var claim = new Claim
@@ -250,7 +227,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             _db.Claims.Add(claim);
 
-            // ── Audit log ────────────────────────────────────────────────
             var audit = new AuditLog
             {
                 UserID = submittedByUserId,
@@ -268,7 +244,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _db.AuditLogs.Add(audit);
             await _db.SaveChangesAsync();
 
-            // Update ResourceID with auto-generated ClaimID
             audit.ResourceID = claim.ClaimID.ToString();
             await _db.SaveChangesAsync();
 
@@ -306,7 +281,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var changes = new List<string>();
 
-            // Update Priority if provided and different
             if (!string.IsNullOrEmpty(dto.Priority))
             {
                 if (Enum.TryParse<ClaimPriority>(dto.Priority, out var newPriority)
@@ -317,8 +291,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
-            // Update Status if provided and different
-            // Only InsuranceStaff/Admin can change status — enforced by controller [Authorize]
             if (!string.IsNullOrEmpty(dto.Status))
             {
                 if (Enum.TryParse<ClaimStatus>(dto.Status, out var newStatus)
@@ -362,18 +334,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 SubmittedAt = claim.SubmittedAt
             };
         }
+
         // ══════════════════════════════════════════════════════════════════
-        //  DELETE CLAIM — only Rejected claims can be deleted
+        //  DELETE CLAIM — only Rejected claims, tenant-aware (Phase 4)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<string> DeleteClaimAsync(int claimId, int deletedByUserId)
+        public async Task<string> DeleteClaimAsync(int claimId, int deletedByUserId, int? userOrgId = null)
         {
-            var claim = await _db.Claims.FindAsync(claimId);
+            // Tenant-aware lookup: if userOrgId is supplied, the claim must belong to that org.
+            // Cross-tenant attempts get "notfound" (don't reveal existence across tenants).
+            var query = _db.Claims.Where(c => c.ClaimID == claimId);
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
             if (claim == null) return "notfound";
 
             if (claim.Status != ClaimStatus.Rejected)
                 return "notrejected";
 
-            // Audit log before deletion
             var audit = new AuditLog
             {
                 UserID = deletedByUserId,
@@ -387,7 +365,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
             _db.AuditLogs.Add(audit);
 
-            // Remove related records first (foreign key constraints)
             var lines = await _db.ClaimLines.Where(l => l.ClaimID == claimId).ToListAsync();
             _db.ClaimLines.RemoveRange(lines);
 
@@ -418,12 +395,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 LineBilledAmount = dto.LineBilledAmount,
                 DiagnosisCodesJSON = dto.DiagnosisCodesJSON,
                 ProcedureCodesJSON = dto.ProcedureCodesJSON,
-                LineStatus = LineStatus.Pending
+                LineStatus = LineStatus.Pending,
+                OrganizationID = claim.OrganizationID,   // ← Phase 4: inherit from parent claim
             };
 
             _db.ClaimLines.Add(line);
 
-            // FIX 3: AuditLog for every line added
             var audit = new AuditLog
             {
                 UserID = addedByUserId,
@@ -439,7 +416,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             await _db.SaveChangesAsync();
 
-            // Update ResourceID with actual LineID
             audit.ResourceID = line.LineID.ToString();
             await _db.SaveChangesAsync();
 
@@ -456,13 +432,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 LineStatus = line.LineStatus.ToString()
             };
         }
+
         // ══════════════════════════════════════════════════════════════════
-        //  GET CLAIM LINES — returns all line items for a claim
+        //  GET CLAIM LINES — tenant-scoped read (Phase 4)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<List<ClaimLineResponseDto>> GetClaimLinesAsync(int claimId)
+        public async Task<List<ClaimLineResponseDto>> GetClaimLinesAsync(int claimId, int? userOrgId = null)
         {
-            return await _db.ClaimLines
-                .Where(l => l.ClaimID == claimId)
+            var query = _db.ClaimLines
+                .Where(l => l.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(l => l.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(l => new ClaimLineResponseDto
                 {
                     LineID = l.LineID,
@@ -484,15 +466,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<ClaimDocumentResponseDto?> UploadDocumentAsync(
             int claimId, UploadDocumentDto dto, int uploadedByUserId)
         {
-            // Check if the claim exists
             var claim = await _db.Claims.FindAsync(claimId);
             if (claim == null) return null;
 
-            // Get uploader's name for the response
             var uploader = await _db.Users.FindAsync(uploadedByUserId);
             if (uploader == null) return null;
 
-            // Parse DocType enum
             if (!Enum.TryParse<DocType>(dto.DocType, out var docType))
                 return null;
 
@@ -504,7 +483,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 FileURI = dto.FileURI,
                 SHA256 = dto.SHA256,
                 UploadedAt = DateTime.UtcNow,
-                Status = DocStatus.Pending
+                Status = DocStatus.Pending,
+                OrganizationID = claim.OrganizationID,   // ← Phase 4: inherit from parent claim
             };
 
             _db.ClaimDocuments.Add(doc);
@@ -524,12 +504,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  GET CLAIM DOCUMENTS — returns all documents for a claim
+        //  GET CLAIM DOCUMENTS — tenant-scoped read (Phase 4)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId)
+        public async Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId, int? userOrgId = null)
         {
-            return await _db.ClaimDocuments
-                .Where(d => d.ClaimID == claimId)
+            var query = _db.ClaimDocuments
+                .Where(d => d.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(d => new ClaimDocumentResponseDto
                 {
                     DocID = d.DocID,
