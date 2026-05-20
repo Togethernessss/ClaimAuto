@@ -15,16 +15,24 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public DateTime PeriodEnd { get; set; }
 
-        public string? BankStatementURI { get; set; }
-
         public string? PaymentsSummaryJSON { get; set; }
 
         public string? DiscrepanciesJSON { get; set; }
 
         public DateTime? ReconciledAt { get; set; }
 
+        // ── PDF stored on creation ────────────────────────────────
+        public byte[]? ReconFilePDF { get; set; }
+
         public int? PerformedByID { get; set; }
         [ForeignKey("PerformedByID")]
         public User? PerformedBy { get; set; }
+
+       
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

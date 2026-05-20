@@ -40,7 +40,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // Admin, Staff, Hospital see all active policies
-            var allActive = await _policyRepo.GetActivePoliciesAsync();
+            // Admin, Staff, Hospital see all active policies — scoped to their org
+            var userOrgId = GetLoggedInUserOrgId();
+            var allActive = await _policyRepo.GetActivePoliciesAsync(userOrgId);
             return Ok(allActive);
         }
 
@@ -52,7 +54,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllPolicies()
         {
-            var policies = await _policyRepo.GetAllPoliciesAsync();
+            var userOrgId = GetLoggedInUserOrgId();
+            var policies = await _policyRepo.GetAllPoliciesAsync(userOrgId);
             return Ok(policies);
         }
 
@@ -67,12 +70,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPolicyById(int id)
         {
-            var policy = await _policyRepo.GetPolicyByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var policy = await _policyRepo.GetPolicyByIdAsync(id, userOrgId);
             if (policy == null)
                 return NotFound($"Policy with ID {id} was not found.");
             return Ok(policy);
         }
-
 
         /// <summary>Creates a new insurance policy. Admin only.</summary>
         /// <param name="dto">Policy details including plan code, coverage limits, and effective dates.</param>
@@ -94,7 +97,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (exists)
                 return Conflict($"A policy with PlanCode '{dto.PlanCode}' already exists.");
 
-            var created = await _policyRepo.CreatePolicyAsync(dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var created = await _policyRepo.CreatePolicyAsync(dto, userId.Value, userOrgId);
             return CreatedAtAction(nameof(GetPolicyById), new { id = created.PolicyID }, created);
         }
 
@@ -113,11 +117,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> UpdatePolicy(int id, [FromBody] UpdatePolicyDto dto)
         {
             var userId = GetLoggedInUserId();
+            var userOrgId = GetLoggedInUserOrgId();
+
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // First check the policy exists
-            var existing = await _policyRepo.GetPolicyByIdAsync(id);
+            // First check the policy exists (scoped to user's org)
+            var existing = await _policyRepo.GetPolicyByIdAsync(id, userOrgId);
             if (existing == null)
                 return NotFound($"Policy with ID {id} was not found.");
 

@@ -34,8 +34,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
 
-            var members = await _memberRepo.GetAllMembersAsync(policyId, status);
+            var members = await _memberRepo.GetAllMembersAsync(policyId, status, userOrgId);
 
             // Policyholder only sees members they own
             if (userRole == "Policyholder" && userId.HasValue)
@@ -62,7 +63,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetMemberById(int id)
         {
-            var member = await _memberRepo.GetMemberByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var member = await _memberRepo.GetMemberByIdAsync(id, userOrgId);
             if (member == null)
                 return NotFound($"Member with ID {id} was not found.");
             return Ok(member);
@@ -119,7 +121,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // Step 3: Create the member
-            var created = await _memberRepo.CreateMemberAsync(dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var created = await _memberRepo.CreateMemberAsync(dto, userId.Value, userOrgId);
             if (created == null)
                 return BadRequest("Policy not found or is not active. Cannot enroll member under an inactive/expired policy.");
 

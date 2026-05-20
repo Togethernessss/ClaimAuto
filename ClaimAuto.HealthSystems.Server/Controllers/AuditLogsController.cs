@@ -41,12 +41,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromQuery] string? action,
             [FromQuery] int limit = 500)
         {
+            
             // Guard: if someone sends limit=0 or limit=99999, reset to safe default
             if (limit <= 0 || limit > 1000)
                 limit = 500;
 
+            var userOrgId = GetLoggedInUserOrgId();
             var logs = await _auditLogRepository.GetAllAsync(
-                userId, resourceType, action, limit);
+                userId, resourceType, action, limit, userOrgId);
 
             return Ok(logs);
         }
@@ -63,7 +65,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAuditLogById(int id)
         {
-            var log = await _auditLogRepository.GetByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var log = await _auditLogRepository.GetByIdAsync(id, userOrgId);
 
             // If no log with that ID exists — return 404
             if (log == null)

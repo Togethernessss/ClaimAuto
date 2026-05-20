@@ -12,21 +12,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private readonly ApplicationDbContext _context;
         private readonly INotificationRepository _notificationRepo;
         private readonly IRemittancePdfService _pdfService;
+        private readonly IReconciliationPdfService _reconciliationPdfService;
 
+        // ── SINGLE constructor ────────────────────────────────────────
         public PaymentRepository(
             ApplicationDbContext context,
             INotificationRepository notificationRepo,
-            IRemittancePdfService pdfService)
+            IRemittancePdfService pdfService,
+            IReconciliationPdfService reconciliationPdfService)
         {
             _context = context;
             _notificationRepo = notificationRepo;
             _pdfService = pdfService;
+            _reconciliationPdfService = reconciliationPdfService;
         }
 
         // ── GET ALL PAYMENTS ──────────────────────────────────────────
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
     int? userId, string? userRole,
-    string? status, int? claimId)
+    string? status, int? claimId,
+    int? userOrgId = null)
         {
             var query = _context.Payments
                 .Include(p => p.Payee)
@@ -34,9 +39,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .ThenInclude(c => c.Member)
                 .AsQueryable();
 
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+        
+
             // Policyholder sees only payments tied to their own claims
-            // (i.e., the claim's member is enrolled under this Policyholder).
-            // Admin and InsuranceStaff fall through with no filter — they see all.
+            // Admin and InsuranceStaff fall through with no filter
             if (userRole == "Policyholder" && userId.HasValue)
             {
                 query = query.Where(p =>
@@ -59,14 +69,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payments.Select(p => MapPayment(p)).ToList();
         }
 
+
+        
         // ── GET PAYMENT BY ID ─────────────────────────────────────────
-        public async Task<PaymentResponseDto?> GetPaymentByIdAsync(int id)
+        public async Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null)
         {
-            var payment = await _context.Payments
+            var query = _context.Payments
                 .Include(p => p.Payee)
                 .Include(p => p.Claim)
                 .Include(p => p.Remittance)
-                .FirstOrDefaultAsync(p => p.PaymentID == id);
+                .AsQueryable();
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            var payment = await query.FirstOrDefaultAsync(p => p.PaymentID == id);
 
             return payment == null ? null : MapPayment(payment);
         }
@@ -541,7 +559,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PaymentsSummaryJSON = r.PaymentsSummaryJSON,
                 DiscrepanciesJSON = r.DiscrepanciesJSON,
                 ReconciledAt = r.ReconciledAt,
-                PerformedByName = r.PerformedBy?.Name ?? "System"
+                PerformedByName = r.PerformedBy?.Name ?? "System",
+                HasPDF = r.ReconFilePDF != null
+                                      && r.ReconFilePDF.Length > 0,
             }).ToList();
         }
 
@@ -551,7 +571,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CreateReconciliationDto dto,
                 int performedById)
         {
+            // Get payments in period for PDF generation
             var paymentsInPeriod = await _context.Payments
+                .Include(p => p.Payee)
                 .Where(p =>
                     p.CreatedAt >= dto.PeriodStart &&
                     p.CreatedAt <= dto.PeriodEnd)
@@ -580,7 +602,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 PeriodStart = dto.PeriodStart,
                 PeriodEnd = dto.PeriodEnd,
-                BankStatementURI = dto.BankStatementURI,
                 PaymentsSummaryJSON = summary,
                 DiscrepanciesJSON = discrepancies,
                 ReconciledAt = DateTime.UtcNow,
@@ -589,6 +610,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             _context.Reconciliations.Add(reconciliation);
             await _context.SaveChangesAsync();
+
+            // ── Generate and store PDF ────────────────────────────────
+            try
+            {
+                reconciliation.ReconFilePDF =
+                    _reconciliationPdfService
+                        .GenerateReconciliationPdf(
+                            reconciliation, paymentsInPeriod);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"[RECON PDF ERROR] " +
+                    $"ReconID {reconciliation.ReconID}: " +
+                    $"{ex.Message}");
+                reconciliation.ReconFilePDF = null;
+            }
 
             var performedByName = await _context.Users
                 .Where(u => u.UserID == performedById)
@@ -603,7 +642,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PaymentsSummaryJSON = reconciliation.PaymentsSummaryJSON,
                 DiscrepanciesJSON = reconciliation.DiscrepanciesJSON,
                 ReconciledAt = reconciliation.ReconciledAt,
-                PerformedByName = performedByName
+                PerformedByName = performedByName,
+                HasPDF = reconciliation.ReconFilePDF != null
+                                      && reconciliation.ReconFilePDF.Length > 0,
             };
         }
 
@@ -614,6 +655,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync(r => r.PaymentID == paymentId);
 
             return remittance?.RemitFilePDF;
+        }
+
+        // ── GET RECONCILIATION PDF — reads from DB ────────────────────
+        public async Task<byte[]?> GetReconciliationPdfAsync(int reconId)
+        {
+            var reconciliation = await _context.Reconciliations
+                .FirstOrDefaultAsync(r => r.ReconID == reconId);
+
+            return reconciliation?.ReconFilePDF;
         }
 
         // ── PRIVATE HELPERS ───────────────────────────────────────────

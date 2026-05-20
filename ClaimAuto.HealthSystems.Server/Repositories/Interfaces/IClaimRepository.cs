@@ -9,12 +9,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: GET /api/claims
         // Returns all claims with optional filters
         // Role-based: Hospital sees own claims, Policyholder sees own, Staff/Admin see all
+        // Used by: GET /api/claims
+        // Returns all claims with optional filters.
+        // Role-based: Hospital sees own claims, Policyholder sees own, Staff/Admin see all.
+        // userOrgId (Phase 3): when supplied, filters out claims that don't belong to that organization.
+        // Backward-compatible — pass null (default) to skip the tenant filter.
         Task<List<ClaimResponseDto>> GetAllClaimsAsync(string? status, string? priority,
-            int? userId, string? userRole);
+            int? userId, string? userRole,
+            int? userOrgId = null);
 
         // Used by: GET /api/claims/{id}
-        // Returns full claim detail — lines, documents, adjudication
-        Task<ClaimDetailResponseDto?> GetClaimByIdAsync(int claimId);
+        // Returns full claim detail — lines, documents, adjudication.
+        // userOrgId (Phase 3): when supplied, returns null if claim doesn't belong to that organization.
+        Task<ClaimDetailResponseDto?> GetClaimByIdAsync(int claimId, int? userOrgId = null);
 
         // ── CLAIM — WRITE operations ────────────────────────────────────
 
@@ -25,7 +32,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Hospital submits a new claim
         // Validates: ProviderID, MemberID, PolicyID must exist
         // Returns null if validation fails
-        Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId);
+        Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId, int? userOrgId = null);
 
         // Used by: PUT /api/claims/{id}
         // Staff updates claim status or priority

@@ -16,12 +16,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
         public async Task<List<ClaimTasks>> GetAllTasksAsync(int? assignedTo,
-            string? status,
-            string? priority,
-            int? userId,
-            string role)
+    string? status,
+    string? priority,
+    int? userId,
+    string role,
+    int? userOrgId = null)
         {
-            var query = _context.ClaimTasks.AsQueryable();  
+            var query = _context.ClaimTasks.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(t => t.OrganizationID == userOrgId.Value);
+
+            if (role != "Admin")
+            {
+                query = query.Where(t => t.AssignedTo == userId);
+            }
             if (role != "Admin")
             {
                 query = query.Where(t => t.AssignedTo == userId);
@@ -45,16 +55,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
 
         }
-        public async Task<List<ClaimTasks>> GetOverdueTasksAsync()
+        public async Task<List<ClaimTasks>> GetOverdueTasksAsync(int? userOrgId = null)
         {
-            return await _context.ClaimTasks
-                .Where(t => t.DueDate < DateTime.UtcNow && t.Status != Model.TaskStatus.Completed)
-                .ToListAsync();
+            var query = _context.ClaimTasks
+                .Where(t => t.DueDate < DateTime.UtcNow && t.Status != Model.TaskStatus.Completed);
+            if (userOrgId.HasValue)
+                query = query.Where(t => t.OrganizationID == userOrgId.Value);
+            return await query.ToListAsync();
         }
-        public async Task<ClaimTasks> GetTaskByIdAsync(int id)
+        public async Task<ClaimTasks> GetTaskByIdAsync(int id, int? userOrgId = null)
         {
-            return await _context.ClaimTasks.FindAsync(id);
-
+            var query = _context.ClaimTasks.Where(t => t.TaskID == id);
+            if (userOrgId.HasValue)
+                query = query.Where(t => t.OrganizationID == userOrgId.Value);
+            return await query.FirstOrDefaultAsync();
         }
         public async Task<ClaimTasks> UpdateTaskAsync(int id, UpdateTaskDto dto)
         {

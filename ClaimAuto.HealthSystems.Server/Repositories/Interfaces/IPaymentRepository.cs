@@ -9,8 +9,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             int? userId,
             string? userRole,
             string? status,
-            int? claimId);
-        Task<PaymentResponseDto?> GetPaymentByIdAsync(int id);
+            int? claimId,
+            int? userOrgId = null);
+        Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null);
 
         Task<PaymentResponseDto> CreatePaymentAsync(
             Payment payment,
@@ -56,5 +57,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             int performedById);
 
         Task<byte[]?> GetRemittancePdfAsync(int paymentId);
+
+        Task<byte[]?> GetReconciliationPdfAsync(int reconId);
     }
 }

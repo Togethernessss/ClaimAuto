@@ -12,6 +12,10 @@ import EmptyStatePanel from '../../components/dashboard/EmptyStatePanel';
 import SectionHeader from '../../components/dashboard/SectionHeader';
 import QuickAccessGrid from '../../components/dashboard/QuickAccessGrid';
 import { getAllKPIs } from '../../services/reports/reportService';
+import { getAllClaims } from '../../services/claims/claimService';
+import { getAllTasks } from '../../services/tasks/taskService';
+import { getAllFraudCases } from '../../services/fraud/fraudService';
+import { getAllAppeals } from '../../services/appeals/appealService';
 
 export default function StaffDashboard() {
   const { user } = useAuth();
@@ -23,41 +27,68 @@ export default function StaffDashboard() {
   const [kpis,        setKpis]        = useState([]);
   const [kpisLoading, setKpisLoading] = useState(true);
 
+  const [pendingClaims, setPendingClaims] = useState(null);
+  const [myTasks,       setMyTasks]       = useState(null);
+  const [fraudAlerts,   setFraudAlerts]   = useState(null);
+  const [openAppeals,   setOpenAppeals]   = useState(null);
+  const [statsLoading,  setStatsLoading]  = useState(true);
+
   useEffect(() => {
     getAllKPIs()
       .then((data) => setKpis(data))
       .catch(() => setKpis([]))
       .finally(() => setKpisLoading(false));
+
+    Promise.allSettled([
+      getAllClaims('Submitted'),
+      getAllTasks(null, 'Pending'),
+      getAllFraudCases('Open'),
+      getAllAppeals(),
+    ]).then(([claimsRes, tasksRes, fraudRes, appealsRes]) => {
+      if (claimsRes.status === 'fulfilled')
+        setPendingClaims(claimsRes.value.length);
+
+      if (tasksRes.status === 'fulfilled')
+        setMyTasks(tasksRes.value.length);
+
+      if (fraudRes.status === 'fulfilled')
+        setFraudAlerts(fraudRes.value.length);
+
+      if (appealsRes.status === 'fulfilled')
+        setOpenAppeals(
+          appealsRes.value.filter(
+            a => a.status === 'Filed' ||
+                 a.status === 'UnderReview'
+          ).length
+        );
+
+      setStatsLoading(false);
+    });
   }, []);
 
   function getKPI(name) {
     return kpis.find(k => k.name === name);
   }
 
-  // ── Percent — always raw value capped at 100 ──────────────────
   function getPercent(kpi) {
     if (!kpi || kpi.currentValue === 0) return 0;
     return Math.min(Math.round(kpi.currentValue), 100);
   }
 
-  // ── Status ────────────────────────────────────────────────────
   function getStatus(kpi, invertLower = false) {
     if (!kpi || kpi.currentValue === 0) return 'No data';
-    if (invertLower) {
+    if (invertLower)
       return kpi.currentValue <= kpi.target
         ? 'On target' : 'Below target';
-    }
     return kpi.currentValue >= kpi.target
       ? 'On target' : 'Below target';
   }
 
-  // ── Color — blue if on target, red if not ────────────────────
   function getColor(kpi, invertLower = false) {
     if (!kpi || kpi.currentValue === 0) return '#9e9e9e';
-    if (invertLower) {
+    if (invertLower)
       return kpi.currentValue <= kpi.target
         ? '#0d6efd' : '#ef4444';
-    }
     return kpi.currentValue >= kpi.target
       ? '#0d6efd' : '#ef4444';
   }
@@ -74,15 +105,16 @@ export default function StaffDashboard() {
 
       <div className="px-4 pb-4">
 
-        {false && (
+        {/* ── Priority Action Bar — only when fraud alerts exist ── */}
+        {!statsLoading && fraudAlerts > 0 && (
           <PriorityActionBar
             accentColor="danger"
-            icon="bi-exclamation-triangle-fill"
-            title="No urgent actions right now"
-            description="High-priority items will appear here."
-            buttonLabel="View All Priority Tasks"
-            buttonIcon="bi-list-stars"
-            onButtonClick={() => navigate('/tasks')}
+            icon="bi-shield-exclamation"
+            title={`${fraudAlerts} fraud alert${fraudAlerts > 1 ? 's' : ''} need investigation`}
+            description="High-risk claims have been flagged and require your review."
+            buttonLabel="View Fraud Cases"
+            buttonIcon="bi-shield-exclamation"
+            onButtonClick={() => navigate('/fraud')}
           />
         )}
 
@@ -91,41 +123,53 @@ export default function StaffDashboard() {
           <Col md={6} lg={3}>
             <StatCard
               label="Claims Pending"
-              value="—"
+              value={statsLoading ? '…' : pendingClaims ?? '—'}
               icon="bi-file-earmark-text"
               borderColor="primary"
               footerIcon="bi-clock"
-              footerText="No data yet"
+              footerText={statsLoading ? 'Loading…' :
+                pendingClaims === 0
+                  ? 'No pending claims'
+                  : `${pendingClaims} awaiting review`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
               label="My Tasks"
-              value="—"
+              value={statsLoading ? '…' : myTasks ?? '—'}
               icon="bi-list-check"
               borderColor="success"
               footerIcon="bi-clipboard-check"
-              footerText="No tasks assigned"
+              footerText={statsLoading ? 'Loading…' :
+                myTasks === 0
+                  ? 'All caught up!'
+                  : `${myTasks} task${myTasks !== 1 ? 's' : ''} pending`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
               label="Fraud Alerts"
-              value="—"
+              value={statsLoading ? '…' : fraudAlerts ?? '—'}
               icon="bi-shield-exclamation"
               borderColor="warning"
               footerIcon="bi-shield"
-              footerText="No active alerts"
+              footerText={statsLoading ? 'Loading…' :
+                fraudAlerts === 0
+                  ? 'No active alerts'
+                  : `${fraudAlerts} case${fraudAlerts !== 1 ? 's' : ''} open`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
               label="Appeals Open"
-              value="—"
+              value={statsLoading ? '…' : openAppeals ?? '—'}
               icon="bi-megaphone"
               borderColor="danger"
               footerIcon="bi-megaphone-fill"
-              footerText="No appeals"
+              footerText={statsLoading ? 'Loading…' :
+                openAppeals === 0
+                  ? 'No open appeals'
+                  : `${openAppeals} appeal${openAppeals !== 1 ? 's' : ''} open`}
             />
           </Col>
         </Row>
@@ -141,12 +185,9 @@ export default function StaffDashboard() {
               unit="%"
               label="Auto-Adjudication"
               target="Target: ≥ 80%"
-              status={kpisLoading ? 'Loading…' :
-                getStatus(adjKPI)}
-              color={kpisLoading ? '#9e9e9e' :
-                getColor(adjKPI)}
-              percent={kpisLoading ? 0 :
-                getPercent(adjKPI)}
+              status={kpisLoading ? 'Loading…' : getStatus(adjKPI)}
+              color={kpisLoading ? '#9e9e9e' : getColor(adjKPI)}
+              percent={kpisLoading ? 0 : getPercent(adjKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -156,12 +197,9 @@ export default function StaffDashboard() {
               unit="hrs"
               label="Average TAT"
               target="Target: ≤ 4 hrs"
-              status={kpisLoading ? 'Loading…' :
-                getStatus(tatKPI, true)}
-              color={kpisLoading ? '#9e9e9e' :
-                getColor(tatKPI, true)}
-              percent={kpisLoading ? 0 :
-                getPercent(tatKPI)}
+              status={kpisLoading ? 'Loading…' : getStatus(tatKPI, true)}
+              color={kpisLoading ? '#9e9e9e' : getColor(tatKPI, true)}
+              percent={kpisLoading ? 0 : getPercent(tatKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -171,12 +209,9 @@ export default function StaffDashboard() {
               unit="%"
               label="Denial Rate"
               target="Target: < 10%"
-              status={kpisLoading ? 'Loading…' :
-                getStatus(denialKPI, true)}
-              color={kpisLoading ? '#9e9e9e' :
-                getColor(denialKPI, true)}
-              percent={kpisLoading ? 0 :
-                getPercent(denialKPI)}
+              status={kpisLoading ? 'Loading…' : getStatus(denialKPI, true)}
+              color={kpisLoading ? '#9e9e9e' : getColor(denialKPI, true)}
+              percent={kpisLoading ? 0 : getPercent(denialKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -186,12 +221,9 @@ export default function StaffDashboard() {
               unit="%"
               label="Fraud Flag Rate"
               target="Target: < 5%"
-              status={kpisLoading ? 'Loading…' :
-                getStatus(fraudKPI, true)}
-              color={kpisLoading ? '#9e9e9e' :
-                getColor(fraudKPI, true)}
-              percent={kpisLoading ? 0 :
-                getPercent(fraudKPI)}
+              status={kpisLoading ? 'Loading…' : getStatus(fraudKPI, true)}
+              color={kpisLoading ? '#9e9e9e' : getColor(fraudKPI, true)}
+              percent={kpisLoading ? 0 : getPercent(fraudKPI)}
             />
           </Col>
         </Row>

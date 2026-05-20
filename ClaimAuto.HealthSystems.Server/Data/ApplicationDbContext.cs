@@ -8,8 +8,9 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
 
-        // Module 1
+        // Module 1 — Identity & Access Management
         public DbSet<User> Users { get; set; }
+        public DbSet<Organization> Organizations { get; set; }   // ← NEW: multi-tenant
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
 
@@ -57,6 +58,112 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
             mb.Entity<User>()
                 .HasIndex(u => u.Email).IsUnique();
+
+            // ── Organization: unique ShortCode + User-Organization relationship ──
+            mb.Entity<Organization>()
+                .HasIndex(o => o.ShortCode).IsUnique();
+
+            mb.Entity<User>()
+    .HasOne(u => u.Organization)
+    .WithMany(o => o.Users)
+    .HasForeignKey(u => u.OrganizationID)
+    .IsRequired(false)
+    .OnDelete(DeleteBehavior.Restrict);
+
+            // ─── Multi-Tenant Phase 1: 5 core entities ────────────────────
+            // Each operational entity has an optional Organization link.
+            // DeleteBehavior.Restrict prevents accidentally deleting an
+            // Organization while it still owns claims/policies/etc.
+            mb.Entity<Claim>()
+                .HasOne(c => c.Organization)
+                .WithMany()
+                .HasForeignKey(c => c.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Member>()
+                .HasOne(m => m.Organization)
+                .WithMany()
+                .HasForeignKey(m => m.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Policy>()
+                .HasOne(p => p.Organization)
+                .WithMany()
+                .HasForeignKey(p => p.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Payment>()
+                .HasOne(p => p.Organization)
+                .WithMany()
+                .HasForeignKey(p => p.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Appeal>()
+                .HasOne(a => a.Organization)
+                .WithMany()
+                .HasForeignKey(a => a.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Notification>()
+                .HasOne(n => n.Organization)
+                .WithMany()
+                .HasForeignKey(n => n.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ─── Multi-Tenant Phase 2: 11 secondary entities ─────────────
+            mb.Entity<FraudCase>()
+                .HasOne(f => f.Organization).WithMany().HasForeignKey(f => f.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<FraudScore>()
+                .HasOne(f => f.Organization).WithMany().HasForeignKey(f => f.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<ClaimTasks>()
+                .HasOne(t => t.Organization).WithMany().HasForeignKey(t => t.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<AdjudicationRecord>()
+                .HasOne(a => a.Organization).WithMany().HasForeignKey(a => a.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Subrogation>()
+                .HasOne(s => s.Organization).WithMany().HasForeignKey(s => s.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<EligibilityCheck>()
+                .HasOne(e => e.Organization).WithMany().HasForeignKey(e => e.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Reconciliation>()
+                .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Report>()
+                .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<KPI>()
+                .HasOne(k => k.Organization).WithMany().HasForeignKey(k => k.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<AuditPackage>()
+                .HasOne(p => p.Organization).WithMany().HasForeignKey(p => p.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<AuditLog>()
+     .HasOne(l => l.Organization).WithMany().HasForeignKey(l => l.OrganizationID)
+     .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Rule>()
+                .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
 
             mb.Entity<Claim>()
                 .HasIndex(c => c.ExternalClaimRef).IsUnique();

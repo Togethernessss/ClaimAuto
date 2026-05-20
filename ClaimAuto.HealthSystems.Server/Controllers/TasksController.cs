@@ -47,10 +47,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             int userId = GetCurrentUserId();
             string role = GetCurrentUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
 
             // Pass raw strings — your repository handles enum parsing
             var tasks = await _taskRepo.GetAllTasksAsync(
-                assignedTo, status, priority, userId, role);
+                assignedTo, status, priority, userId, role, userOrgId);
 
             var response = new List<TaskResponseDto>();
             foreach (var t in tasks)
@@ -83,7 +84,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetOverdueTasks()
         {
-            var overdueTasks = await _taskRepo.GetOverdueTasksAsync();
+            var userOrgId = GetLoggedInUserOrgId();
+            var overdueTasks = await _taskRepo.GetOverdueTasksAsync(userOrgId);
 
             var response = new List<TaskResponseDto>();
             foreach (var t in overdueTasks)
@@ -120,10 +122,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetTaskById(int id)
         {
-            var task = await _taskRepo.GetTaskByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var task = await _taskRepo.GetTaskByIdAsync(id, userOrgId);
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
-
             // Ownership check — staff can only view their own tasks
             string role = GetCurrentUserRole();
             if (role != "Admin" && task.AssignedTo != GetCurrentUserId())
@@ -168,6 +170,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (assignee == null)
                 return NotFound(new { message = $"User {dto.AssignedTo} not found." });
 
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+
             // Parse Priority string → TaskPriority enum
             if (!Enum.TryParse<TaskPriority>(dto.Priority, true, out var parsedPriority))
                 return BadRequest(new { message = $"Invalid Priority '{dto.Priority}'. Must be one of: {string.Join(", ", Enum.GetNames<TaskPriority>())}" });
@@ -188,8 +192,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 DueDate = dto.DueDate,
                 Priority = parsedPriority,           // ENUM value, not string
                 Status = TaskStatus.Pending,         // ENUM — server-controlled
-                CreatedAt = DateTime.UtcNow           // server-controlled
+                CreatedAt = DateTime.UtcNow,
+                OrganizationID = userOrgId,           // ← Phase 4: tenant stamp
             };
+            // server-controlled
+     
 
             var created = await _taskRepo.CreateTaskAsync(task);
 
@@ -231,7 +238,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> UpdateTask(
             int id, [FromBody] UpdateTaskDto dto)
         {
-            var task = await _taskRepo.GetTaskByIdAsync(id);
+            var task = await _taskRepo.GetTaskByIdAsync(id, GetLoggedInUserOrgId());
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
 
@@ -278,7 +285,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CompleteTask(int id)
         {
-            var task = await _taskRepo.GetTaskByIdAsync(id);
+            var task = await _taskRepo.GetTaskByIdAsync(id, GetLoggedInUserOrgId());
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
 
@@ -320,7 +327,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteTask(int id)
         {
-            var task = await _taskRepo.GetTaskByIdAsync(id);
+            var task = await _taskRepo.GetTaskByIdAsync(id, GetLoggedInUserOrgId());
             if (task == null)
                 return NotFound(new { message = $"Task {id} not found." });
 

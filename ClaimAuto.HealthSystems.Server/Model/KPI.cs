@@ -22,5 +22,12 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [MaxLength(50)]
         public string? ReportingPeriod { get; set; }
+
+        
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

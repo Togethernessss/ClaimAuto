@@ -41,8 +41,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             int userId = GetCurrentUserId();
             string role = GetCurrentUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
 
-            var appeals = await _appealRepo.GetAllAppealsAsync(userId, role);
+            var appeals = await _appealRepo.GetAllAppealsAsync(userId, role, userOrgId);
 
             var response = new List<AppealResponseDto>();
             foreach (var a in appeals)
@@ -82,10 +83,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAppealById(int id)
         {
-            var appeal = await _appealRepo.GetAppealByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, userOrgId);
             if (appeal == null)
                 return NotFound(new { message = $"Appeal {id} not found." });
-
             string role = GetCurrentUserRole();
             if (!IsStaffRole(role) && appeal.FiledBy != GetCurrentUserId())
                 return Forbid();
@@ -126,7 +127,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> FileAppeal([FromBody] CreateAppealDto dto)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
+            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID, GetLoggedInUserOrgId());
             if (claim == null)
                 return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
 
@@ -149,6 +150,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             int userId = GetCurrentUserId();
 
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+
             var appeal = new Appeal
             {
                 ClaimID = dto.ClaimID,
@@ -156,7 +159,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 FiledAt = DateTime.UtcNow,
                 Reason = dto.Reason,
                 DocumentsJSON = dto.DocumentsJSON,
-                Status = AppealStatus.Filed
+                Status = AppealStatus.Filed,
+                OrganizationID = userOrgId,           // ← Phase 4: tenant stamp
             };
 
             var created = await _appealRepo.FileAppealAsync(appeal);
@@ -165,7 +169,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // OLD: await _userRepo.GetUserByRoleAsync("ClaimsProcessor")
             // NEW: await _userRepo.GetUserByRoleAsync(UserRole.InsuranceStaff)
             // Your enum has "InsuranceStaff" not "ClaimsProcessor"
-            var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff);
+            var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff, GetLoggedInUserOrgId());
             var assignee = staffUsers.FirstOrDefault();
             if (assignee != null)
             {
@@ -219,7 +223,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ── FIX: Your enum has "InsuranceStaff", not "ClaimsProcessor" ──
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] DecideAppealDto dto)
         {
-            var appeal = await _appealRepo.GetAppealByIdAsync(id);
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, GetLoggedInUserOrgId());
             if (appeal == null)
                 return NotFound(new { message = $"Appeal {id} not found." });
 
@@ -238,7 +242,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // NEW: Set enum directly on the claim object and save
             if (parsedOutcome == AppealOutcome.Overturned)
             {
-                var claim = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID);
+                var claim = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID, GetLoggedInUserOrgId());
                 if (claim != null)
                 {
                     // Build an UpdateClaimDto according to your DTO definition.
@@ -311,7 +315,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateSubrogation([FromBody] CreateSubrogationDto dto)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
+            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID, GetLoggedInUserOrgId());
             if (claim == null)
                 return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
 

@@ -23,15 +23,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _notificationRepo = notificationRepo;
         }
 
-        // ── AUTO-ADJUDICATE ────────────────────────────────────────────────
-        public async Task<AdjudicationResponseDto?> AutoAdjudicateAsync(int claimId)
+        public async Task<AdjudicationResponseDto?> AutoAdjudicateAsync(int claimId, int? userOrgId = null)
         {
-            var claim = await _db.Claims
+            var query = _db.Claims
                 .Include(c => c.ClaimLines)
                 .Include(c => c.Member)
                 .Include(c => c.Policy)
                 .Include(c => c.Provider)
-                .FirstOrDefaultAsync(c => c.ClaimID == claimId);
+                .Where(c => c.ClaimID == claimId);
+
+            // ── Multi-tenant ownership check ──────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
 
             if (claim == null) return null;
 
@@ -65,8 +70,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CalculationsJSON = engineResult.CalculationsJSON,
                 AppliedRulesJSON = engineResult.AppliedRulesJSON,
                 Notes = $"Auto-adjudicated. Decision: {engineResult.Decision}. " +
-                                  $"Payable: ₹{engineResult.PayableAmount}.",
-                PerformedByID = null   // null = system auto
+                       $"Payable: ₹{engineResult.PayableAmount}.",
+                PerformedByID = null,
+                OrganizationID = claim.OrganizationID   // ← inherit from claim
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
@@ -160,14 +166,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         // ── MANUAL ADJUDICATE ──────────────────────────────────────────────
         public async Task<AdjudicationResponseDto?> ManualAdjudicateAsync(
-            ManualAdjudicateDto dto, int performedByUserId)
+    ManualAdjudicateDto dto, int performedByUserId, int? userOrgId = null)
         {
-            var claim = await _db.Claims
-                .Include(c => c.ClaimLines)
-                .Include(c => c.Member)
-                .Include(c => c.Provider)
-                .Include(c => c.Policy)
-                .FirstOrDefaultAsync(c => c.ClaimID == dto.ClaimID);
+            var query = _db.Claims
+                        .Include(c => c.ClaimLines)
+                        .Include(c => c.Member)
+                        .Include(c => c.Provider)
+                        .Include(c => c.Policy)
+                        .Where(c => c.ClaimID == dto.ClaimID);
+
+            // ── Multi-tenant ownership check ──────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
 
             if (claim == null) return null;
 
@@ -196,12 +208,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Decision = decision,
                 CalculationsJSON = calculationsJson,
                 AppliedRulesJSON = System.Text.Json.JsonSerializer.Serialize(new[]
-                {
+    {
                     new { source = "Manual", performedBy = staffName,
                           note   = dto.Notes ?? "No notes provided" }
                 }),
                 Notes = dto.Notes ?? $"Manually adjudicated by {staffName}.",
-                PerformedByID = performedByUserId
+                PerformedByID = performedByUserId,
+                OrganizationID = claim.OrganizationID   // ← inherit from claim
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
@@ -279,13 +292,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PerformedByName = staffName
             };
         }
-
-        // ── GET ADJUDICATION ───────────────────────────────────────────────
-        public async Task<AdjudicationResponseDto?> GetAdjudicationAsync(int claimId)
+        public async Task<AdjudicationResponseDto?> GetAdjudicationAsync(int claimId, int? userOrgId = null)
         {
-            var record = await _db.AdjudicationRecords
+            var query = _db.AdjudicationRecords
                 .Include(a => a.PerformedBy)
-                .Where(a => a.ClaimID == claimId)
+                .Where(a => a.ClaimID == claimId);
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+
+            var record = await query
                 .OrderByDescending(a => a.ExecutedAt)
                 .FirstOrDefaultAsync();
 
@@ -305,11 +322,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        // ── GET RULE TRACE ─────────────────────────────────────────────────
-        public async Task<List<RuleTraceDto>?> GetRuleTraceAsync(int claimId)
+        public async Task<List<RuleTraceDto>?> GetRuleTraceAsync(int claimId, int? userOrgId = null)
         {
-            var record = await _db.AdjudicationRecords
-                .Where(a => a.ClaimID == claimId)
+            var query = _db.AdjudicationRecords
+                .Where(a => a.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+
+            var record = await query
                 .OrderByDescending(a => a.ExecutedAt)
                 .FirstOrDefaultAsync();
 

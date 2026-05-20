@@ -7,6 +7,7 @@ export class CreateUserDto {
     phone = '',
     department = '',
     mfaEnabled = false,
+    organizationId = null,      // ← NEW: which insurance provider
   } = {}) {
     this.name = name;
     this.email = email;
@@ -15,5 +16,6 @@ export class CreateUserDto {
     this.phone = phone;
     this.department = department;
     this.mfaEnabled = mfaEnabled;
+    this.organizationId = organizationId;   // ← NEW
   }
 }

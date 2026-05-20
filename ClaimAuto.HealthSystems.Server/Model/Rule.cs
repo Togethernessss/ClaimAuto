@@ -36,7 +36,13 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [Required]
+      
         public RuleStatus Status { get; set; } = RuleStatus.Draft;
+
+        // ─── Multi-Tenant (Phase 4 finalization) ─────────────────────────
+        // Rules are per-organization. Each insurer defines its own adjudication policies.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }
-
