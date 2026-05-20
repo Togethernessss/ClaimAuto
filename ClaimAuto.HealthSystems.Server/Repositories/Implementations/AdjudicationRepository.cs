@@ -14,7 +14,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private readonly INotificationRepository _notificationRepo;
 
         public AdjudicationRepository(
-            ApplicationDbContext db, 
+            ApplicationDbContext db,
             AdjudicationService engine,
             INotificationRepository notificationRepo)
         {
@@ -40,7 +40,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (claim == null) return null;
 
+            // Accept Submitted or UnderReview (fraud-cleared path sends it back in UnderReview)
             if (claim.Status != ClaimStatus.Submitted &&
+                claim.Status != ClaimStatus.UnderReview &&
                 claim.Status != ClaimStatus.Validated)
             {
                 return new AdjudicationResponseDto
@@ -58,6 +60,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var engineResult = await _engine.EvaluateClaimAsync(claim, activeRules);
 
+            // ── Create adjudication record ────────────────────────────────
             var adjRecord = new AdjudicationRecord
             {
                 ClaimID = claimId,
@@ -73,31 +76,61 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
+            // ── Update claim status ───────────────────────────────────────
+            // Paid/Partial → Approved (payment pending staff execution)
+            // Denied       → Rejected (final)
+            // PendingReview → UnderReview (staff manual review queue)
             claim.Status = engineResult.Decision switch
             {
-                AdjDecision.Paid => ClaimStatus.Adjudicated,
+                AdjDecision.Paid => ClaimStatus.Approved,
                 AdjDecision.Denied => ClaimStatus.Rejected,
-                AdjDecision.Partial => ClaimStatus.Adjudicated,
-                AdjDecision.PendingReview => ClaimStatus.Submitted,
+                AdjDecision.Partial => ClaimStatus.Approved,
+                AdjDecision.PendingReview => ClaimStatus.UnderReview,
                 _ => claim.Status
             };
 
+            // ── Update claim line statuses ────────────────────────────────
             foreach (var line in claim.ClaimLines)
             {
                 line.LineStatus = engineResult.Decision switch
                 {
                     AdjDecision.Paid => LineStatus.Approved,
                     AdjDecision.Denied => LineStatus.Denied,
+                    AdjDecision.Partial => LineStatus.Approved,
                     _ => LineStatus.Pending
                 };
             }
 
+            // ── Auto-create Payment when claim is Approved ────────────────
+            // Staff's only remaining step: Authorize → Execute on /payments
+            if (engineResult.Decision == AdjDecision.Paid ||
+                engineResult.Decision == AdjDecision.Partial)
+            {
+                // For Reimbursement claims the payee is the Policyholder (ProviderID = their UserID)
+                // For all other claim types the payee is the Hospital provider
+                var payment = new Payment
+                {
+                    ClaimID = claimId,
+                    PayeeID = claim.ProviderID,
+                    Amount = engineResult.PayableAmount,
+                    Currency = claim.Currency,
+                    PaymentMethod = PaymentMethod.EFT,
+                    Status = PaymentStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                _db.Payments.Add(payment);
+
+                // Remittance is created when staff Executes the payment (in PaymentRepository)
+                // NOT here — remittance requires a reference number from the bank
+            }
+
+            // ── Audit log ─────────────────────────────────────────────────
             var systemUserId = await _db.Users
                 .Where(u => u.Role == UserRole.Admin && u.Status == AccountStatus.Active)
                 .Select(u => u.UserID)
                 .FirstOrDefaultAsync();
 
-            var audit = new AuditLog
+            _db.AuditLogs.Add(new AuditLog
             {
                 UserID = systemUserId > 0 ? systemUserId : claim.ProviderID,
                 Action = "AutoAdjudicate",
@@ -107,11 +140,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"payable\":{engineResult.PayableAmount}," +
                                $"\"rulesEvaluated\":{activeRules.Count}}}",
                 Timestamp = DateTime.UtcNow
-            };
-            _db.AuditLogs.Add(audit);
+            });
 
             await _db.SaveChangesAsync();
 
+            // ── Notifications ─────────────────────────────────────────────
             await SendAdjudicationNotificationsAsync(
                 claim,
                 engineResult.Decision,
@@ -127,10 +160,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CalculationsJSON = adjRecord.CalculationsJSON,
                 AppliedRulesJSON = adjRecord.AppliedRulesJSON,
                 Notes = adjRecord.Notes,
-                PerformedByName = "System (Auto)" 
+                PerformedByName = "System (Auto)"
             };
         }
 
+        // ── MANUAL ADJUDICATE ──────────────────────────────────────────────
         public async Task<AdjudicationResponseDto?> ManualAdjudicateAsync(
     ManualAdjudicateDto dto, int performedByUserId, int? userOrgId = null)
         {
@@ -150,13 +184,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (claim == null) return null;
 
             if (!Enum.TryParse<AdjDecision>(dto.Decision, true, out var decision))
-                decision = AdjDecision.Denied; 
+                decision = AdjDecision.Denied;
 
             var staffName = await _db.Users
                 .Where(u => u.UserID == performedByUserId)
                 .Select(u => u.Name)
                 .FirstOrDefaultAsync() ?? "Unknown Staff";
-
 
             var calculationsJson = dto.CalculationsJSON
                 ?? System.Text.Json.JsonSerializer.Serialize(new
@@ -177,7 +210,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 AppliedRulesJSON = System.Text.Json.JsonSerializer.Serialize(new[]
     {
                     new { source = "Manual", performedBy = staffName,
-                          note = dto.Notes ?? "No notes provided" }
+                          note   = dto.Notes ?? "No notes provided" }
                 }),
                 Notes = dto.Notes ?? $"Manually adjudicated by {staffName}.",
                 PerformedByID = performedByUserId,
@@ -185,15 +218,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
-
+            // ── Update claim status ───────────────────────────────────────
+            // Paid/Partial → Approved (not Adjudicated — Adjudicated is removed from flow)
             claim.Status = decision switch
             {
-                AdjDecision.Paid => ClaimStatus.Adjudicated,
+                AdjDecision.Paid => ClaimStatus.Approved,
                 AdjDecision.Denied => ClaimStatus.Rejected,
-                AdjDecision.Partial => ClaimStatus.Adjudicated,
-                _ => ClaimStatus.Adjudicated
+                AdjDecision.Partial => ClaimStatus.Approved,
+                _ => ClaimStatus.Rejected  // PendingReview from manual = Rejected
             };
-
 
             foreach (var line in claim.ClaimLines)
             {
@@ -206,7 +239,27 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
             }
 
-            var audit = new AuditLog
+            // ── Auto-create Payment on Paid/Partial ───────────────────────
+            var payableAmount = decision == AdjDecision.Paid || decision == AdjDecision.Partial
+                ? claim.TotalBilledAmount
+                : 0m;
+
+            if (decision == AdjDecision.Paid || decision == AdjDecision.Partial)
+            {
+                _db.Payments.Add(new Payment
+                {
+                    ClaimID = dto.ClaimID,
+                    PayeeID = claim.ProviderID,
+                    Amount = payableAmount,
+                    Currency = claim.Currency,
+                    PaymentMethod = PaymentMethod.EFT,
+                    Status = PaymentStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                });
+            }
+
+            // ── Audit log ─────────────────────────────────────────────────
+            _db.AuditLogs.Add(new AuditLog
             {
                 UserID = performedByUserId,
                 Action = "ManualAdjudicate",
@@ -220,17 +273,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     claimStatus = claim.Status.ToString()
                 }),
                 Timestamp = DateTime.UtcNow
-            };
-            _db.AuditLogs.Add(audit);
+            });
 
             await _db.SaveChangesAsync();
 
-            await SendAdjudicationNotificationsAsync(
-                claim,
-                decision,
-                decision == AdjDecision.Paid
-                    ? claim.TotalBilledAmount
-                    : 0);
+            await SendAdjudicationNotificationsAsync(claim, decision, payableAmount);
 
             return new AdjudicationResponseDto
             {
@@ -242,7 +289,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CalculationsJSON = adjRecord.CalculationsJSON,
                 AppliedRulesJSON = adjRecord.AppliedRulesJSON,
                 Notes = adjRecord.Notes,
-                PerformedByName = staffName 
+                PerformedByName = staffName
             };
         }
         public async Task<AdjudicationResponseDto?> GetAdjudicationAsync(int claimId, int? userOrgId = null)
@@ -303,19 +350,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     }
                 };
             }
+
             if (string.IsNullOrEmpty(record.AppliedRulesJSON))
                 return new List<RuleTraceDto>();
 
             try
             {
                 var rawTraces = System.Text.Json.JsonSerializer
-                    .Deserialize<List<System.Text.Json.JsonElement>>(
-                        record.AppliedRulesJSON);
+                    .Deserialize<List<System.Text.Json.JsonElement>>(record.AppliedRulesJSON);
 
-                if (rawTraces == null)
-                    return new List<RuleTraceDto>();
+                if (rawTraces == null) return new List<RuleTraceDto>();
 
-                var traces = rawTraces.Select(t => new RuleTraceDto
+                return rawTraces.Select(t => new RuleTraceDto
                 {
                     RuleID = t.TryGetProperty("ruleId", out var id) ? id.GetInt32() : 0,
                     RuleName = t.TryGetProperty("ruleName", out var name) ? name.GetString()! : "Unknown",
@@ -323,8 +369,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Result = t.TryGetProperty("result", out var res) ? res.GetString()! : "Unknown",
                     Reason = t.TryGetProperty("reason", out var rsn) ? rsn.GetString()! : "No reason recorded"
                 }).ToList();
-
-                return traces;
             }
             catch
             {
@@ -336,14 +380,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         RuleName = "Parse Error",
                         RuleType = "System",
                         Result   = "ERROR",
-                        Reason   = "Could not parse rule trace data. " +
-                                   "Raw data available in AppliedRulesJSON."
+                        Reason   = "Could not parse rule trace data."
                     }
                 };
             }
-
         }
 
+        // ── NOTIFICATIONS ──────────────────────────────────────────────────
         private async Task SendAdjudicationNotificationsAsync(
             Claim claim,
             AdjDecision decision,
@@ -357,37 +400,30 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             switch (decision)
             {
                 case AdjDecision.Paid:
-                    providerMessage = $"Claim {claim.ExternalClaimRef} has been approved. " +
-                                      $"Payment of ₹{payableAmount} is being processed.";
-                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) " +
-                                      $"has been approved. " +
+                    providerMessage = $"Claim {claim.ExternalClaimRef} approved. " +
+                                      $"Payment of ₹{payableAmount} created — pending staff authorization.";
+                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) approved. " +
                                       $"₹{payableAmount} will be paid to your provider.";
-                    category = NotificationCategory.Payment;
-                    severity = NotificationSeverity.Info;
+                    break;
+
+                case AdjDecision.Partial:
+                    providerMessage = $"Claim {claim.ExternalClaimRef} partially approved. " +
+                                      $"Payment of ₹{payableAmount} created — pending staff authorization.";
+                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) partially approved. " +
+                                      $"₹{payableAmount} will be paid to your provider.";
                     break;
 
                 case AdjDecision.Denied:
-                    providerMessage = $"Claim {claim.ExternalClaimRef} has been denied. " +
+                    providerMessage = $"Claim {claim.ExternalClaimRef} denied. " +
                                       $"Please review the adjudication decision.";
-                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) " +
-                                      $"has been denied. " +
+                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) denied. " +
                                       $"You may file an appeal if you disagree.";
                     category = NotificationCategory.Exception;
                     severity = NotificationSeverity.Warning;
                     break;
 
-                case AdjDecision.Partial:
-                    providerMessage = $"Claim {claim.ExternalClaimRef} partially approved. " +
-                                      $"Payment of ₹{payableAmount} is being processed.";
-                    memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) " +
-                                      $"was partially approved. " +
-                                      $"₹{payableAmount} will be paid to your provider.";
-                    category = NotificationCategory.Payment;
-                    severity = NotificationSeverity.Info;
-                    break;
-
                 case AdjDecision.PendingReview:
-
+                    // Notify staff — claim moved to UnderReview queue
                     var staffUser = await _db.Users
                         .Where(u => u.Role == UserRole.InsuranceStaff
                                  && u.Status == AccountStatus.Active)
@@ -400,18 +436,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                             UserID = staffUser.UserID,
                             ClaimID = claim.ClaimID,
                             Message = $"Claim {claim.ExternalClaimRef} requires manual review. " +
-                                       $"Billed amount ₹{claim.TotalBilledAmount} " +
-                                       $"exceeds auto-adjudication threshold.",
+                                       $"Billed amount ₹{claim.TotalBilledAmount} exceeds auto-adjudication threshold.",
                             Category = NotificationCategory.Exception,
                             Severity = NotificationSeverity.Warning
                         });
                     }
-                    return;
+                    return;   // no provider/member notification for PendingReview
 
                 default:
                     return;
             }
 
+            // Notify provider (hospital)
             await _notificationRepo.CreateAsync(new Notification
             {
                 UserID = claim.ProviderID,
@@ -421,6 +457,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Severity = severity
             });
 
+            // Notify policyholder (member's owner)
             var memberUser = await _db.Users
                 .Where(u => u.Name == claim.Member.Name
                          && u.Role == UserRole.Policyholder
