@@ -67,7 +67,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("PerformedByID");
 
-                    b.ToTable("AdjudicationRecords");
+                    b.ToTable("AdjudicationRecords", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Appeal", b =>
@@ -123,7 +123,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("Appeals");
+                    b.ToTable("Appeals", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditLog", b =>
@@ -165,7 +165,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("UserID");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditPackage", b =>
@@ -198,7 +198,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("AuditPackages");
+                    b.ToTable("AuditPackages", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Claim", b =>
@@ -275,7 +275,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("Status", "SubmittedAt");
 
-                    b.ToTable("Claims");
+                    b.ToTable("Claims", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimDocument", b =>
@@ -326,7 +326,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("VerifiedByID");
 
-                    b.ToTable("ClaimDocuments");
+                    b.ToTable("ClaimDocuments", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimLine", b =>
@@ -371,7 +371,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("ClaimID");
 
-                    b.ToTable("ClaimLines");
+                    b.ToTable("ClaimLines", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimTasks", b =>
@@ -420,7 +420,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("ClaimTasks");
+                    b.ToTable("ClaimTasks", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.EligibilityCheck", b =>
@@ -466,7 +466,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("PolicyID");
 
-                    b.ToTable("EligibilityChecks");
+                    b.ToTable("EligibilityChecks", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.FraudCase", b =>
@@ -517,7 +517,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("FraudCases");
+                    b.ToTable("FraudCases", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.FraudScore", b =>
@@ -553,7 +553,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("FraudScores");
+                    b.ToTable("FraudScores", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.KPI", b =>
@@ -589,7 +589,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("KPIs");
+                    b.ToTable("KPIs", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Member", b =>
@@ -650,7 +650,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("PolicyholderUserID");
 
-                    b.ToTable("Members");
+                    b.ToTable("Members", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Notification", b =>
@@ -700,7 +700,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("UserID");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Organization", b =>
@@ -749,7 +749,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("ShortCode")
                         .IsUnique();
 
-                    b.ToTable("Organizations");
+                    b.ToTable("Organizations", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.PasswordResetToken", b =>
@@ -787,7 +787,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("UserID");
 
-                    b.ToTable("PasswordResetTokens");
+                    b.ToTable("PasswordResetTokens", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Payment", b =>
@@ -848,7 +848,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsUnique()
                         .HasFilter("[ReferenceNumber] IS NOT NULL");
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Policy", b =>
@@ -904,7 +904,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("PlanCode")
                         .IsUnique();
 
-                    b.ToTable("Policies");
+                    b.ToTable("Policies", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Reconciliation", b =>
@@ -945,7 +945,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("PerformedByID");
 
-                    b.ToTable("Reconciliations");
+                    b.ToTable("Reconciliations", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Remittance", b =>
@@ -977,7 +977,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("PaymentID")
                         .IsUnique();
 
-                    b.ToTable("Remittances");
+                    b.ToTable("Remittances", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Report", b =>
@@ -1016,7 +1016,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("Reports");
+                    b.ToTable("Reports", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Rule", b =>
@@ -1072,7 +1072,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("Rules");
+                    b.ToTable("Rules", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.Subrogation", b =>
@@ -1114,7 +1114,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("Subrogations");
+                    b.ToTable("Subrogations", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.User", b =>
@@ -1193,7 +1193,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.HasIndex("OrganizationID");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AdjudicationRecord", b =>

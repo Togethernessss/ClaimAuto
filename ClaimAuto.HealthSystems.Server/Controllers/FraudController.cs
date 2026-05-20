@@ -73,7 +73,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (existing != null)
                 return Conflict(new { message = $"Claim {claimId} already scored. ScoreID: {existing.ScoreID}, Value: {existing.ScoreValue}" });
 
-            var fraudScore = await _fraudRepo.ScoreClaimAsync(claimId);
+            var fraudScore = await _fraudRepo.ScoreClaimAsync(claimId, userOrgId);
 
             int? caseId = null;
             if (fraudScore.ScoreValue >= 70)

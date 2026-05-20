@@ -37,5 +37,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [Required]
         public DocStatus Status { get; set; } = DocStatus.Pending;
+
+        // ─── Multi-Tenant (Phase 4) ────────────────────────────────────────
+        // Each document inherits its tenant from the parent Claim.
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }
