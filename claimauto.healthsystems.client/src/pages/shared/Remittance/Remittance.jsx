@@ -13,31 +13,38 @@ import RemittanceSummary  from './components/RemittanceSummary';
 import RemittanceTable    from './components/RemittanceTable';
 import AcknowledgeModal   from './components/AcknowledgeModal';
 
+// ── Default dateFrom — 30 days ago ────────────────────────────
+function getThirtyDaysAgo() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().split('T')[0];
+}
+
 export default function Remittance() {
   const { user } = useAuth();
   const isHospital = canAccess(user?.role, ['Hospital']);
 
-  // ── List state ────────────────────────────────────────────────────────────
+  // ── List state ────────────────────────────────────────────────
   const [remittances, setRemittances] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [successMsg,  setSuccessMsg]  = useState(null);
   const [errorMsg,    setErrorMsg]    = useState(null);
 
-  // ── Filter state ──────────────────────────────────────────────────────────
+  // ── Filter state — default last 30 days ───────────────────────
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateFrom,     setDateFrom]     = useState(getThirtyDaysAgo());
   const [dateTo,       setDateTo]       = useState('');
 
-  // ── Acknowledge modal state ───────────────────────────────────────────────
-  const [showAck,     setShowAck]     = useState(false);
-  const [ackTarget,   setAckTarget]   = useState(null);
-  const [ackError,    setAckError]    = useState(null);
-  const [ackLoading,  setAckLoading]  = useState(false);
+  // ── Acknowledge modal state ───────────────────────────────────
+  const [showAck,       setShowAck]       = useState(false);
+  const [ackTarget,     setAckTarget]     = useState(null);
+  const [ackError,      setAckError]      = useState(null);
+  const [ackLoading,    setAckLoading]    = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
-  // ── Load remittances ──────────────────────────────────────────────────────
+  // ── Load remittances ──────────────────────────────────────────
   const loadRemittances = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -62,7 +69,7 @@ export default function Remittance() {
     return () => clearTimeout(t);
   }, [loadRemittances]);
 
-  // Auto-clear toasts
+  // ── Auto-clear toasts ─────────────────────────────────────────
   useEffect(() => {
     if (!successMsg) return;
     const t = setTimeout(() => setSuccessMsg(null), 3000);
@@ -75,7 +82,7 @@ export default function Remittance() {
     return () => clearTimeout(t);
   }, [errorMsg]);
 
-  // ── Acknowledge ───────────────────────────────────────────────────────────
+  // ── Acknowledge ───────────────────────────────────────────────
   function openAcknowledgeModal(remittance) {
     setAckTarget(remittance);
     setAckError(null);
@@ -89,7 +96,7 @@ export default function Remittance() {
       await acknowledgeRemittance(ackTarget.paymentID);
       setShowAck(false);
       setSuccessMsg(
-        `Remittance ${formatId(ackTarget.remittanceID)} acknowledged successfully.`
+        `Remittance #REM-${ackTarget.remittanceID} acknowledged successfully.`
       );
       loadRemittances();
     } catch {
@@ -100,19 +107,17 @@ export default function Remittance() {
     }
   }
 
-  function formatId(id) { return `#REM-${id}`; }
-
+  // ── Clear filters — resets to default 30 days ─────────────────
   function handleClearFilters() {
     setSearch('');
     setStatusFilter('All');
-    setDateFrom('');
+    setDateFrom(getThirtyDaysAgo());
     setDateTo('');
   }
 
   return (
     <Container fluid className="p-0">
 
-      {/* Header */}
       <RemittanceHeader
         successMsg={successMsg}
         errorMsg={errorMsg}
@@ -120,12 +125,10 @@ export default function Remittance() {
 
       <div className="px-4 pb-4">
 
-        {/* Summary cards + alert banner */}
         {!loading && !error && (
           <RemittanceSummary remittances={remittances} />
         )}
 
-        {/* Filters */}
         <RemittanceFilters
           search={search}
           statusFilter={statusFilter}
@@ -141,7 +144,6 @@ export default function Remittance() {
           onClearFilters={handleClearFilters}
         />
 
-        {/* Table */}
         <RemittanceTable
           remittances={remittances}
           loading={loading}
@@ -153,7 +155,6 @@ export default function Remittance() {
 
       </div>
 
-      {/* Acknowledge Modal — Hospital only */}
       {isHospital && (
         <AcknowledgeModal
           show={showAck}

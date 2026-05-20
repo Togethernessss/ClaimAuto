@@ -9,23 +9,33 @@ export default function PaymentsHeader({
   onTabChange,
   onCreateClick,
 }) {
-  const { user } = useAuth();
-  const isStaff  = canAccess(user?.role, ['InsuranceStaff']);
-  const isAdmin  = canAccess(user?.role, ['Admin']);
+  const { user }     = useAuth();
+  const isStaff      = canAccess(user?.role, ['InsuranceStaff']);
+  const isAdmin      = canAccess(user?.role, ['Admin']);
   const canReconcile = isStaff || isAdmin;
+
+  // ── Title + subtitle change based on active tab ───────────────
+  const title    = activeTab === 'reconciliation'
+    ? 'Reconciliation'
+    : 'Payments';
+  const subtitle = activeTab === 'reconciliation'
+    ? 'Generate and download payment reconciliation reports · showing last 7 days'
+    : 'Manage claim disbursements — Pending → Authorized → Executed';
 
   return (
     <div className="px-4 pt-3 mb-0">
 
       {/* ── Title + New Payment button ──────────────────────── */}
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+      <div className="d-flex align-items-center
+        justify-content-between flex-wrap gap-3 mb-3">
         <div className="d-flex align-items-center">
-          <i className="bi bi-credit-card fs-2 text-primary me-3"></i>
+          <i className={`${activeTab === 'reconciliation'
+            ? 'bi-clipboard-data'
+            : 'bi-credit-card'} bi fs-2 text-primary me-3`}>
+          </i>
           <div>
-            <h3 className="fw-bold mb-0">Payments</h3>
-            <small className="text-muted">
-              Manage claim disbursements — Pending → Authorized → Executed
-            </small>
+            <h3 className="fw-bold mb-0">{title}</h3>
+            <small className="text-muted">{subtitle}</small>
           </div>
         </div>
 
@@ -34,7 +44,8 @@ export default function PaymentsHeader({
             className="btn fw-semibold text-white rounded-pill px-4"
             onClick={onCreateClick}
             style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background:
+                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               border: 'none',
             }}
           >
@@ -59,7 +70,8 @@ export default function PaymentsHeader({
             padding: '10px 20px',
             fontWeight: 600,
             fontSize: 14,
-            color: activeTab === 'payments' ? '#667eea' : '#6c757d',
+            color: activeTab === 'payments'
+              ? '#667eea' : '#6c757d',
             borderBottom: activeTab === 'payments'
               ? '2px solid #667eea' : '2px solid transparent',
             marginBottom: -2,
@@ -80,7 +92,8 @@ export default function PaymentsHeader({
               padding: '10px 20px',
               fontWeight: 600,
               fontSize: 14,
-              color: activeTab === 'reconciliation' ? '#667eea' : '#6c757d',
+              color: activeTab === 'reconciliation'
+                ? '#667eea' : '#6c757d',
               borderBottom: activeTab === 'reconciliation'
                 ? '2px solid #667eea' : '2px solid transparent',
               marginBottom: -2,

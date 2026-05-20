@@ -420,7 +420,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (dateTo.HasValue)
                 query = query.Where(
-                    r => r.GeneratedAt <= dateTo.Value);
+                    r => r.GeneratedAt <= dateTo.Value
+                        .Date.AddDays(1).AddTicks(-1));
 
             var remittances = await query
                 .OrderByDescending(r => r.GeneratedAt)
@@ -572,11 +573,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 int performedById)
         {
             // Get payments in period for PDF generation
+            var endOfDay = dto.PeriodEnd.Date.AddDays(1).AddTicks(-1);
+
             var paymentsInPeriod = await _context.Payments
                 .Include(p => p.Payee)
                 .Where(p =>
                     p.CreatedAt >= dto.PeriodStart &&
-                    p.CreatedAt <= dto.PeriodEnd)
+                    p.CreatedAt <= endOfDay)
                 .ToListAsync();
 
             var totalAmount = paymentsInPeriod
