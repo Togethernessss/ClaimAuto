@@ -1,4 +1,7 @@
-﻿/* #root {
+﻿/* Existing global styles remain above */
+
+/* Optional: keep these if you want root/table styling
+#root {
     max-width: 1280px;
     margin: 0 auto;
     padding: 2rem;
@@ -8,4 +11,204 @@
 th, td {
     padding-left: 1rem;
     padding-right: 1rem;
-} */
+}
+*/
+
+
+.profile-page {
+  background-color: #f3f0ff;
+  min-height: 100vh;
+}
+
+.card {
+  border-radius: 14px;
+}
+
+/* ── Card header / footer shared ── */
+.profile-card-header {
+  background: #fafafe;
+  border-bottom: 1px solid #ede9ff;
+}
+.profile-card-footer {
+  background: #fafafe;
+  border-top: 1px solid #ede9ff;
+}
+
+/* ── Edit Profile button ── */
+.profile-edit-btn {
+  border: 1.5px solid #667eea;
+  color: #667eea;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  padding: 4px 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.profile-edit-btn:hover {
+  background: #667eea;
+  color: #fff;
+}
+
+/* ── Inline Edit pill next to Phone ── */
+.profile-inline-edit {
+  border: 1px solid #c7c0f5;
+  color: #667eea;
+  background: #f0edff;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.6;
+}
+.profile-inline-edit:hover {
+  background: #667eea;
+  color: #fff;
+  border-color: #667eea;
+}
+
+/* ── Field input when editing phone ── */
+.field-input {
+  max-width: 190px;
+  border-radius: 8px;
+  border: 1.5px solid #c7c0f5;
+  font-size: 13px;
+}
+.field-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+  outline: none;
+}
+
+/* ── Profile field rows ── */
+.profile-fields {
+  display: flex;
+  flex-direction: column;
+}
+.profile-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0edff;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.profile-field-row:last-child {
+  border-bottom: none;
+}
+.field-icon {
+  color: #9ca3af;
+  width: 15px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.field-label {
+  color: #6b7280;
+  min-width: 105px;
+  flex-shrink: 0;
+}
+.field-value {
+  color: #111827;
+  font-weight: 500;
+}
+
+/* ── Account Status — green pill button ── */
+.status-active-btn {
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 20px;
+  border: none;
+  cursor: default;
+}
+
+/* ── Section icon wraps ── */
+.sec-icon-wrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #ede9ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5B4FD4;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.sec-icon-wrap.green { background: #dcfce7; color: #16a34a; }
+.sec-icon-wrap.blue  { background: #dbeafe; color: #2563eb; }
+
+/* ── MFA badges ── */
+.mfa-badge-disabled {
+  display: inline-flex;
+  align-items: center;
+  background: #fbbf24;
+  color: #451a03;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 8px;
+}
+.mfa-badge-enabled {
+  display: inline-flex;
+  align-items: center;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 8px;
+}
+
+/* ── MFA info boxes ── */
+.sec-info-box {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  line-height: 1.6;
+}
+.sec-warning { background: #fffbeb; color: #78350f; border: 1px solid #fde68a; }
+.sec-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+
+/* ── Security Score section ── */
+.score-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #ede9ff;
+}
+.score-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+.score-value {
+  font-size: 12px;
+  font-weight: 700;
+}
+.score-bar-bg {
+  height: 8px;
+  border-radius: 20px;
+  background: #f0edff;
+  border: 0.5px solid #ede9ff;
+  overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.4s ease;
+}
+.score-tick {
+  font-size: 10px;
+  color: #9ca3af;
+}
+.factor-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

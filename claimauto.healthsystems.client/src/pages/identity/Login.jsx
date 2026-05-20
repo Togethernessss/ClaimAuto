@@ -24,7 +24,12 @@ export default function Login() {
       if (data.requiresMFA) {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
-        login(data.token, data.user);
+        login(data.token, {
+          ...data.user,
+          lastLogin: new Date().toISOString(),
+          ipAddress: null,
+          location: null,
+        });
         if (data.user.mustChangePassword) {
           navigate('/force-change-password', { replace: true });
         } else {

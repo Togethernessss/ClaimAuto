@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';                  // ← add useEffect
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
@@ -15,14 +15,13 @@ export default function VerifyMfa() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ FIXED — run redirect AFTER render, not during
   useEffect(() => {
     if (!mfaToken) {
       navigate('/login', { replace: true });
     }
   }, [mfaToken, navigate]);
 
-  if (!mfaToken) return null;     // just render nothing while redirect happens
+  if (!mfaToken) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,7 +30,12 @@ export default function VerifyMfa() {
 
     try {
       const data = await verifyMfa(mfaToken, code);
-      login(data.token, data.user);
+      login(data.token, {
+        ...data.user,
+        lastLogin: new Date().toISOString(),
+        ipAddress: null,
+        location: null,
+      });
       navigate(getDashboardPath(data.user.role));
     } catch (err) {
       const apiMsg = err.response?.data?.message || err.response?.data || 'Verification failed.';
@@ -41,7 +45,6 @@ export default function VerifyMfa() {
     }
   };
 
-  // ... rest of return JSX stays exactly the same
   return (
     <div
       className="d-flex align-items-center justify-content-center min-vh-100"

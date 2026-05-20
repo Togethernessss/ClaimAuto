@@ -18,10 +18,11 @@ import Fraud from './pages/shared/Fraud/Fraud';
 import Payments from "./pages/shared/Payments/Payments";
 import Remittance from "./pages/shared/Remittance/Remittance";
 import Notifications from './pages/shared/Notifications/Notifications';
-import Profile from './pages/identity/Profile';
+//import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
+import Profile from './pages/profile/ProfilePage';
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="/payments"      element={<Payments />} />
             <Route path="/remittance"    element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
+            
 
             {/* Coming soon */}
           <Route path="/fraud" element={<Fraud />} />
