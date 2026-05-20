@@ -2,6 +2,7 @@
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
@@ -9,32 +10,32 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class ReportRepository : IReportRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly IReportPdfService _pdfService;
 
-        public ReportRepository(ApplicationDbContext context)
+        public ReportRepository(
+            ApplicationDbContext context,
+            IReportPdfService pdfService)
         {
             _context = context;
+            _pdfService = pdfService;
         }
 
         public async Task<List<ReportResponseDto>> GetAllReportsAsync(
-    string? scope, int? userOrgId = null)
+            string? scope, int? userOrgId = null)
         {
             var query = _context.Reports
                 .Include(r => r.GeneratedByUser)
                 .AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(r => r.OrganizationID == userOrgId.Value);
+                query = query.Where(
+                    r => r.OrganizationID == userOrgId.Value);
 
             if (!string.IsNullOrEmpty(scope))
-            {
                 if (Enum.TryParse<ReportScope>(
                     scope, true, out var scopeEnum))
-                {
                     query = query.Where(
                         r => r.Scope == scopeEnum);
-                }
-            }
 
             var reports = await query
                 .OrderByDescending(r => r.GeneratedAt)
@@ -48,23 +49,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 MetricsJSON = r.MetricsJSON,
                 GeneratedByName = r.GeneratedByUser?.Name ?? "System",
                 GeneratedAt = r.GeneratedAt,
-                ReportURI = r.ReportURI
+                HasPDF = r.ReportFilePDF != null
+                                  && r.ReportFilePDF.Length > 0,
             }).ToList();
         }
 
-        public async Task<ReportResponseDto?> GetReportByIdAsync(int id, int? userOrgId = null)
+        public async Task<ReportResponseDto?> GetReportByIdAsync(
+            int id, int? userOrgId = null)
         {
             var query = _context.Reports
                 .Include(r => r.GeneratedByUser)
                 .Where(r => r.ReportID == id);
 
             if (userOrgId.HasValue)
-                query = query.Where(r => r.OrganizationID == userOrgId.Value);
+                query = query.Where(
+                    r => r.OrganizationID == userOrgId.Value);
 
             var report = await query.FirstOrDefaultAsync();
 
-            if (report == null)
-                return null;
+            if (report == null) return null;
 
             return new ReportResponseDto
             {
@@ -72,16 +75,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Scope = report.Scope.ToString(),
                 ParametersJSON = report.ParametersJSON,
                 MetricsJSON = report.MetricsJSON,
-                GeneratedByName = report.GeneratedByUser?.Name ?? "System",
+                GeneratedByName = report.GeneratedByUser?.Name
+                                  ?? "System",
                 GeneratedAt = report.GeneratedAt,
-                ReportURI = report.ReportURI
+                HasPDF = report.ReportFilePDF != null
+                                  && report.ReportFilePDF.Length > 0,
             };
         }
 
         public async Task<ReportResponseDto> GenerateReportAsync(
-    GenerateReportDto dto,
-    int generatedById,
-    int? userOrgId = null)
+            GenerateReportDto dto,
+            int generatedById,
+            int? userOrgId = null)
         {
             Enum.TryParse<ReportScope>(
                 dto.Scope, true, out var scopeEnum);
@@ -100,11 +105,31 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 MetricsJSON = metrics,
                 GeneratedBy = generatedById,
                 GeneratedAt = DateTime.UtcNow,
-                OrganizationID = userOrgId,    // ← Phase 4: tenant stamp
+                OrganizationID = userOrgId,
             };
 
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
+
+            // ── Load navigation property for PDF ─────────────────────
+            await _context.Entry(report)
+                .Reference(r => r.GeneratedByUser)
+                .LoadAsync();
+
+            // ── Generate and store PDF ────────────────────────────────
+            try
+            {
+                report.ReportFilePDF =
+                    _pdfService.GenerateReportPdf(report);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"[REPORT PDF ERROR] " +
+                    $"ReportID {report.ReportID}: {ex.Message}");
+                report.ReportFilePDF = null;
+            }
 
             return new ReportResponseDto
             {
@@ -114,8 +139,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 MetricsJSON = report.MetricsJSON,
                 GeneratedByName = generatedByName,
                 GeneratedAt = report.GeneratedAt,
-                ReportURI = report.ReportURI
+                HasPDF = report.ReportFilePDF != null
+                                  && report.ReportFilePDF.Length > 0,
             };
+        }
+
+        // ── GET REPORT PDF ────────────────────────────────────────────
+        public async Task<byte[]?> GetReportPdfAsync(int id)
+        {
+            var report = await _context.Reports
+                .FirstOrDefaultAsync(r => r.ReportID == id);
+            return report?.ReportFilePDF;
         }
 
         private async Task<string> ComputeMetricsAsync(
@@ -126,23 +160,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 case ReportScope.Operational:
                     var totalClaims = await _context.Claims
                         .CountAsync();
-
-                    var autoPaid = await _context
-                        .AdjudicationRecords
+                    var autoPaid = await _context.AdjudicationRecords
                         .CountAsync(a =>
                             a.Decision == AdjDecision.Paid
                             && a.PerformedByID == null);
-
-                    var denied = await _context
-                        .AdjudicationRecords
+                    var denied = await _context.AdjudicationRecords
                         .CountAsync(a =>
                             a.Decision == AdjDecision.Denied);
-
-                    var denialRate = totalClaims > 0 ? Math.Round(
-                            (double)denied / totalClaims * 100, 2) : 0;
-
-                    return System.Text.Json.JsonSerializer
-                        .Serialize(new
+                    var denialRate = totalClaims > 0
+                        ? Math.Round(
+                            (double)denied / totalClaims * 100, 2)
+                        : 0;
+                    return System.Text.Json.JsonSerializer.Serialize(
+                        new
                         {
                             totalClaims,
                             autoPaid,
@@ -153,40 +183,28 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 case ReportScope.Financial:
                     var totalPayments = await _context.Payments
                         .CountAsync();
-
                     var totalPaid = await _context.Payments
                         .Where(p =>
                             p.Status == PaymentStatus.Executed)
                         .SumAsync(p => p.Amount);
-
                     var pendingPayments = await _context.Payments
                         .CountAsync(p =>
                             p.Status == PaymentStatus.Pending);
-
-                    return System.Text.Json.JsonSerializer
-                        .Serialize(new
-                        {
-                            totalPayments,
-                            totalPaid,
-                            pendingPayments
-                        });
+                    return System.Text.Json.JsonSerializer.Serialize(
+                        new { totalPayments, totalPaid, pendingPayments });
 
                 case ReportScope.Fraud:
                     var totalScored = await _context.FraudScores
                         .CountAsync();
-
                     var highRisk = await _context.FraudScores
                         .CountAsync(f => f.ScoreValue >= 70);
-
                     var casesOpened = await _context.FraudCases
                         .CountAsync();
-
                     var casesResolved = await _context.FraudCases
                         .CountAsync(f =>
                             f.Status == FraudCaseStatus.Resolved);
-
-                    return System.Text.Json.JsonSerializer
-                        .Serialize(new
+                    return System.Text.Json.JsonSerializer.Serialize(
+                        new
                         {
                             totalScored,
                             highRisk,
@@ -197,33 +215,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 case ReportScope.Regulatory:
                     var totalLogs = await _context.AuditLogs
                         .CountAsync();
-
                     var totalAdjudications = await _context
-                        .AdjudicationRecords
-                        .CountAsync();
-
-                    return System.Text.Json.JsonSerializer
-                        .Serialize(new
-                        {
-                            totalLogs,
-                            totalAdjudications
-                        });
+                        .AdjudicationRecords.CountAsync();
+                    return System.Text.Json.JsonSerializer.Serialize(
+                        new { totalLogs, totalAdjudications });
 
                 default:
                     return "{}";
             }
         }
 
-        public async Task<List<KPIResponseDto>> GetAllKPIsAsync(int? userOrgId = null)
+        public async Task<List<KPIResponseDto>> GetAllKPIsAsync(
+            int? userOrgId = null)
         {
             var query = _context.KPIs.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(k => k.OrganizationID == userOrgId.Value);
+                query = query.Where(
+                    k => k.OrganizationID == userOrgId.Value);
 
             var kpis = await query.ToListAsync();
-
             var totalClaims = await _context.Claims.CountAsync();
 
             if (totalClaims > 0)
@@ -233,31 +244,31 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         a.Decision == AdjDecision.Paid
                         && a.PerformedByID == null);
 
-                var autoAdjRate = Math.Round(
-                    (double)autoPaid / totalClaims * 100, 2);
+                var autoAdjRate = Math.Min(Math.Round(
+                    (double)autoPaid / totalClaims * 100, 2), 100);
 
                 var adjRecords = await _context.AdjudicationRecords
                     .Include(a => a.Claim)
                     .ToListAsync();
 
                 var avgTAT = adjRecords.Any()
-                    ? Math.Round(adjRecords
-                        .Average(a => (a.ExecutedAt -
-                            a.Claim.SubmittedAt).TotalHours), 2)
+                    ? Math.Round(adjRecords.Average(
+                        a => (a.ExecutedAt -
+                              a.Claim.SubmittedAt).TotalHours), 2)
                     : 0;
 
                 var deniedCount = await _context.AdjudicationRecords
                     .CountAsync(a =>
                         a.Decision == AdjDecision.Denied);
 
-                var denialRate = Math.Round(
-                    (double)deniedCount / totalClaims * 100, 2);
+                var denialRate = Math.Min(Math.Round(
+                    (double)deniedCount / totalClaims * 100, 2), 100);
 
                 var fraudFlagged = await _context.FraudScores
                     .CountAsync(f => f.ScoreValue >= 70);
 
-                var fraudRate = Math.Round(
-                    (double)fraudFlagged / totalClaims * 100, 2);
+                var fraudRate = Math.Min(Math.Round(
+                    (double)fraudFlagged / totalClaims * 100, 2), 100);
 
                 foreach (var kpi in kpis)
                 {
@@ -293,21 +304,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<KPIResponseDto?> UpdateKPIAsync(
-            int id,
-            UpdateKPIDto dto)
+            int id, UpdateKPIDto dto)
         {
             var kpi = await _context.KPIs
                 .FirstOrDefaultAsync(k => k.KPIID == id);
 
-            if (kpi == null)
-                return null;
+            if (kpi == null) return null;
 
             if (dto.Target.HasValue)
                 kpi.Target = dto.Target.Value;
-
             if (dto.CurrentValue.HasValue)
                 kpi.CurrentValue = dto.CurrentValue.Value;
-
             if (!string.IsNullOrEmpty(dto.ReportingPeriod))
                 kpi.ReportingPeriod = dto.ReportingPeriod;
 
@@ -324,13 +331,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        public async Task<List<AuditPackageResponseDto>> GetAllAuditPackagesAsync(int? userOrgId = null)
+        public async Task<List<AuditPackageResponseDto>>
+            GetAllAuditPackagesAsync(int? userOrgId = null)
         {
             var query = _context.AuditPackages.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+                query = query.Where(
+                    p => p.OrganizationID == userOrgId.Value);
 
             var packages = await query
                 .OrderByDescending(p => p.GeneratedAt)
@@ -347,40 +355,40 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }).ToList();
         }
 
-        public async Task<AuditPackageResponseDto>GenerateAuditPackageAsync(
-         DateTime periodStart,
-         DateTime periodEnd,
-         int generatedById,
-         int? userOrgId = null)
+        public async Task<AuditPackageResponseDto>
+            GenerateAuditPackageAsync(
+                DateTime periodStart,
+                DateTime periodEnd,
+                int generatedById,
+                int? userOrgId = null)
         {
             var auditLogCount = await _context.AuditLogs
                 .CountAsync(a =>
-                    a.Timestamp >= periodStart
-                    && a.Timestamp <= periodEnd);
+                    a.Timestamp >= periodStart &&
+                    a.Timestamp <= periodEnd);
 
-            var adjRecordCount = await _context
-                .AdjudicationRecords
+            var adjRecordCount = await _context.AdjudicationRecords
                 .CountAsync(a =>
-                    a.ExecutedAt >= periodStart
-                    && a.ExecutedAt <= periodEnd);
+                    a.ExecutedAt >= periodStart &&
+                    a.ExecutedAt <= periodEnd);
 
             var reportIds = await _context.Reports
                 .Where(r =>
-                    r.GeneratedAt >= periodStart
-                    && r.GeneratedAt <= periodEnd)
+                    r.GeneratedAt >= periodStart &&
+                    r.GeneratedAt <= periodEnd)
                 .Select(r => r.ReportID)
                 .ToListAsync();
 
-            var contents = System.Text.Json.JsonSerializer
-                .Serialize(new
+            var contents = System.Text.Json.JsonSerializer.Serialize(
+                new
                 {
                     auditLogs = auditLogCount,
                     adjudicationRecords = adjRecordCount,
                     reports = reportIds,
-                    periodStart = periodStart
-                        .ToString("yyyy-MM-dd"),
-                    periodEnd = periodEnd
-                        .ToString("yyyy-MM-dd")
+                    periodStart =
+                        periodStart.ToString("yyyy-MM-dd"),
+                    periodEnd =
+                        periodEnd.ToString("yyyy-MM-dd")
                 });
 
             var package = new AuditPackage
@@ -389,7 +397,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PeriodEnd = periodEnd,
                 ContentsJSON = contents,
                 GeneratedAt = DateTime.UtcNow,
-                OrganizationID = userOrgId,    // ← Phase 4: tenant stamp
+                OrganizationID = userOrgId,
             };
 
             _context.AuditPackages.Add(package);

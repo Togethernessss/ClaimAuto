@@ -24,6 +24,7 @@ import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
+import Reports from './pages/shared/Reports/Reports';
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/payments"      element={<Payments />} />
             <Route path="/remittance"    element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/reports" element={<Reports />} />
 
             {/* Coming soon */}
             <Route path="/fraud" element={<Fraud />} />

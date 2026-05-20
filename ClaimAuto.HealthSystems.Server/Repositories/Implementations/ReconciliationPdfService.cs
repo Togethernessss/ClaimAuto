@@ -8,6 +8,20 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 {
     public class ReconciliationPdfService : IReconciliationPdfService
     {
+        // ── IST timezone helper ───────────────────────────────────────
+        private static readonly TimeZoneInfo IST =
+            TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+
+        private static string ToIST(DateTime? utc, string format) =>
+            utc.HasValue
+                ? TimeZoneInfo.ConvertTimeFromUtc(utc.Value, IST)
+                    .ToString(format)
+                : "—";
+
+        private static string ToIST(DateTime utc, string format) =>
+            TimeZoneInfo.ConvertTimeFromUtc(utc, IST)
+                .ToString(format);
+
         public byte[] GenerateReconciliationPdf(
             Reconciliation reconciliation,
             List<Payment> payments)
@@ -78,8 +92,8 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                     .FontSize(15).Bold()
                                     .FontColor(darkText);
                                 c.Item().AlignRight()
-                                    .Text(reconciliation.ReconciledAt?
-                                        .ToString("dd MMM yyyy") ?? "—")
+                                    .Text(ToIST(reconciliation.ReconciledAt,
+                                        "dd MMM yyyy"))
                                     .FontSize(9)
                                     .FontColor(grayText);
                             });
@@ -132,15 +146,14 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 DetailRow("Report ID",
                                     $"#REC-{reconciliation.ReconID}");
                                 DetailRow("Period Start",
-                                    reconciliation.PeriodStart
-                                        .ToString("dd MMM yyyy"));
+                                    ToIST(reconciliation.PeriodStart,
+                                        "dd MMM yyyy"));
                                 DetailRow("Period End",
-                                    reconciliation.PeriodEnd
-                                        .ToString("dd MMM yyyy"));
+                                    ToIST(reconciliation.PeriodEnd,
+                                        "dd MMM yyyy"));
                                 DetailRow("Generated At",
-                                    reconciliation.ReconciledAt?
-                                        .ToString("dd MMM yyyy, HH:mm")
-                                        ?? "—");
+                                    ToIST(reconciliation.ReconciledAt,
+                                        "dd MMM yyyy, hh:mm tt"));
                             });
 
                             row.ConstantItem(24);
@@ -279,8 +292,9 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 table.Cell()
                                     .Border(0.5f).BorderColor(lightGray)
                                     .Padding(6)
-                                    .Text(p.ExecutedAt?
-                                        .ToString("dd MMM yyyy") ?? "—")
+                                    .Text(p.ExecutedAt.HasValue
+                                        ? ToIST(p.ExecutedAt.Value,
+                                            "dd MMM yyyy") : "—")
                                     .FontSize(9).FontColor(darkText);
                             }
                         });
@@ -305,8 +319,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 c.Item().Height(2);
                                 c.Item()
                                     .Text($"DOC-REC-{reconciliation.ReconID}" +
-                                          $"-{reconciliation.ReconciledAt?
-                                            .ToString("yyyyMMdd") ?? "na"}")
+                                          $"-{ToIST(reconciliation.ReconciledAt, "yyyyMMdd")}")
                                     .FontSize(9)
                                     .FontColor("#bbbbbb");
                             });
