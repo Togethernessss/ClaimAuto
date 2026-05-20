@@ -30,13 +30,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Returns claims visible to the current user.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-       public async Task<IActionResult> GetAllClaims(
+        public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
             [FromQuery] string? priority)
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+            var userOrgId = GetLoggedInUserOrgId();
 
             var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole, userOrgId);
             return Ok(claims);
@@ -48,7 +48,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+            var userOrgId = GetLoggedInUserOrgId();
 
             var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
             if (claim == null)
@@ -58,8 +58,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         /// <summary>
         /// Submits a new insurance claim and immediately runs fraud scoring + auto-adjudication.
-        /// Fraud score ≥ 70 → FraudCase opened, claim stays Submitted (blocked).
-        /// Fraud score &lt; 70 → adjudication runs automatically.
         /// </summary>
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -72,7 +70,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var userOrgId = GetLoggedInUserOrgId();
 
             if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
@@ -97,7 +95,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // ── STEP 1: Auto fraud scoring ─────────────────────────────────
-            // Only score if not already scored (idempotent guard)
             var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(created.ClaimID);
             if (existingScore == null)
             {
@@ -105,7 +102,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                 if (fraudScore.ScoreValue >= 70)
                 {
-                    // High fraud risk — block claim, open case, notify staff
                     var fraudCase = new FraudCase
                     {
                         ClaimID = created.ClaimID,
@@ -116,7 +112,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                         InvestigationNotes =
                             $"Auto-opened on submission. " +
                             $"Fraud score: {fraudScore.ScoreValue}/100. " +
-                            $"Factors: {fraudScore.FactorsJSON}"
+                            $"Factors: {fraudScore.FactorsJSON}",
+                        OrganizationID = userOrgId,                      // ← SaaS FIX
                     };
 
                     var notification = new Notification
@@ -134,7 +131,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                     await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
 
-                    // Return 201 with fraud info — claim exists but is blocked
                     return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
                     {
                         claim = created,
@@ -168,7 +164,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            // Fallback — already scored (should not normally happen on fresh submit)
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
@@ -181,12 +176,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-                public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
+        public async Task<IActionResult> UpdateClaim(int id, [FromBody] UpdateClaimDto dto)
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
+
+            var userOrgId = GetLoggedInUserOrgId();                              // ← SaaS FIX
+
+            // ── Verify claim belongs to this org before updating ──            // ← SaaS FIX
+            var existing = await _claimRepo.GetClaimByIdAsync(id, userOrgId);    // ← SaaS FIX
+            if (existing == null)                                                 // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");           // ← SaaS FIX
 
             // Staff can only change priority.
             // Admin can additionally override status to Rejected.
@@ -200,15 +202,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on Validated ──────────────
             if (dto.Status == "Validated")
             {
-                var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping (single source for this block)
-
                 // Step 1 — Run fraud scoring (only if not already scored)
                 var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(id, userOrgId);
                 if (existingScore == null)
                 {
                     var fraudScore = await _fraudRepo.ScoreClaimAsync(id);
 
-                    // High risk (≥70) → auto-open fraud case, block adjudication
                     if (fraudScore.ScoreValue >= 70)
                     {
                         var fraudCase = new FraudCase
@@ -222,7 +221,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                                 $"Auto-opened on validation. " +
                                 $"Fraud score: {fraudScore.ScoreValue}/100. " +
                                 $"Factors: {fraudScore.FactorsJSON}",
-                            OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
+                            OrganizationID = userOrgId,
                         };
 
                         var notification = new Notification
@@ -234,8 +233,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                             Category = NotificationCategory.Exception,
                             Severity = NotificationSeverity.Critical,
                             CreatedAt = DateTime.UtcNow,
-                            Status = NotificationStatus.Unread,
-                            //OrganizationID = userOrgId,   // ← Phase 4: tenant stamp (if Notification has this field)
+                            Status = NotificationStatus.Unread
                         };
 
                         await _fraudRepo.CreateFraudCaseWithNotificationAsync(
@@ -254,8 +252,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     }
                 }
 
-                // Step 2 — No fraud (or already scored clean) → run adjudication
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);   // ← Phase 4: pass tenant
+                // Step 2 — No fraud → run adjudication
+                var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);
                 if (adjResult != null)
                 {
                     var message = adjResult.Decision == "PendingReview"
@@ -289,6 +287,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            // ── Verify claim belongs to this org before deleting ──              // ← SaaS FIX
+            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (claim == null)                                                     // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+
             var result = await _claimRepo.DeleteClaimAsync(id, userId.Value);
             return result switch
             {
@@ -310,6 +313,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            // ── Verify claim belongs to this org before adding line ──           // ← SaaS FIX
+            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (claim == null)                                                     // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+
             var created = await _claimRepo.AddClaimLineAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found.");
@@ -322,6 +330,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimLines(int id)
         {
+            // ── Verify claim belongs to this org before returning lines ──       // ← SaaS FIX
+            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (claim == null)                                                     // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+
             var lines = await _claimRepo.GetClaimLinesAsync(id);
             return Ok(lines);
         }
@@ -337,6 +350,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            // ── Verify claim belongs to this org before uploading ──             // ← SaaS FIX
+            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (claim == null)                                                     // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+
             var created = await _claimRepo.UploadDocumentAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found or user is invalid.");
@@ -349,6 +367,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimDocuments(int id)
         {
+            // ── Verify claim belongs to this org before returning docs ──        // ← SaaS FIX
+            var claim = await _claimRepo.GetClaimByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (claim == null)                                                     // ← SaaS FIX
+                return NotFound($"Claim with ID {id} was not found.");            // ← SaaS FIX
+
             var docs = await _claimRepo.GetClaimDocumentsAsync(id);
             return Ok(docs);
         }

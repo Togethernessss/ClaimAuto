@@ -14,7 +14,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private readonly IRemittancePdfService _pdfService;
         private readonly IReconciliationPdfService _reconciliationPdfService;
 
-        // ── SINGLE constructor ────────────────────────────────────────
         public PaymentRepository(
             ApplicationDbContext context,
             INotificationRepository notificationRepo,
@@ -29,9 +28,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         // ── GET ALL PAYMENTS ──────────────────────────────────────────
         public async Task<List<PaymentResponseDto>> GetAllPaymentsAsync(
-    int? userId, string? userRole,
-    string? status, int? claimId,
-    int? userOrgId = null)
+            int? userId, string? userRole,
+            string? status, int? claimId,
+            int? userOrgId = null)
         {
             var query = _context.Payments
                 .Include(p => p.Payee)
@@ -39,14 +38,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .ThenInclude(c => c.Member)
                 .AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
                 query = query.Where(p => p.OrganizationID == userOrgId.Value);
 
-        
-
-            // Policyholder sees only payments tied to their own claims
-            // Admin and InsuranceStaff fall through with no filter
             if (userRole == "Policyholder" && userId.HasValue)
             {
                 query = query.Where(p =>
@@ -69,8 +63,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payments.Select(p => MapPayment(p)).ToList();
         }
 
-
-        
         // ── GET PAYMENT BY ID ─────────────────────────────────────────
         public async Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null)
         {
@@ -80,12 +72,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Include(p => p.Remittance)
                 .AsQueryable();
 
-            // ── Multi-tenant ownership check (Phase 3) ───────────────────
             if (userOrgId.HasValue)
                 query = query.Where(p => p.OrganizationID == userOrgId.Value);
 
             var payment = await query.FirstOrDefaultAsync(p => p.PaymentID == id);
-
             return payment == null ? null : MapPayment(payment);
         }
 
@@ -93,8 +83,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public async Task<PaymentResponseDto> CreatePaymentAsync(
             Payment payment, int createdByUserId)
         {
-            using var transaction = await _context.Database
-                .BeginTransactionAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 payment.CreatedAt = DateTime.UtcNow;
@@ -103,12 +92,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                // NOTE: Remittance is NOT created here.
-                // It is created automatically when staff Executes the payment (ExecutePaymentAsync).
-                // Remittance = bank transfer confirmation — it only exists after money moves.
-                // Reimbursement claims never get a Remittance (payee is Policyholder directly).
-
-                // ── Audit log ─────────────────────────────────────────
                 _context.AuditLogs.Add(new AuditLog
                 {
                     UserID = createdByUserId,
@@ -120,7 +103,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                    $"\"amount\":{payment.Amount}," +
                                    $"\"currency\":\"{payment.Currency}\"," +
                                    $"\"method\":\"{payment.PaymentMethod}\"}}",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = payment.OrganizationID,                      // ← SaaS FIX
                 });
 
                 await _context.SaveChangesAsync();
@@ -168,7 +152,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             payment.Status = PaymentStatus.Authorized;
 
-            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = authorizedByUserId,
@@ -180,11 +163,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"amount\":{payment.Amount}," +
                                $"\"previousStatus\":\"Pending\"," +
                                $"\"newStatus\":\"Authorized\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             await _context.SaveChangesAsync();
-
             return MapPayment(payment);
         }
 
@@ -209,10 +192,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (payment.Claim != null)
                 payment.Claim.Status = ClaimStatus.Paid;
 
-            // ── Create Remittance on Execute (not on Create) ──────────────
-            // Remittance = bank transfer confirmation — created only when money moves.
-            // Reimbursement claims: payee is the Policyholder directly — no remittance.
-            // All other claim types (Inpatient, Outpatient, Pharmacy, Emergency): create remittance.
             Remittance? remittance = null;
             if (payment.Claim != null && payment.Claim.ClaimType != ClaimType.Reimbursement)
             {
@@ -241,7 +220,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 payment.Remittance = remittance;
             }
 
-            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = executedByUserId,
@@ -256,7 +234,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"payeeName\":\"{payment.Payee?.Name}\"," +
                                $"\"previousStatus\":\"Authorized\"," +
                                $"\"newStatus\":\"Executed\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             await _context.SaveChangesAsync();
@@ -271,16 +250,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                            $"to your account. " +
                            $"Reference: {payment.ReferenceNumber}.",
                 Category = NotificationCategory.Payment,
-                Severity = NotificationSeverity.Info
+                Severity = NotificationSeverity.Info,
+                CreatedAt = DateTime.UtcNow,
+                Status = NotificationStatus.Unread,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
-            // ── Notify Policyholder ───────────────────────────────────
             if (payment.Claim?.Member?.PolicyholderUserID != null)
             {
                 await _notificationRepo.CreateAsync(new Notification
                 {
-                    UserID = payment.Claim.Member
-                                   .PolicyholderUserID.Value,
+                    UserID = payment.Claim.Member.PolicyholderUserID.Value,
                     ClaimID = payment.ClaimID,
                     Message = $"Your Claim #{payment.ClaimID} has been " +
                                $"processed and payment of " +
@@ -288,7 +268,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"{payment.Payee?.Name ?? "your hospital"}. " +
                                $"Reference: {payment.ReferenceNumber}.",
                     Category = NotificationCategory.Payment,
-                    Severity = NotificationSeverity.Info
+                    Severity = NotificationSeverity.Info,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = payment.OrganizationID,                      // ← SaaS FIX
                 });
             }
 
@@ -311,7 +294,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var previousStatus = payment.Status.ToString();
             payment.Status = PaymentStatus.OnHold;
 
-            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = heldByUserId,
@@ -323,11 +305,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"amount\":{payment.Amount}," +
                                $"\"previousStatus\":\"{previousStatus}\"," +
                                $"\"newStatus\":\"OnHold\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             await _context.SaveChangesAsync();
-
             return MapPayment(payment);
         }
 
@@ -345,7 +327,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             payment.Status = PaymentStatus.Pending;
 
-            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = resumedByUserId,
@@ -357,11 +338,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"amount\":{payment.Amount}," +
                                $"\"previousStatus\":\"OnHold\"," +
                                $"\"newStatus\":\"Pending\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             await _context.SaveChangesAsync();
-
             return MapPayment(payment);
         }
 
@@ -376,7 +357,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return remittance == null ? null : MapRemittance(remittance);
         }
 
-        // ── GET ALL REMITTANCES ───────────────────────────────────────
+        // ── GET ALL REMITTANCES — now tenant-scoped ───────────────────
         public async Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
             int? userId,
             string? userRole,
@@ -384,7 +365,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             string? search,
             int? claimId,
             DateTime? dateFrom,
-            DateTime? dateTo)
+            DateTime? dateTo,
+            int? userOrgId = null)                                                // ← SaaS FIX (new param)
         {
             var query = _context.Remittances
                 .Include(r => r.Payment)
@@ -393,18 +375,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .ThenInclude(p => p.Claim)
                 .AsQueryable();
 
+            // ── SaaS FIX: filter via parent Payment's OrganizationID ──
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.Payment.OrganizationID == userOrgId.Value);
+
             if (userRole == "Hospital" && userId.HasValue)
-                query = query.Where(
-                    r => r.Payment.PayeeID == userId.Value);
+                query = query.Where(r => r.Payment.PayeeID == userId.Value);
 
             if (!string.IsNullOrEmpty(status))
-                if (Enum.TryParse<RemittanceStatus>(
-                    status, true, out var s))
+                if (Enum.TryParse<RemittanceStatus>(status, true, out var s))
                     query = query.Where(r => r.Status == s);
 
             if (claimId.HasValue)
-                query = query.Where(
-                    r => r.Payment.ClaimID == claimId.Value);
+                query = query.Where(r => r.Payment.ClaimID == claimId.Value);
 
             if (!string.IsNullOrEmpty(search))
             {
@@ -415,12 +398,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
 
             if (dateFrom.HasValue)
-                query = query.Where(
-                    r => r.GeneratedAt >= dateFrom.Value);
+                query = query.Where(r => r.GeneratedAt >= dateFrom.Value);
 
             if (dateTo.HasValue)
-                query = query.Where(
-                    r => r.GeneratedAt <= dateTo.Value);
+                query = query.Where(r => r.GeneratedAt <= dateTo.Value);
 
             var remittances = await query
                 .OrderByDescending(r => r.GeneratedAt)
@@ -437,8 +418,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Amount = r.Payment?.Amount ?? 0,
                 Currency = r.Payment?.Currency ?? "INR",
                 ClaimID = r.Payment?.ClaimID ?? 0,
-                HasPDF = r.RemitFilePDF != null
-                                   && r.RemitFilePDF.Length > 0,
+                HasPDF = r.RemitFilePDF != null && r.RemitFilePDF.Length > 0,
             }).ToList();
         }
 
@@ -462,7 +442,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var payment = remittance.Payment;
 
-            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = acknowledgedByUserId,
@@ -475,7 +454,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"amount\":{payment.Amount}," +
                                $"\"referenceNumber\":\"{payment.ReferenceNumber}\"," +
                                $"\"acknowledgedBy\":{acknowledgedByUserId}}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             await _context.SaveChangesAsync();
@@ -492,7 +472,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                            $"The payment cycle for Claim " +
                            $"#{payment.ClaimID} is now complete.",
                 Category = NotificationCategory.Payment,
-                Severity = NotificationSeverity.Info
+                Severity = NotificationSeverity.Info,
+                CreatedAt = DateTime.UtcNow,
+                Status = NotificationStatus.Unread,
+                OrganizationID = payment.OrganizationID,                          // ← SaaS FIX
             });
 
             // ── Notify Policyholder ───────────────────────────────────
@@ -500,8 +483,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 await _notificationRepo.CreateAsync(new Notification
                 {
-                    UserID = payment.Claim.Member
-                                   .PolicyholderUserID.Value,
+                    UserID = payment.Claim.Member.PolicyholderUserID.Value,
                     ClaimID = payment.ClaimID,
                     Message = $"Your Claim #{payment.ClaimID} payment " +
                                $"of Rs.{payment.Amount:N0} has been fully " +
@@ -510,15 +492,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"has confirmed receipt. " +
                                $"Reference: {payment.ReferenceNumber}.",
                     Category = NotificationCategory.Payment,
-                    Severity = NotificationSeverity.Info
+                    Severity = NotificationSeverity.Info,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = payment.OrganizationID,                      // ← SaaS FIX
                 });
             }
 
-            // ── Notify all InsuranceStaff ─────────────────────────────
+            // ── Notify InsuranceStaff in the SAME org only ──          // ← SaaS FIX
             var staffUsers = await _context.Users
                 .Where(u =>
                     u.Role == UserRole.InsuranceStaff &&
-                    u.Status == AccountStatus.Active)
+                    u.Status == AccountStatus.Active &&
+                    u.OrganizationID == payment.OrganizationID)                   // ← SaaS FIX
                 .ToListAsync();
 
             foreach (var staff in staffUsers)
@@ -535,49 +521,56 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"The payment cycle is now complete. " +
                                $"Reference: {payment.ReferenceNumber}.",
                     Category = NotificationCategory.Payment,
-                    Severity = NotificationSeverity.Info
+                    Severity = NotificationSeverity.Info,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = payment.OrganizationID,                      // ← SaaS FIX
                 });
             }
 
             return MapRemittance(remittance);
         }
 
-        // ── GET RECONCILIATIONS ───────────────────────────────────────
-        public async Task<List<ReconciliationResponseDto>>
-            GetReconciliationsAsync()
+        // ── GET RECONCILIATIONS — tenant-scoped ───────────────────────
+        public async Task<List<ReconciliationResponseDto>> GetReconciliationsAsync(int? userOrgId = null)
         {
-            var list = await _context.Reconciliations
-                .Include(r => r.PerformedBy)
-                .OrderByDescending(r => r.ReconciledAt)
-                .ToListAsync();
+            var query = _context.Reconciliations.AsQueryable();
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
 
-            return list.Select(r => new ReconciliationResponseDto
-            {
-                ReconID = r.ReconID,
-                PeriodStart = r.PeriodStart,
-                PeriodEnd = r.PeriodEnd,
-                PaymentsSummaryJSON = r.PaymentsSummaryJSON,
-                DiscrepanciesJSON = r.DiscrepanciesJSON,
-                ReconciledAt = r.ReconciledAt,
-                PerformedByName = r.PerformedBy?.Name ?? "System",
-                HasPDF = r.ReconFilePDF != null
-                                      && r.ReconFilePDF.Length > 0,
-            }).ToList();
+            return await query
+                .OrderByDescending(r => r.ReconciledAt)
+                .Select(r => new ReconciliationResponseDto
+                {
+                    ReconID = r.ReconID,
+                    PeriodStart = r.PeriodStart,
+                    PeriodEnd = r.PeriodEnd,
+                    PaymentsSummaryJSON = r.PaymentsSummaryJSON,
+                    DiscrepanciesJSON = r.DiscrepanciesJSON,
+                    ReconciledAt = r.ReconciledAt,
+                    PerformedByName = r.PerformedBy != null ? r.PerformedBy.Name : "System",
+                    HasPDF = r.ReconFilePDF != null && r.ReconFilePDF.Length > 0,
+                })
+                .ToListAsync();
         }
 
-        // ── CREATE RECONCILIATION ─────────────────────────────────────
-        public async Task<ReconciliationResponseDto>
-            CreateReconciliationAsync(
-                CreateReconciliationDto dto,
-                int performedById)
+        // ── CREATE RECONCILIATION — tenant-stamped + tenant-scoped payments ──
+        public async Task<ReconciliationResponseDto> CreateReconciliationAsync(
+            CreateReconciliationDto dto,
+            int performedById,
+            int? userOrgId = null)                                                // ← SaaS FIX (new param)
         {
-            // Get payments in period for PDF generation
-            var paymentsInPeriod = await _context.Payments
+            // ── SaaS FIX: only count payments belonging to this tenant ──
+            var paymentsQuery = _context.Payments
                 .Include(p => p.Payee)
                 .Where(p =>
                     p.CreatedAt >= dto.PeriodStart &&
-                    p.CreatedAt <= dto.PeriodEnd)
-                .ToListAsync();
+                    p.CreatedAt <= dto.PeriodEnd);
+
+            if (userOrgId.HasValue)
+                paymentsQuery = paymentsQuery.Where(p => p.OrganizationID == userOrgId.Value);
+
+            var paymentsInPeriod = await paymentsQuery.ToListAsync();
 
             var totalAmount = paymentsInPeriod
                 .Where(p => p.Status == PaymentStatus.Executed)
@@ -605,7 +598,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PaymentsSummaryJSON = summary,
                 DiscrepanciesJSON = discrepancies,
                 ReconciledAt = DateTime.UtcNow,
-                PerformedByID = performedById
+                PerformedByID = performedById,
+                OrganizationID = userOrgId,                                       // ← SaaS FIX
             };
 
             _context.Reconciliations.Add(reconciliation);
@@ -643,8 +637,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 DiscrepanciesJSON = reconciliation.DiscrepanciesJSON,
                 ReconciledAt = reconciliation.ReconciledAt,
                 PerformedByName = performedByName,
-                HasPDF = reconciliation.ReconFilePDF != null
-                                      && reconciliation.ReconFilePDF.Length > 0,
+                HasPDF = reconciliation.ReconFilePDF != null && reconciliation.ReconFilePDF.Length > 0,
             };
         }
 
@@ -657,12 +650,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return remittance?.RemitFilePDF;
         }
 
-        // ── GET RECONCILIATION PDF — reads from DB ────────────────────
-        public async Task<byte[]?> GetReconciliationPdfAsync(int reconId)
+        // ── GET RECONCILIATION PDF — tenant-scoped ────────────────────
+        public async Task<byte[]?> GetReconciliationPdfAsync(int reconId, int? userOrgId = null)
         {
-            var reconciliation = await _context.Reconciliations
-                .FirstOrDefaultAsync(r => r.ReconID == reconId);
+            var query = _context.Reconciliations.Where(r => r.ReconID == reconId);
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
 
+            var reconciliation = await query.FirstOrDefaultAsync();
             return reconciliation?.ReconFilePDF;
         }
 
@@ -692,8 +687,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 GeneratedAt = r.GeneratedAt,
                 SentToProviderAt = r.SentToProviderAt,
                 Status = r.Status.ToString(),
-                HasPDF = r.RemitFilePDF != null
-                                   && r.RemitFilePDF.Length > 0,
+                HasPDF = r.RemitFilePDF != null && r.RemitFilePDF.Length > 0,
             };
     }
 }

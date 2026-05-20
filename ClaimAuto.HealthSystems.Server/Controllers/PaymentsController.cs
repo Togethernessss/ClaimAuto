@@ -22,15 +22,7 @@ public class PaymentsController : BaseController
         _paymentRepository = paymentRepository;
     }
 
-    /// <summary>
-    /// Returns payments with optional filters.
-    /// Admin and InsuranceStaff see all payments.
-    /// Policyholder sees only payments tied to their own claims (auto-filtered).
-    /// </summary>
-    /// <param name="status">Filter by payment status.</param>
-    /// <param name="claimId">Filter by claim ID.</param>
-    /// <response code="200">Returns list of payments.</response>
-    /// <response code="401">Unauthorized — invalid token.</response>
+    /// <summary>Returns payments with optional filters.</summary>
     [HttpGet]
     [Authorize(Roles = "Admin,InsuranceStaff,Policyholder")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -47,10 +39,7 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .GetAllPaymentsAsync(
-                userId, userRole,
-                status, claimId,
-                userOrgId);
+            .GetAllPaymentsAsync(userId, userRole, status, claimId, userOrgId);
 
         return Ok(response);
     }
@@ -78,8 +67,7 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> CreatePayment(
-        [FromBody] CreatePaymentDto dto)
+    public async Task<IActionResult> CreatePayment([FromBody] CreatePaymentDto dto)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)
@@ -93,10 +81,8 @@ public class PaymentsController : BaseController
         if (dto.Amount <= 0)
             return BadRequest("Amount must be greater than 0.");
 
-        if (!Enum.TryParse<PaymentMethod>(
-            dto.PaymentMethod, true, out var paymentMethod))
-            return BadRequest(
-                "Invalid payment method. Use: EFT, ACH, Check");
+        if (!Enum.TryParse<PaymentMethod>(dto.PaymentMethod, true, out var paymentMethod))
+            return BadRequest("Invalid payment method. Use: EFT, ACH, Check");
 
         var payment = new Payment
         {
@@ -106,16 +92,13 @@ public class PaymentsController : BaseController
             Currency = dto.Currency,
             PaymentMethod = paymentMethod,
             ScheduledAt = dto.ScheduledAt,
-            OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
+            OrganizationID = userOrgId,
         };
 
-        var response = await _paymentRepository
-            .CreatePaymentAsync(payment, userId.Value);
+        var response = await _paymentRepository.CreatePaymentAsync(payment, userId.Value);
 
-        return CreatedAtAction(
-            nameof(GetPaymentById),
-            new { id = response.PaymentID },
-            response);
+        return CreatedAtAction(nameof(GetPaymentById),
+            new { id = response.PaymentID }, response);
     }
 
     /// <summary>Authorizes a Pending payment.</summary>
@@ -130,12 +113,15 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var response = await _paymentRepository
-            .AuthorizePaymentAsync(id, userId.Value);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var existing = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (existing == null)                                                      // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var response = await _paymentRepository.AuthorizePaymentAsync(id, userId.Value);
 
         if (response == null)
-            return NotFound(
-                $"Payment {id} not found or not in Pending status.");
+            return NotFound($"Payment {id} not found or not in Pending status.");
 
         return Ok(response);
     }
@@ -147,13 +133,16 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ExecutePayment(
-        int id,
-        [FromQuery] string referenceNumber)
+    public async Task<IActionResult> ExecutePayment(int id, [FromQuery] string referenceNumber)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)
             return Unauthorized("Invalid token.");
+
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var existing = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (existing == null)                                                      // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
 
         if (string.IsNullOrWhiteSpace(referenceNumber))
             return BadRequest("Reference number is required.");
@@ -173,35 +162,23 @@ public class PaymentsController : BaseController
         var parts = referenceNumber.Trim().ToUpper().Split('/');
         var dateStr = parts[1];
 
-        if (!DateTime.TryParseExact(
-                dateStr,
-                "yyyyMMdd",
+        if (!DateTime.TryParseExact(dateStr, "yyyyMMdd",
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.None,
                 out var refDate))
-            return BadRequest(
-                "Invalid date in reference number. " +
-                "Use format YYYYMMDD.");
+            return BadRequest("Invalid date in reference number. Use format YYYYMMDD.");
 
         if (refDate.Date > DateTime.UtcNow.Date)
-            return BadRequest(
-                "Reference number date cannot be in the future.");
+            return BadRequest("Reference number date cannot be in the future.");
 
         if (refDate.Date < DateTime.UtcNow.Date.AddDays(-7))
-            return BadRequest(
-                "Reference number date is too old. " +
-                "Bank transfers must be referenced within 7 days.");
+            return BadRequest("Reference number date is too old. Bank transfers must be referenced within 7 days.");
 
         var response = await _paymentRepository
-            .ExecutePaymentAsync(
-                id,
-                referenceNumber.Trim().ToUpper(),
-                userId.Value);
+            .ExecutePaymentAsync(id, referenceNumber.Trim().ToUpper(), userId.Value);
 
         if (response == null)
-            return NotFound(
-                $"Payment {id} not found " +
-                $"or not in Authorized status.");
+            return NotFound($"Payment {id} not found or not in Authorized status.");
 
         return Ok(response);
     }
@@ -218,13 +195,15 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var response = await _paymentRepository
-            .HoldPaymentAsync(id, userId.Value);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var existing = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (existing == null)                                                      // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var response = await _paymentRepository.HoldPaymentAsync(id, userId.Value);
 
         if (response == null)
-            return NotFound(
-                $"Payment {id} not found " +
-                $"or cannot be put on hold.");
+            return NotFound($"Payment {id} not found or cannot be put on hold.");
 
         return Ok(response);
     }
@@ -241,13 +220,15 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var response = await _paymentRepository
-            .ResumePaymentAsync(id, userId.Value);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var existing = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (existing == null)                                                      // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var response = await _paymentRepository.ResumePaymentAsync(id, userId.Value);
 
         if (response == null)
-            return NotFound(
-                $"Payment {id} not found " +
-                $"or not in OnHold status.");
+            return NotFound($"Payment {id} not found or not in OnHold status.");
 
         return Ok(response);
     }
@@ -259,12 +240,15 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRemittance(int id)
     {
-        var response = await _paymentRepository
-            .GetRemittanceByPaymentIdAsync(id);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var payment = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (payment == null)                                                       // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var response = await _paymentRepository.GetRemittanceByPaymentIdAsync(id);
 
         if (response == null)
-            return NotFound(
-                $"Remittance for Payment {id} not found.");
+            return NotFound($"Remittance for Payment {id} not found.");
 
         return Ok(response);
     }
@@ -288,10 +272,7 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .GetAllRemittancesAsync(
-                userId, userRole,
-                status, search, claimId,
-                dateFrom, dateTo);
+    .GetAllRemittancesAsync(userId, userRole, status, search, claimId, dateFrom, dateTo, GetLoggedInUserOrgId());
 
         return Ok(response);
     }
@@ -307,17 +288,17 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var pdfBytes = await _paymentRepository
-            .GetRemittancePdfAsync(id);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var payment = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (payment == null)                                                       // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var pdfBytes = await _paymentRepository.GetRemittancePdfAsync(id);
 
         if (pdfBytes == null || pdfBytes.Length == 0)
-            return NotFound(
-                $"PDF not yet generated for Payment {id}.");
+            return NotFound($"PDF not yet generated for Payment {id}.");
 
-        return File(
-            pdfBytes,
-            "application/pdf",
-            $"Remittance-PAY-{id}.pdf");
+        return File(pdfBytes, "application/pdf", $"Remittance-PAY-{id}.pdf");
     }
 
     /// <summary>Acknowledges receipt of a remittance. Hospital only.</summary>
@@ -332,13 +313,15 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var response = await _paymentRepository
-            .AcknowledgeRemittanceAsync(id, userId.Value);
+        // ── Verify payment belongs to this org ──                                // ← SaaS FIX
+        var payment = await _paymentRepository.GetPaymentByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+        if (payment == null)                                                       // ← SaaS FIX
+            return NotFound($"Payment {id} not found.");                          // ← SaaS FIX
+
+        var response = await _paymentRepository.AcknowledgeRemittanceAsync(id, userId.Value);
 
         if (response == null)
-            return NotFound(
-                $"Remittance for Payment {id} " +
-                $"not found or not yet sent.");
+            return NotFound($"Remittance for Payment {id} not found or not yet sent.");
 
         return Ok(response);
     }
@@ -349,8 +332,7 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReconciliations()
     {
-        var response = await _paymentRepository
-            .GetReconciliationsAsync();
+        var response = await _paymentRepository.GetReconciliationsAsync(GetLoggedInUserOrgId());
         return Ok(response);
     }
 
@@ -360,24 +342,19 @@ public class PaymentsController : BaseController
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> CreateReconciliation(
-        [FromBody] CreateReconciliationDto dto)
+    public async Task<IActionResult> CreateReconciliation([FromBody] CreateReconciliationDto dto)
     {
         var userId = GetLoggedInUserId();
         if (userId == null)
             return Unauthorized("Invalid token.");
 
         if (dto.PeriodStart >= dto.PeriodEnd)
-            return BadRequest(
-                "PeriodStart must be before PeriodEnd.");
+            return BadRequest("PeriodStart must be before PeriodEnd.");
 
-        var response = await _paymentRepository
-            .CreateReconciliationAsync(dto, userId.Value);
+        var response = await _paymentRepository.CreateReconciliationAsync(dto, userId.Value, GetLoggedInUserOrgId());
 
-        return CreatedAtAction(
-            nameof(GetReconciliations),
-            new { id = response.ReconID },
-            response);
+        return CreatedAtAction(nameof(GetReconciliations),
+            new { id = response.ReconID }, response);
     }
 
     /// <summary>Downloads the PDF for a reconciliation report.</summary>
@@ -391,16 +368,11 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        var pdfBytes = await _paymentRepository
-            .GetReconciliationPdfAsync(id);
+        var pdfBytes = await _paymentRepository.GetReconciliationPdfAsync(id, GetLoggedInUserOrgId());
 
         if (pdfBytes == null || pdfBytes.Length == 0)
-            return NotFound(
-                $"Reconciliation {id} not found.");
+            return NotFound($"Reconciliation {id} not found.");
 
-        return File(
-            pdfBytes,
-            "application/pdf",
-            $"Reconciliation-REC-{id}.pdf");
+        return File(pdfBytes, "application/pdf", $"Reconciliation-REC-{id}.pdf");
     }
 }

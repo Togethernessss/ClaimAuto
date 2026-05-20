@@ -10,31 +10,28 @@ using ClaimAuto.HealthSystems.Server.Services;
 using ClaimAuto.HealthSystems.Server.Helpers;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
-{   /// <summary>Manages user accounts. Admin only.</summary
+{
+    /// <summary>Manages user accounts. Admin only.</summary>
     [ApiController]
     [Route("api/users")]
     [Authorize]
     [Produces("application/json")]
     public class UsersController : BaseController
     {
-
-        //Now depends on the INTERFACE — not the database directly
         private readonly IUserRepository _userRepository;
         private readonly IAuthRepository _authRepository;
         private readonly IEmailServices _emailService;
-        public UsersController(
-                IUserRepository userRepository,
-                IAuthRepository authRepository,
-                IEmailServices emailService)
-        {
-                _userRepository = userRepository;
-                _authRepository = authRepository;
-                _emailService = emailService;
-           }
 
-        // GET: api/users 
-        /// <summary>Returns all user accounts.</summary>
-        /// <response code="200">Returns list of all users.</response>
+        public UsersController(
+            IUserRepository userRepository,
+            IAuthRepository authRepository,
+            IEmailServices emailService)
+        {
+            _userRepository = userRepository;
+            _authRepository = authRepository;
+            _emailService = emailService;
+        }
+
         [HttpGet]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -56,14 +53,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 CreatedAt = u.CreatedAt
             });
 
-            return Ok(response);//400
+            return Ok(response);
         }
 
-        // GET: api/users/{id}
-        /// <summary>Returns a single user by ID.</summary>
-        /// <param name="id">The user ID.</param>
-        /// <response code="200">Returns the user.</response>
-        /// <response code="404">User not found.</response>
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -89,11 +81,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        // GET: api/users/role/{role}
-        /// <summary>Returns all users with the specified role.</summary>
-        /// <param name="role">Role to filter by: Admin, InsuranceStaff, Policyholder, Hospital.</param>
-        /// <response code="200">Returns list of users with the given role.</response>
-        [HttpGet("role/{role}")]      //"role" --> Just a text(static) while {role} is a variable that will be passed in the URL
+        [HttpGet("role/{role}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
@@ -117,12 +105,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // POST: api/users
-        /// <summary>Creates a new user account.</summary>
-        /// <param name="dto">User details including name, email, password, and role.</param>
-        /// <response code="201">User created successfully.</response>
-        /// <response code="400">Invalid role.</response>
-        /// <response code="409">Email already exists.</response>
         [HttpPost]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -132,10 +114,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             bool emailExists = await _userRepository.EmailExistsAsync(dto.Email);
             if (emailExists)
-                return Conflict("A user with this email already exists.");//409
+                return Conflict("A user with this email already exists.");
 
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
-                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");//400
+                return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
 
             var user = new User
             {
@@ -148,10 +130,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = dto.MFAEnabled,
                 Status = AccountStatus.Active,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                OrganizationID = GetLoggedInUserOrgId(),                          // ← SaaS FIX
             };
 
-            // Repository handles ACID transaction internally
             var createdUser = await _userRepository.CreateUserAsync(user);
 
             var response = new UserResponseDto
@@ -167,15 +149,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 CreatedAt = createdUser.CreatedAt
             };
 
-            return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);//201
+            return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);
         }
 
-        // POST: api/users/invite
-        /// <summary>Admin invites a new user by email. System generates a temp password and emails it.</summary>
-        /// <response code="201">Invitation sent successfully.</response>
-        /// <response code="400">Invalid role.</response>
-        /// <response code="409">Email already exists.</response>
-        /// <response code="500">Failed to send invitation email.</response>
         [HttpPost("invite")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -184,7 +160,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<UserResponseDto>> InviteUser(InviteUserDto dto)
         {
-            // 1. Validate inputs
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Name and email are required.");
 
@@ -194,10 +169,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!Enum.TryParse<UserRole>(dto.Role, true, out var role))
                 return BadRequest($"Invalid role: {dto.Role}. Valid roles: Admin, InsuranceStaff, Policyholder, Hospital");
 
-            // ─── Multi-tenant: invited user inherits inviting Admin's organization ───
-            // Admin's JWT carries their own OrganizationID. We look the Admin up to
-            // get it, then assign the same org to the invited user. This enforces
-            // tenant isolation — Admins can only invite into their own workspace.
             var adminUserId = GetLoggedInUserId();
             if (adminUserId == null)
                 return Unauthorized("Invalid token.");
@@ -211,10 +182,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "Your admin account is not linked to an organization. " +
                     "Contact a platform administrator before inviting users.");
 
-            // 2. Generate temp password
             var tempPassword = TempPasswordGenerator.Generate(12);
 
-            // 3. Build user object (repo will hash password + set flag + audit)
             var user = new User
             {
                 Name = dto.Name,
@@ -222,13 +191,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Role = role,
                 Phone = dto.Phone,
                 Department = dto.Department,
-                OrganizationID = admin.OrganizationID   // ← inherits Admin's org
+                OrganizationID = admin.OrganizationID
             };
 
             var created = await _authRepository.RegisterInvitedUserAsync(user, tempPassword);
 
-            // 4. Send invitation email (if this throws, the user is created but no email arrives —
-            //    we return 500 so the admin knows to manually resend or check SMTP config)
             try
             {
                 await _emailService.SendInvitationAsync(created.Email, created.Name, tempPassword, created.Role.ToString());
@@ -242,7 +209,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            // 5. Return the created user (no password in response, obviously)
             var response = new UserResponseDto
             {
                 UserID = created.UserID,
@@ -260,39 +226,40 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetUser), new { id = created.UserID }, response);
         }
 
-        // PUT: api/users/{id}
-        /// <summary>
-        /// Updates a user's profile fields.
-        /// Admin can update any user. Non-admin users can update only their own profile
-        /// and cannot change their own status or MFA flag through this endpoint.
-        /// </summary>
         [HttpPut("{id}")]
-        [Authorize]   // ← overrides the controller-level Admin-only rule; any logged-in user can hit this
+        [Authorize]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateUser(int id, UpdateUserDto dto)
         {
-            var user = await _userRepository.GetUserByIdAsync(id);
-            if (user == null)
-                return NotFound($"User with ID {id} not found.");
-
-            // ── Self-update guard ─────────────────────────────────────────
-            // Only an Admin can update another user. Non-admins must be editing
-            // their own record (id == their own UserID from the JWT).
             var callerId = GetLoggedInUserId();
             var callerRole = GetLoggedInUserRole();
             bool isAdmin = callerRole == "Admin";
 
-            if (!isAdmin && callerId != id)
-                return Forbid();   // 403
+            // ── Org-scoped lookup for admins; self-update allowed without org check ──  // ← SaaS FIX
+            User? user;                                                                    // ← SaaS FIX
+            if (isAdmin)                                                                   // ← SaaS FIX
+            {                                                                              // ← SaaS FIX
+                user = await _userRepository.GetUserByIdAsync(id, GetLoggedInUserOrgId()); // ← SaaS FIX
+            }                                                                              // ← SaaS FIX
+            else                                                                           // ← SaaS FIX
+            {                                                                              // ← SaaS FIX
+                // Non-admin can only update themselves                                    // ← SaaS FIX
+                if (callerId != id) return Forbid();                                       // ← SaaS FIX
+                user = await _userRepository.GetUserByIdAsync(id);                         // ← SaaS FIX
+            }                                                                              // ← SaaS FIX
 
-            // ── Apply allowed updates ────────────────────────────────────
+            if (user == null)
+                return NotFound($"User with ID {id} not found.");
+
+            if (!isAdmin && callerId != id)
+                return Forbid();
+
             if (dto.Name != null) user.Name = dto.Name;
             if (dto.Phone != null) user.Phone = dto.Phone;
             if (dto.Department != null) user.Department = dto.Department;
 
-            // Sensitive fields — Admin only
             if (isAdmin)
             {
                 if (dto.MFAEnabled.HasValue) user.MFAEnabled = dto.MFAEnabled.Value;
@@ -304,22 +271,22 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
 
-        // DELETE: api/users/{id} — Soft Delete
-        /// <summary>Soft-deletes a user by setting their status to Inactive.</summary>
-        /// <param name="id">The user ID to deactivate.</param>
-        /// <response code="204">User deactivated successfully.</response>
-        /// <response code="404">User not found.</response>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var success = await _userRepository.SoftDeleteUserAsync(id);//Making User inactive by setting Status = Inactive, not removing from DB
-            if (!success)
-                return NotFound($"User with ID {id} not found.");//404
+            // ── Verify user belongs to this org before deleting ──               // ← SaaS FIX
+            var user = await _userRepository.GetUserByIdAsync(id, GetLoggedInUserOrgId());  // ← SaaS FIX
+            if (user == null)                                                      // ← SaaS FIX
+                return NotFound($"User with ID {id} not found.");                 // ← SaaS FIX
 
-            return NoContent();//204
+            var success = await _userRepository.SoftDeleteUserAsync(id);
+            if (!success)
+                return NotFound($"User with ID {id} not found.");
+
+            return NoContent();
         }
     }
 }
