@@ -1,4 +1,4 @@
-﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +27,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromQuery] string? scope)
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GetAllReportsAsync(scope, userOrgId);
             return Ok(response);
         }
@@ -39,7 +39,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetReportById(int id)
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GetReportByIdAsync(id, userOrgId);
             if (response == null)
                 return NotFound($"Report {id} not found.");
@@ -67,7 +67,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "Regulatory, Financial, Fraud");
 
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GenerateReportAsync(dto, userId.Value, userOrgId);
 
             return CreatedAtAction(
@@ -105,7 +105,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllKPIs()
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GetAllKPIsAsync(userOrgId);
             return Ok(response);
         }
@@ -118,6 +118,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> UpdateKPI(
             int id, [FromBody] UpdateKPIDto dto)
         {
+            // ── SaaS: verify KPI belongs to this tenant ───────────────
+            var userOrgId = GetLoggedInUserOrgId();
+            var allKPIs   = await _reportRepository
+                .GetAllKPIsAsync(userOrgId);
+            var kpiExists = allKPIs.Any(k => k.KPIID == id);
+            if (!kpiExists)
+                return NotFound($"KPI {id} not found.");
+
             var response = await _reportRepository
                 .UpdateKPIAsync(id, dto);
             if (response == null)
@@ -131,7 +139,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllAuditPackages()
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GetAllAuditPackagesAsync(userOrgId);
             return Ok(response);
         }
@@ -155,7 +163,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "PeriodStart must be before PeriodEnd.");
 
             var userOrgId = GetLoggedInUserOrgId();
-            var response = await _reportRepository
+            var response  = await _reportRepository
                 .GenerateAuditPackageAsync(
                     periodStart, periodEnd,
                     userId.Value, userOrgId);

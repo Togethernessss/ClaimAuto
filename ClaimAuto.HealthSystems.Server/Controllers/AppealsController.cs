@@ -148,7 +148,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // ── No duplicate active appeal ──
-            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(claimID);
+            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(claimID, GetLoggedInUserOrgId());
             var activeAppeal = existingAppeals.FirstOrDefault(
                 a => a.Status == AppealStatus.Filed || a.Status == AppealStatus.UnderReview);
             if (activeAppeal != null)
@@ -374,7 +374,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 RecoverableAmount = dto.RecoverableAmount,
                 ThirdPartyDetailsJSON = dto.ThirdPartyDetailsJSON,
                 InitiatedAt = DateTime.UtcNow,
-                Status = SubrogationStatus.Initiated
+                Status = SubrogationStatus.Initiated,
+                OrganizationID = GetLoggedInUserOrgId()    // ← SaaS FIX
             };
 
             var created = await _appealRepo.CreateSubrogationAsync(subrogation);
@@ -398,7 +399,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetSubrogations()
         {
-            var subrogations = await _appealRepo.GetSubrogationsAsync();
+            var subrogations = await _appealRepo.GetSubrogationsAsync(GetLoggedInUserOrgId());
             return Ok(subrogations);
         }
 
