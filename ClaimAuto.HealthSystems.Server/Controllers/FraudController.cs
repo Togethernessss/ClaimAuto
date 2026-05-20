@@ -38,13 +38,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpGet("scores/{claimId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetFraudScore(int claimId)
+                public async Task<IActionResult> GetFraudScore(int claimId)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(claimId);
+            var userOrgId = GetLoggedInUserOrgId();
+            var claim = await _claimRepo.GetClaimByIdAsync(claimId, userOrgId);
             if (claim == null)
                 return NotFound(new { message = $"Claim {claimId} not found." });
 
-            var score = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId);
+            var score = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId, userOrgId);
             if (score == null)
                 return NotFound(new { message = $"No fraud score for Claim {claimId}. Run POST /api/fraud/scores/{claimId} first." });
 
@@ -74,11 +75,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> ScoreClaim(int claimId)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(claimId);
+            var userOrgId = GetLoggedInUserOrgId();
+            var claim = await _claimRepo.GetClaimByIdAsync(claimId, userOrgId);
             if (claim == null)
                 return NotFound(new { message = $"Claim {claimId} not found." });
 
-            var existing = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId);
+            var existing = await _fraudRepo.GetFraudScoreByClaimIdAsync(claimId, userOrgId);
             if (existing != null)
                 return Conflict(new { message = $"Claim {claimId} already scored. ScoreID: {existing.ScoreID}, Value: {existing.ScoreValue}" });
 
@@ -150,7 +152,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromQuery] string? priority)
         {
             // Pass raw strings — repository handles enum parsing
-            var cases = await _fraudRepo.GetAllFraudCasesAsync(status, priority);
+            // Pass raw strings — repository handles enum parsing
+            var userOrgId = GetLoggedInUserOrgId();
+            var cases = await _fraudRepo.GetAllFraudCasesAsync(status, priority, userOrgId);
 
             var response = new List<FraudCaseResponseDto>();
             foreach (var fc in cases)
@@ -186,7 +190,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFraudCaseById(int id)
         {
-            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id, userOrgId);
             if (fc == null)
                 return NotFound(new { message = $"Fraud case {id} not found." });
 
@@ -224,11 +229,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CreateFraudCase([FromBody] CreateFraudCaseDto dto)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
+            var userOrgId = GetLoggedInUserOrgId();
+            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID, userOrgId);
             if (claim == null)
                 return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
 
-            var existingCase = await _fraudRepo.GetFraudCaseByClaimIdAsync(dto.ClaimID);
+            var existingCase = await _fraudRepo.GetFraudCaseByClaimIdAsync(dto.ClaimID, userOrgId);
             if (existingCase != null)
                 return Conflict(new { message = $"Fraud case already exists for Claim {dto.ClaimID}. CaseID: {existingCase.CaseID}" });
 
@@ -243,11 +249,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 OpenedBy = GetCurrentUserId(),
                 Priority = parsedPriority,                  // enum, not string
                 Status = FraudCaseStatus.Open,              // enum
-                InvestigationNotes = dto.InvestigationNotes
+                InvestigationNotes = dto.InvestigationNotes,
+                OrganizationID = userOrgId,                 // ← Phase 4: tenant stamp (userOrgId already retrieved on line 232)
             };
 
             var created = await _fraudRepo.CreateFraudCaseAsync(fraudCase);
-
             var user = await _userRepo.GetUserByIdAsync(GetCurrentUserId());
 
             var response = new FraudCaseResponseDto
@@ -279,7 +285,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ResolveFraudCase(int id, [FromBody] ResolveFraudCaseDto dto)
         {
-            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id);
+            var fc = await _fraudRepo.GetFraudCaseByIdAsync(id, GetLoggedInUserOrgId());
             if (fc == null)
                 return NotFound(new { message = $"Fraud case {id} not found." });
 
@@ -295,7 +301,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // If fraud CONFIRMED → reject the claim
             if (parsedOutcome == FraudOutcome.Confirmed)
             {
-                var claim = await _claimRepo.GetClaimByIdAsync(fc.ClaimID);
+                var claim = await _claimRepo.GetClaimByIdAsync(fc.ClaimID, GetLoggedInUserOrgId());
                 if (claim != null)
                 {
                     // Use the repository's UpdateClaimAsync method (existing in IClaimRepository)

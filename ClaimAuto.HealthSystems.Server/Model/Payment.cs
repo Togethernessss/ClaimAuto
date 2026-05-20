@@ -39,6 +39,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [MaxLength(100)]
         public string? ReferenceNumber { get; set; }
 
+        //Multi-Tenant (Phase 1)
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
+
         // Navigation
         public Remittance? Remittance { get; set; }
     }

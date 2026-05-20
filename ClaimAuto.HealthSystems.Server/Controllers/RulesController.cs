@@ -31,7 +31,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromQuery] string? status,
             [FromQuery] string? ruleType)
         {
-            var rules = await _ruleRepo.GetAllRulesAsync(status, ruleType);
+            var userOrgId = GetLoggedInUserOrgId();
+            var rules = await _ruleRepo.GetAllRulesAsync(status, ruleType, userOrgId);
             return Ok(rules);
         }
 
@@ -43,9 +44,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetRuleById(int id) 
+        public async Task<IActionResult> GetRuleById(int id)
         {
-            var rule = await _ruleRepo.GetRuleByIdAsync(id);
+            var userOrgId = GetLoggedInUserOrgId();
+            var rule = await _ruleRepo.GetRuleByIdAsync(id, userOrgId);
 
             if (rule == null)
                 return NotFound($"Rule with ID {id} was not found.");
@@ -66,6 +68,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromBody] CreateRuleDto dto)
         {
             var userId = GetLoggedInUserId();
+            var userOrgId = GetLoggedInUserOrgId();
+
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
@@ -73,7 +77,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest($"Invalid RuleType '{dto.RuleType}'. " +
                                   $"Must be: Coverage, Payment, or Validation.");
 
-            var created = await _ruleRepo.CreateRuleAsync(dto, userId.Value);
+            var created = await _ruleRepo.CreateRuleAsync(dto, userId.Value, userOrgId);
 
             return CreatedAtAction(
                 nameof(GetRuleById),

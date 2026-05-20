@@ -11,7 +11,14 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         [ForeignKey("Claim")]
         public int ClaimID { get; set; }
+        // Navigation
         public Claim Claim { get; set; } = null!;
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
+
 
         [MaxLength(100)]
         public string? ScoringModel { get; set; }

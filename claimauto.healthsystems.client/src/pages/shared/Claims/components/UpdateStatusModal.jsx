@@ -1,44 +1,45 @@
 // src/pages/shared/Claims/components/UpdateStatusModal.jsx
-// Staff / Admin updates claim status and priority.
 import { useState, useEffect } from 'react';
-import { Modal, Form, Button, Alert, Spinner, Row, Col, Badge } from 'react-bootstrap';
+import { Modal, Form, Button, Alert, Spinner, Badge } from 'react-bootstrap';
 import {
-  CLAIM_STATUSES, CLAIM_PRIORITIES,
-  statusVariant, statusLabel, priorityVariant, priorityTextColor,
-  formatCurrency, formatDate,
+  CLAIM_PRIORITIES,
+  statusVariant, statusLabel, formatCurrency, formatDate,
 } from '../utils/claimHelpers';
+import { useAuth } from '../../../../security/AuthContext';
 
 export default function UpdateStatusModal({
   show,
   loading,
   error,
-  claim,      // the claim being updated
+  claim,
   onHide,
-  onSubmit,   // ({ status, priority }) => void
+  onSubmit,
 }) {
-  const [status,   setStatus]   = useState('');
-  const [priority, setPriority] = useState('');
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === 'Admin';
+
+  const [priority,      setPriority]      = useState('Normal');
+  const [adminOverride, setAdminOverride] = useState(false);
 
   useEffect(() => {
     if (show && claim) {
-      setStatus(claim.status   ?? '');
-      setPriority(claim.priority ?? '');
+      setPriority(claim.priority ?? 'Normal');
+      setAdminOverride(false);
     }
   }, [show, claim]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
-      status:   status   || null,
       priority: priority || null,
+      status:   isAdmin && adminOverride ? 'Rejected' : null,
     });
   };
 
   if (!claim) return null;
 
-  const statusChanged   = status   !== (claim.status   ?? '');
-  const priorityChanged = priority !== (claim.priority ?? '');
-  const hasChanges      = statusChanged || priorityChanged;
+  const priorityChanged = priority !== (claim.priority ?? 'Normal');
+  const hasChanges      = priorityChanged || (isAdmin && adminOverride);
 
   return (
     <Modal show={show} onHide={onHide} centered backdrop="static">
@@ -52,7 +53,7 @@ export default function UpdateStatusModal({
       <Form onSubmit={handleSubmit}>
         <Modal.Body className="pt-2">
 
-          {/* Claim summary card */}
+          {/* Claim summary */}
           <div
             className="rounded-3 p-3 mb-3"
             style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
@@ -81,72 +82,57 @@ export default function UpdateStatusModal({
             </Alert>
           )}
 
-          <Row className="g-3">
-            {/* Status */}
-            <Col md={12}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">Status</Form.Label>
-                <Form.Select value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {CLAIM_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s === 'UnderReview' ? 'Under Review' : s}
-                    </option>
-                  ))}
-                </Form.Select>
-                {statusChanged && (
-                  <Form.Text className="text-primary">
-                    <i className="bi bi-arrow-right me-1"></i>
-                    Changing from <strong>{statusLabel(claim.status)}</strong> to{' '}
-                    <strong>{statusLabel(status)}</strong>
-                  </Form.Text>
-                )}
+          {/* Priority — all staff */}
+          <Form.Group className="mb-3">
+            <Form.Label className="small fw-semibold">Priority</Form.Label>
+            <Form.Select value={priority} onChange={(e) => setPriority(e.target.value)}>
+              {CLAIM_PRIORITIES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </Form.Select>
+            {priorityChanged && (
+              <Form.Text className="text-primary">
+                <i className="bi bi-arrow-right me-1"></i>
+                Changing from <strong>{claim.priority}</strong> to <strong>{priority}</strong>
+              </Form.Text>
+            )}
+          </Form.Group>
 
-                {/* Validated warning — auto-adjudication trigger */}
-                {status === 'Validated' && (
-                  <Alert variant="warning" className="small py-2 mt-2 mb-0">
-                    <i className="bi bi-lightning-fill me-2"></i>
-                    <strong>Auto-Adjudication will trigger immediately.</strong>
-                    <div className="mt-1" style={{ fontSize: 11 }}>
-                      The engine will evaluate this claim against all active rules.
-                      If the amount exceeds ₹5,00,000 it will be routed to the
-                      manual review queue instead.
-                    </div>
-                  </Alert>
-                )}
-              </Form.Group>
-            </Col>
-
-            {/* Priority */}
-            <Col md={12}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">Priority</Form.Label>
-                <Form.Select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                  {CLAIM_PRIORITIES.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </Form.Select>
-                {priorityChanged && (
-                  <Form.Text className="text-primary">
-                    <i className="bi bi-arrow-right me-1"></i>
-                    Changing from <strong>{claim.priority}</strong> to{' '}
-                    <strong>{priority}</strong>
-                  </Form.Text>
-                )}
-              </Form.Group>
-            </Col>
-          </Row>
-
-          {/* Status transition guidance */}
-          <div className="mt-3 small text-muted">
-            <i className="bi bi-info-circle me-1"></i>
-            Flow: Submitted → Under Review →{' '}
-            <span style={{ color: '#e65100', fontWeight: 600 }}>Validated</span>
-            {' '}→ <span style={{ color: '#764ba2' }}>Auto-Adjudicated</span>
-            {' '}→ Approved / Rejected → Paid
-            <div className="mt-1">
-              Setting <strong>Validated</strong> triggers the adjudication engine automatically.
+          {/* Admin override — Admin only */}
+          {isAdmin && (
+            <div className="mb-2">
+              <Form.Check
+                type="checkbox"
+                id="admin-reject-override"
+                label={
+                  <span className="small">
+                    <strong>Admin Override:</strong> Force-reject this claim
+                  </span>
+                }
+                checked={adminOverride}
+                onChange={(e) => setAdminOverride(e.target.checked)}
+              />
+              {adminOverride && (
+                <Alert variant="danger" className="small py-2 mt-2 mb-0">
+                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                  This will immediately set the claim to <strong>Rejected</strong>.
+                  Use only in exceptional circumstances where automated processing cannot apply.
+                </Alert>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Info note */}
+          <Alert variant="light" className="small mt-3 mb-0 py-2"
+            style={{ border: '1px solid #e9ecef' }}>
+            <i className="bi bi-info-circle me-1 text-muted"></i>
+            <span className="text-muted">
+              <strong>Status is set automatically.</strong> Fraud screening and
+              adjudication run on submission. Use this form to update{' '}
+              <strong>priority</strong> only.
+            </span>
+          </Alert>
+
         </Modal.Body>
 
         <Modal.Footer className="border-0">

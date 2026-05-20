@@ -1,7 +1,9 @@
 ﻿using ClaimAuto.HealthSystems.Server.Controllers;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Repositories.Implementations;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,6 +41,7 @@ public class PaymentsController : BaseController
     {
         var userId = GetLoggedInUserId();
         var userRole = GetLoggedInUserRole();
+        var userOrgId = GetLoggedInUserOrgId();
 
         if (userId == null)
             return Unauthorized("Invalid token.");
@@ -46,36 +49,30 @@ public class PaymentsController : BaseController
         var response = await _paymentRepository
             .GetAllPaymentsAsync(
                 userId, userRole,
-                status, claimId);
+                status, claimId,
+                userOrgId);
 
         return Ok(response);
     }
 
-    /// <summary>Returns a single payment by ID. Admin and InsuranceStaff only.</summary>
-    /// <param name="id">The payment ID.</param>
-    /// <response code="200">Returns the payment.</response>
-    /// <response code="404">Payment not found.</response>
+    /// <summary>Returns a single payment by ID.</summary>
     [HttpGet("{id}")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPaymentById(int id)
     {
+        var userOrgId = GetLoggedInUserOrgId();
         var response = await _paymentRepository
-            .GetPaymentByIdAsync(id);
+            .GetPaymentByIdAsync(id, userOrgId);
 
         if (response == null)
-            return NotFound(
-                $"Payment {id} not found.");
+            return NotFound($"Payment {id} not found.");
 
         return Ok(response);
     }
 
-    /// <summary>Creates a new payment in Pending status for a claim.</summary>
-    /// <param name="dto">Payment details including ClaimID, amount, method (EFT/ACH/Check), and schedule.</param>
-    /// <response code="201">Payment created successfully in Pending status.</response>
-    /// <response code="400">Invalid ClaimID, amount, or payment method.</response>
-    /// <response code="401">Unauthorized.</response>
+    /// <summary>Creates a new payment in Pending status.</summary>
     [HttpPost]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -88,19 +85,18 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
+        var userOrgId = GetLoggedInUserOrgId();
+
         if (dto.ClaimID <= 0)
             return BadRequest("Invalid ClaimID.");
 
         if (dto.Amount <= 0)
-            return BadRequest(
-                "Amount must be greater than 0.");
+            return BadRequest("Amount must be greater than 0.");
 
         if (!Enum.TryParse<PaymentMethod>(
-            dto.PaymentMethod, true,
-            out var paymentMethod))
+            dto.PaymentMethod, true, out var paymentMethod))
             return BadRequest(
-                "Invalid payment method. " +
-                "Use: EFT, ACH, Check");
+                "Invalid payment method. Use: EFT, ACH, Check");
 
         var payment = new Payment
         {
@@ -109,11 +105,12 @@ public class PaymentsController : BaseController
             Amount = dto.Amount,
             Currency = dto.Currency,
             PaymentMethod = paymentMethod,
-            ScheduledAt = dto.ScheduledAt
+            ScheduledAt = dto.ScheduledAt,
+            OrganizationID = userOrgId,   // ← Phase 4: tenant stamp
         };
 
         var response = await _paymentRepository
-            .CreatePaymentAsync(payment);
+            .CreatePaymentAsync(payment, userId.Value);
 
         return CreatedAtAction(
             nameof(GetPaymentById),
@@ -121,11 +118,7 @@ public class PaymentsController : BaseController
             response);
     }
 
-    /// <summary>Authorizes a Pending payment, moving it to Authorized status.</summary>
-    /// <param name="id">The payment ID to authorize.</param>
-    /// <response code="200">Payment authorized successfully.</response>
-    /// <response code="401">Unauthorized.</response>
-    /// <response code="404">Payment not found or not in Pending status.</response>
+    /// <summary>Authorizes a Pending payment.</summary>
     [HttpPut("{id}/authorize")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -138,23 +131,16 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .AuthorizePaymentAsync(id);
+            .AuthorizePaymentAsync(id, userId.Value);
 
         if (response == null)
             return NotFound(
-                $"Payment {id} not found " +
-                $"or not in Pending status.");
+                $"Payment {id} not found or not in Pending status.");
 
         return Ok(response);
     }
 
-    /// <summary>Executes an Authorized payment, moving it to Executed status.</summary>
-    /// <param name="id">The payment ID to execute.</param>
-    /// <param name="referenceNumber">The bank reference number.</param>
-    /// <response code="200">Payment executed successfully.</response>
-    /// <response code="400">Reference number is missing or invalid format.</response>
-    /// <response code="401">Unauthorized.</response>
-    /// <response code="404">Payment not found or not in Authorized status.</response>
+    /// <summary>Executes an Authorized payment.</summary>
     [HttpPut("{id}/execute")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -169,13 +155,9 @@ public class PaymentsController : BaseController
         if (userId == null)
             return Unauthorized("Invalid token.");
 
-        // ── Validate reference number ─────────────────────────────
         if (string.IsNullOrWhiteSpace(referenceNumber))
-            return BadRequest(
-                "Reference number is required.");
+            return BadRequest("Reference number is required.");
 
-        // Must follow: PREFIX/YYYYMMDD/IDENTIFIER
-        // e.g. NEFT/20260518/HDFC000123
         var refRegex = new System.Text.RegularExpressions
             .Regex(@"^[A-Z]+\/\d{8}\/[A-Z0-9]+$");
 
@@ -188,7 +170,6 @@ public class PaymentsController : BaseController
                 "IMPS/20260518/428512345678, " +
                 "UPI/20260518/TXN8823671234");
 
-        // ── Validate date in reference number ─────────────────────
         var parts = referenceNumber.Trim().ToUpper().Split('/');
         var dateStr = parts[1];
 
@@ -200,15 +181,12 @@ public class PaymentsController : BaseController
                 out var refDate))
             return BadRequest(
                 "Invalid date in reference number. " +
-                "Use format YYYYMMDD. " +
-                "Example: 20260518 for 18 May 2026.");
+                "Use format YYYYMMDD.");
 
-        // Date must not be in the future
         if (refDate.Date > DateTime.UtcNow.Date)
             return BadRequest(
                 "Reference number date cannot be in the future.");
 
-        // Date must not be older than 7 days
         if (refDate.Date < DateTime.UtcNow.Date.AddDays(-7))
             return BadRequest(
                 "Reference number date is too old. " +
@@ -217,7 +195,8 @@ public class PaymentsController : BaseController
         var response = await _paymentRepository
             .ExecutePaymentAsync(
                 id,
-                referenceNumber.Trim().ToUpper());
+                referenceNumber.Trim().ToUpper(),
+                userId.Value);
 
         if (response == null)
             return NotFound(
@@ -227,12 +206,7 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-
-    /// <summary>Places a payment on hold, preventing further processing.</summary>
-    /// <param name="id">The payment ID to hold.</param>
-    /// <response code="200">Payment placed on hold.</response>
-    /// <response code="401">Unauthorized.</response>
-    /// <response code="404">Payment not found or cannot be put on hold.</response>
+    /// <summary>Places a payment on hold.</summary>
     [HttpPut("{id}/hold")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -245,7 +219,7 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .HoldPaymentAsync(id);
+            .HoldPaymentAsync(id, userId.Value);
 
         if (response == null)
             return NotFound(
@@ -255,11 +229,7 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-    /// <summary>Resumes an OnHold payment, moving it back to Pending status.</summary>
-    /// <param name="id">The payment ID to resume.</param>
-    /// <response code="200">Payment resumed successfully.</response>
-    /// <response code="401">Unauthorized.</response>
-    /// <response code="404">Payment not found or not in OnHold status.</response>
+    /// <summary>Resumes an OnHold payment back to Pending.</summary>
     [HttpPut("{id}/resume")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -272,7 +242,7 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .ResumePaymentAsync(id);
+            .ResumePaymentAsync(id, userId.Value);
 
         if (response == null)
             return NotFound(
@@ -282,10 +252,7 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-    /// <summary>Returns the remittance advice for a payment. Admin, InsuranceStaff, and Hospital roles.</summary>
-    /// <param name="id">The payment ID.</param>
-    /// <response code="200">Returns the remittance advice.</response>
-    /// <response code="404">Remittance not found for this payment.</response>
+    /// <summary>Returns the remittance for a payment.</summary>
     [HttpGet("{id}/remittance")]
     [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -297,23 +264,12 @@ public class PaymentsController : BaseController
 
         if (response == null)
             return NotFound(
-                $"Remittance for Payment {id} " +
-                $"not found.");
+                $"Remittance for Payment {id} not found.");
 
         return Ok(response);
     }
 
-    /// <summary>
-    /// Returns all remittances with optional filters.
-    /// Admin and Staff see all. Hospital sees only their own.
-    /// </summary>
-    /// <param name="status">Filter by remittance status.</param>
-    /// <param name="search">Search by payee name or remittance ID.</param>
-    /// <param name="claimId">Filter by claim ID.</param>
-    /// <param name="dateFrom">Filter by generated date from.</param>
-    /// <param name="dateTo">Filter by generated date to.</param>
-    /// <response code="200">Returns list of remittances.</response>
-    /// <response code="401">Unauthorized.</response>
+    /// <summary>Returns all remittances. Hospital sees only their own.</summary>
     [HttpGet("remittances")]
     [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -340,10 +296,7 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-    /// <summary>Downloads the PDF remittance advice for a payment.</summary>
-    /// <param name="id">The payment ID.</param>
-    /// <response code="200">Returns PDF file.</response>
-    /// <response code="404">PDF not found for this remittance.</response>
+    /// <summary>Downloads the PDF receipt for a payment.</summary>
     [HttpGet("{id}/remittance/pdf")]
     [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -367,11 +320,7 @@ public class PaymentsController : BaseController
             $"Remittance-PAY-{id}.pdf");
     }
 
-    /// <summary>Acknowledges receipt of a remittance advice. Hospital role only.</summary>
-    /// <param name="id">The payment ID whose remittance to acknowledge.</param>
-    /// <response code="200">Remittance acknowledged successfully.</response>
-    /// <response code="401">Unauthorized.</response>
-    /// <response code="404">Remittance not found or not yet sent.</response>
+    /// <summary>Acknowledges receipt of a remittance. Hospital only.</summary>
     [HttpPut("{id}/remittance/acknowledge")]
     [Authorize(Roles = "Hospital")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -384,7 +333,7 @@ public class PaymentsController : BaseController
             return Unauthorized("Invalid token.");
 
         var response = await _paymentRepository
-            .AcknowledgeRemittanceAsync(id);
+            .AcknowledgeRemittanceAsync(id, userId.Value);
 
         if (response == null)
             return NotFound(
@@ -394,8 +343,7 @@ public class PaymentsController : BaseController
         return Ok(response);
     }
 
-    /// <summary>Returns all payment reconciliation records. Admin and InsuranceStaff only.</summary>
-    /// <response code="200">Returns list of reconciliation records.</response>
+    /// <summary>Returns all reconciliation records.</summary>
     [HttpGet("reconciliation")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -403,15 +351,10 @@ public class PaymentsController : BaseController
     {
         var response = await _paymentRepository
             .GetReconciliationsAsync();
-
         return Ok(response);
     }
 
-    /// <summary>Generates a payment reconciliation report for a given period.</summary>
-    /// <param name="dto">Period start and end dates for reconciliation.</param>
-    /// <response code="201">Reconciliation record created successfully.</response>
-    /// <response code="400">PeriodStart must be before PeriodEnd.</response>
-    /// <response code="401">Unauthorized.</response>
+    /// <summary>Creates a reconciliation report for a period.</summary>
     [HttpPost("reconciliation")]
     [Authorize(Roles = "Admin,InsuranceStaff")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -429,12 +372,35 @@ public class PaymentsController : BaseController
                 "PeriodStart must be before PeriodEnd.");
 
         var response = await _paymentRepository
-            .CreateReconciliationAsync(
-                dto, userId.Value);
+            .CreateReconciliationAsync(dto, userId.Value);
 
         return CreatedAtAction(
             nameof(GetReconciliations),
             new { id = response.ReconID },
             response);
+    }
+
+    /// <summary>Downloads the PDF for a reconciliation report.</summary>
+    [HttpGet("reconciliation/{id}/pdf")]
+    [Authorize(Roles = "Admin,InsuranceStaff")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReconciliationPdf(int id)
+    {
+        var userId = GetLoggedInUserId();
+        if (userId == null)
+            return Unauthorized("Invalid token.");
+
+        var pdfBytes = await _paymentRepository
+            .GetReconciliationPdfAsync(id);
+
+        if (pdfBytes == null || pdfBytes.Length == 0)
+            return NotFound(
+                $"Reconciliation {id} not found.");
+
+        return File(
+            pdfBytes,
+            "application/pdf",
+            $"Reconciliation-REC-{id}.pdf");
     }
 }

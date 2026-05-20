@@ -15,23 +15,34 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // Fetch all users
-        public async Task<IEnumerable<User>> GetAllUsersAsync()
+        // Fetch all users (optionally scoped to an organization)
+        public async Task<IEnumerable<User>> GetAllUsersAsync(int? userOrgId = null)
         {
-            return await _context.Users.ToListAsync();
+            var query = _context.Users.AsQueryable();
+            if (userOrgId.HasValue)
+                query = query.Where(u => u.OrganizationID == userOrgId.Value);
+            return await query.ToListAsync();
         }
 
         // Fetch one user by ID — returns null if not found
-        public async Task<User?> GetUserByIdAsync(int id)
+        // Fetch one user by ID — returns null if not found
+        public async Task<User?> GetUserByIdAsync(int id, int? userOrgId = null)
         {
-            return await _context.Users.FindAsync(id);
+            var query = _context.Users.Where(u => u.UserID == id);
+            if (userOrgId.HasValue)
+                query = query.Where(u => u.OrganizationID == userOrgId.Value);
+            return await query.FirstOrDefaultAsync();
         }
 
         // Fetch users filtered by Role AND only Active ones
-        public async Task<IEnumerable<User>> GetUsersByRoleAsync(UserRole role)
+        // Fetch users filtered by Role AND only Active ones
+        public async Task<IEnumerable<User>> GetUsersByRoleAsync(UserRole role, int? userOrgId = null)
         {
-            return await _context.Users
-                .Where(u => u.Role == role && u.Status == AccountStatus.Active)
-                .ToListAsync();
+            var query = _context.Users
+                .Where(u => u.Role == role && u.Status == AccountStatus.Active);
+            if (userOrgId.HasValue)
+                query = query.Where(u => u.OrganizationID == userOrgId.Value);
+            return await query.ToListAsync();
         }
 
         // Check if an email is already registered

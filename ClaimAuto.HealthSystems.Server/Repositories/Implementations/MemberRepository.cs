@@ -18,10 +18,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  GET ALL MEMBERS — with optional filters for PolicyID and Status
         // ══════════════════════════════════════════════════════════════════
-        public async Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status)
+        public async Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status, int? userOrgId = null)
         {
             // Start with all members
             var query = _db.Members.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
 
             // Apply PolicyID filter if provided
             if (policyId.HasValue)
@@ -53,12 +57,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  GET MEMBER BY ID — returns single member with PolicyName
         // ══════════════════════════════════════════════════════════════════
-        public async Task<MemberResponseDto?> GetMemberByIdAsync(int memberId)
+        public async Task<MemberResponseDto?> GetMemberByIdAsync(int memberId, int? userOrgId = null)
         {
-            return await _db.Members
-                .Where(m => m.MemberID == memberId)
+            var query = _db.Members.Where(m => m.MemberID == memberId);
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(m => new MemberResponseDto
-                {
+                { 
                     MemberID = m.MemberID,
                     PolicyID = m.PolicyID,
                     PolicyName = m.Policy.PlanName,
@@ -216,8 +225,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  CREATE MEMBER — enroll under a policy
         // ══════════════════════════════════════════════════════════════════
-        public async Task<MemberResponseDto?> CreateMemberAsync(CreateMemberDto dto, int createdByUserId)
+        public async Task<MemberResponseDto?> CreateMemberAsync(CreateMemberDto dto, int createdByUserId, int? userOrgId = null)
         {
+            
             // Validate that the Policy exists and is active
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
@@ -239,6 +249,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CoverageEnd = dto.CoverageEnd,
                 Status = MemberStatus.Active,     // server sets this — always Active on creation
                 PolicyholderUserID = dto.PolicyholderUserID,
+                OrganizationID = userOrgId,       // ← Phase 4: tenant stamp
             };
 
             _db.Members.Add(member);

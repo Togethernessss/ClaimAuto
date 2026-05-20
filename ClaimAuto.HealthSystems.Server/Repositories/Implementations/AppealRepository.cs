@@ -16,9 +16,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // ── Role-based filtering ──
-        public async Task<List<Appeal>> GetAllAppealsAsync(int userId, string role)
+        // ── Role-based + tenant filtering ──
+        public async Task<List<Appeal>> GetAllAppealsAsync(int userId, string role, int? userOrgId = null)
         {
             var query = _context.Appeals.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
 
             var staffRoles = new[] { "Admin", "InsuranceStaff" };
             if (!staffRoles.Contains(role))
@@ -30,13 +35,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .OrderByDescending(a => a.FiledAt)
                 .ToListAsync();
         }
-
-        public async Task<Appeal?> GetAppealByIdAsync(int id)
+        // In AppealRepository.GetAppealByIdAsync:
+        // In AppealRepository.GetAppealByIdAsync:
+        public async Task<Appeal?> GetAppealByIdAsync(int id, int? userOrgId = null)
         {
-            return await _context.Appeals
-                .Include(a => a.DecisionBy)
-                .Include(a => a.FiledByUser)
-                .FirstOrDefaultAsync(a => a.AppealID == id);
+            var query = _context.Appeals
+                .Include(a => a.DecisionBy)      // loads the User object
+                .Include(a => a.FiledByUser)     // if you have this navigation too
+                .AsQueryable();
+
+            // ── Multi-tenant ownership check (Phase 3) ───────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+
+            return await query.FirstOrDefaultAsync(a => a.AppealID == id);
         }
 
         public async Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId)
@@ -70,9 +82,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = appeal.ClaimID,
                         Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
                         DueDate = DateTime.UtcNow.AddDays(7),
-                        Priority = TaskPriority.High,
-                        Status = TaskStatus.Pending,
-                        CreatedAt = DateTime.UtcNow
+                        Priority = TaskPriority.High,          // enum
+                        Status = TaskStatus.Pending,           // enum
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = appeal.OrganizationID, // ← Phase 4: inherit from appeal
                     };
 
                     _context.ClaimTasks.Add(task);

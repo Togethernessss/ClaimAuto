@@ -16,11 +16,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
 
-        public async Task<List<RuleResponseDto>> GetAllRulesAsync(string? status, string? ruleType)
+        public async Task<List<RuleResponseDto>> GetAllRulesAsync(string? status, string? ruleType, int? userOrgId = null)
         {
             var query = _db.Rules
                 .Include(r => r.CreatedByUser)
                 .AsQueryable();
+
+            // ── Multi-tenant filter ──────────────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
 
             if (!string.IsNullOrEmpty(status))
             {
@@ -54,11 +58,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        public async Task<RuleResponseDto?> GetRuleByIdAsync(int ruleId)
+        public async Task<RuleResponseDto?> GetRuleByIdAsync(int ruleId, int? userOrgId = null)
         {
-            return await _db.Rules
+            var query = _db.Rules
                 .Include(r => r.CreatedByUser)
-                .Where(r => r.RuleID == ruleId)
+                .Where(r => r.RuleID == ruleId);
+
+            // ── Multi-tenant ownership check ──────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
+
+            return await query
                 .Select(r => new RuleResponseDto
                 {
                     RuleID = r.RuleID,
@@ -76,7 +86,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<RuleResponseDto> CreateRuleAsync(CreateRuleDto dto, int createdByUserId)
+        public async Task<RuleResponseDto> CreateRuleAsync(CreateRuleDto dto, int createdByUserId, int? userOrgId = null)
         {
             if (!Enum.TryParse<RuleType>(dto.RuleType, true, out var ruleType))
                 ruleType = RuleType.Validation;
@@ -92,7 +102,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Version = 1,
                 Status = RuleStatus.Draft,
                 CreatedBy = createdByUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                OrganizationID = userOrgId    // ← NEW: rule belongs to creator's org
             };
 
             _db.Rules.Add(rule);

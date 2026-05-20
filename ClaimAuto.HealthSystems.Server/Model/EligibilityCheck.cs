@@ -30,5 +30,12 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public int? PerformedByID { get; set; }
         [ForeignKey("PerformedByID")]
         public User? PerformedBy { get; set; }
+
+        
+
+        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

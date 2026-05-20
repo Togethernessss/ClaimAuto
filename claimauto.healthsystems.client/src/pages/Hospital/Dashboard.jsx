@@ -5,6 +5,7 @@ import { getMenuForRole } from '../../security/permissions';
 import { useState, useEffect } from 'react';
 import { getActivePolicies } from '../../services/policies/policyService';
 import { getAllRemittances } from '../../services/payments/remittanceService';
+import { getAllClaims } from '../../services/claims/claimService';
 import WelcomeBanner from '../../components/WelcomeBanner';
 import StatCard from '../../components/dashboard/StatCard';
 import PriorityActionBar from '../../components/dashboard/PriorityActionBar';
@@ -16,7 +17,8 @@ export default function HospitalDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const myMenu = getMenuForRole(user.role).filter((m) => m.key !== 'dashboard');
+  const myMenu = getMenuForRole(user.role)
+    .filter((m) => m.key !== 'dashboard');
 
   const [policies,        setPolicies]        = useState([]);
   const [policiesLoading, setPoliciesLoading] = useState(true);
@@ -25,6 +27,13 @@ export default function HospitalDashboard() {
   const [remittances,        setRemittances]        = useState([]);
   const [remittancesLoading, setRemittancesLoading] = useState(true);
   const [remittancesError,   setRemittancesError]   = useState(null);
+
+  // ── Stat card state ───────────────────────────────────────────
+  const [claimsThisMonth, setClaimsThisMonth] = useState(null);
+  const [approvedClaims,  setApprovedClaims]  = useState(null);
+  const [pendingClaims,   setPendingClaims]   = useState(null);
+  const [deniedClaims,    setDeniedClaims]    = useState(null);
+  const [statsLoading,    setStatsLoading]    = useState(true);
 
   useEffect(() => {
     async function loadPolicies() {
@@ -49,8 +58,51 @@ export default function HospitalDashboard() {
       }
     }
 
+    async function loadStats() {
+      try {
+        const claims = await getAllClaims();
+        const now    = new Date();
+        const month  = now.getMonth();
+        const year   = now.getFullYear();
+
+        // Claims submitted this month
+        const thisMonth = claims.filter(c => {
+          const d = new Date(c.submittedAt);
+          return d.getMonth() === month && d.getFullYear() === year;
+        });
+        setClaimsThisMonth(thisMonth.length);
+
+        // Approved / Paid
+        setApprovedClaims(
+          claims.filter(c =>
+            c.status === 'Approved' || c.status === 'Paid'
+          ).length
+        );
+
+        // Pending — submitted or under review
+        setPendingClaims(
+          claims.filter(c =>
+            c.status === 'Submitted' ||
+            c.status === 'UnderReview' ||
+            c.status === 'Validated' ||
+            c.status === 'Adjudicated'
+          ).length
+        );
+
+        // Denied
+        setDeniedClaims(
+          claims.filter(c => c.status === 'Rejected').length
+        );
+      } catch {
+        setClaimsThisMonth(null);
+      } finally {
+        setStatsLoading(false);
+      }
+    }
+
     loadPolicies();
     loadRemittances();
+    loadStats();
   }, []);
 
   const pendingRemittances = remittances.filter(r => r.status === 'Sent');
@@ -86,7 +138,7 @@ export default function HospitalDashboard() {
 
       <div className="px-4 pb-4">
 
-        {/* Priority Action Bar — only when pending remittances exist */}
+        {/* Priority Action Bar */}
         {!remittancesLoading && pendingRemittances.length > 0 && (
           <PriorityActionBar
             accentColor="warning"
@@ -99,46 +151,58 @@ export default function HospitalDashboard() {
           />
         )}
 
-        {/* Stat Cards */}
+        {/* ── Stat Cards ─────────────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
               label="Claims This Month"
-              value="—"
+              value={statsLoading ? '…' : claimsThisMonth ?? '—'}
               icon="bi-file-earmark-text"
               borderColor="primary"
               footerIcon="bi-clock"
-              footerText="No data yet"
+              footerText={statsLoading ? 'Loading…' :
+                claimsThisMonth === 0
+                  ? 'No claims this month'
+                  : `${claimsThisMonth} submitted this month`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
-              label="Approved"
-              value="—"
+              label="Approved / Paid"
+              value={statsLoading ? '…' : approvedClaims ?? '—'}
               icon="bi-check2-circle"
               borderColor="success"
               footerIcon="bi-check"
-              footerText="Awaiting data"
+              footerText={statsLoading ? 'Loading…' :
+                approvedClaims === 0
+                  ? 'No approved claims'
+                  : `${approvedClaims} approved or paid`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
               label="Pending"
-              value="—"
+              value={statsLoading ? '…' : pendingClaims ?? '—'}
               icon="bi-hourglass-split"
               borderColor="warning"
               footerIcon="bi-hourglass"
-              footerText="Awaiting data"
+              footerText={statsLoading ? 'Loading…' :
+                pendingClaims === 0
+                  ? 'No pending claims'
+                  : `${pendingClaims} under review`}
             />
           </Col>
           <Col md={6} lg={3}>
             <StatCard
               label="Denied"
-              value="—"
+              value={statsLoading ? '…' : deniedClaims ?? '—'}
               icon="bi-x-circle"
               borderColor="danger"
               footerIcon="bi-shield"
-              footerText="No denied claims"
+              footerText={statsLoading ? 'Loading…' :
+                deniedClaims === 0
+                  ? 'No denied claims'
+                  : `${deniedClaims} rejected`}
             />
           </Col>
         </Row>
@@ -161,7 +225,8 @@ export default function HospitalDashboard() {
                 </div>
               ) : policiesError ? (
                 <div className="text-center py-4">
-                  <i className="bi bi-exclamation-circle text-danger" style={{ fontSize: 32 }}></i>
+                  <i className="bi bi-exclamation-circle text-danger"
+                    style={{ fontSize: 32 }}></i>
                   <div className="text-muted small mt-2">{policiesError}</div>
                 </div>
               ) : policies.length === 0 ? (
@@ -183,8 +248,10 @@ export default function HospitalDashboard() {
                         cursor: 'pointer',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      onMouseEnter={(e) =>
+                        e.currentTarget.style.background = '#f8f9fa'}
+                      onMouseLeave={(e) =>
+                        e.currentTarget.style.background = 'white'}
                     >
                       <div className="d-flex align-items-start gap-3">
                         <div style={{
@@ -193,11 +260,13 @@ export default function HospitalDashboard() {
                           flexShrink: 0, marginTop: 5,
                         }}></div>
                         <div className="flex-grow-1">
-                          <div className="fw-semibold" style={{ fontSize: 13, color: '#1e2a3a' }}>
+                          <div className="fw-semibold"
+                            style={{ fontSize: 13, color: '#1e2a3a' }}>
                             {p.planName}
                           </div>
                           <div className="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                            <span className="font-monospace" style={{ fontSize: 11, color: '#9e9e9e' }}>
+                            <span className="font-monospace"
+                              style={{ fontSize: 11, color: '#9e9e9e' }}>
                               {p.planCode}
                             </span>
                             {p.deductibleAmount != null && (
@@ -206,12 +275,14 @@ export default function HospitalDashboard() {
                                 color: '#2e7d32', fontWeight: 600,
                                 borderRadius: 4, padding: '1px 6px',
                               }}>
-                                ₹{Number(p.deductibleAmount).toLocaleString('en-IN')} deductible
+                                ₹{Number(p.deductibleAmount)
+                                  .toLocaleString('en-IN')} deductible
                               </span>
                             )}
                           </div>
                         </div>
-                        <i className="bi bi-chevron-right text-muted" style={{ fontSize: 12, marginTop: 3 }}></i>
+                        <i className="bi bi-chevron-right text-muted"
+                          style={{ fontSize: 12, marginTop: 3 }}></i>
                       </div>
                     </div>
                   ))}
@@ -219,13 +290,17 @@ export default function HospitalDashboard() {
               )}
 
               {!policiesLoading && !policiesError && policies.length > 0 && (
-                <div style={{ padding: '8px 16px', borderTop: '1px solid #f0f0f0' }}>
+                <div style={{
+                  padding: '8px 16px',
+                  borderTop: '1px solid #f0f0f0',
+                }}>
                   <button
                     className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
                     style={{ color: '#1a56db', fontSize: 12 }}
                     onClick={() => navigate('/policies')}
                   >
-                    View all {policies.length} active {policies.length === 1 ? 'policy' : 'policies'}
+                    View all {policies.length} active{' '}
+                    {policies.length === 1 ? 'policy' : 'policies'}
                     <i className="bi bi-arrow-right ms-1"></i>
                   </button>
                 </div>
@@ -244,12 +319,17 @@ export default function HospitalDashboard() {
               {remittancesLoading ? (
                 <div className="text-center py-4">
                   <Spinner animation="border" size="sm" variant="success" />
-                  <div className="text-muted small mt-2">Loading remittances...</div>
+                  <div className="text-muted small mt-2">
+                    Loading remittances...
+                  </div>
                 </div>
               ) : remittancesError ? (
                 <div className="text-center py-4">
-                  <i className="bi bi-exclamation-circle text-danger" style={{ fontSize: 32 }}></i>
-                  <div className="text-muted small mt-2">{remittancesError}</div>
+                  <i className="bi bi-exclamation-circle text-danger"
+                    style={{ fontSize: 32 }}></i>
+                  <div className="text-muted small mt-2">
+                    {remittancesError}
+                  </div>
                 </div>
               ) : unacknowledged.length === 0 ? (
                 <EmptyStatePanel
@@ -270,21 +350,21 @@ export default function HospitalDashboard() {
                           borderBottom: index < unacknowledged.length - 1
                             ? '1px solid #f0f0f0' : 'none',
                           cursor: 'pointer',
-                          background: r.status === 'Sent' ? '#fffbf0' : 'white',
+                          background: r.status === 'Sent'
+                            ? '#fffbf0' : 'white',
                           transition: 'background 0.15s',
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#f8f9fa';
-                        }}
-                        onMouseLeave={(e) => {
+                        onMouseEnter={(e) =>
+                          e.currentTarget.style.background = '#f8f9fa'}
+                        onMouseLeave={(e) =>
                           e.currentTarget.style.background =
-                            r.status === 'Sent' ? '#fffbf0' : 'white';
-                        }}
+                            r.status === 'Sent' ? '#fffbf0' : 'white'}
                       >
                         <div className="d-flex justify-content-between align-items-start">
                           <div className="flex-grow-1">
                             <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                              <span className="font-monospace fw-semibold" style={{ fontSize: 12 }}>
+                              <span className="font-monospace fw-semibold"
+                                style={{ fontSize: 12 }}>
                                 #REM-{r.remittanceID}
                               </span>
                               <span style={{
@@ -306,18 +386,22 @@ export default function HospitalDashboard() {
                               )}
                             </div>
                             <div className="d-flex align-items-center gap-2">
-                              <span className="fw-semibold" style={{ fontSize: 13, color: '#764ba2' }}>
+                              <span className="fw-semibold"
+                                style={{ fontSize: 13, color: '#764ba2' }}>
                                 {formatCurrency(r.amount)}
                               </span>
-                              <span className="text-muted" style={{ fontSize: 11 }}>
+                              <span className="text-muted"
+                                style={{ fontSize: 11 }}>
                                 · Claim #{r.claimID}
                               </span>
                             </div>
-                            <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                            <div className="text-muted"
+                              style={{ fontSize: 11, marginTop: 2 }}>
                               {formatDate(r.generatedAt)}
                             </div>
                           </div>
-                          <i className="bi bi-chevron-right text-muted" style={{ fontSize: 12, marginTop: 3 }}></i>
+                          <i className="bi bi-chevron-right text-muted"
+                            style={{ fontSize: 12, marginTop: 3 }}></i>
                         </div>
                       </div>
                     );
@@ -325,8 +409,12 @@ export default function HospitalDashboard() {
                 </div>
               )}
 
-              {!remittancesLoading && !remittancesError && remittances.length > 0 && (
-                <div style={{ padding: '8px 16px', borderTop: '1px solid #f0f0f0' }}>
+              {!remittancesLoading && !remittancesError &&
+                remittances.length > 0 && (
+                <div style={{
+                  padding: '8px 16px',
+                  borderTop: '1px solid #f0f0f0',
+                }}>
                   <button
                     className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
                     style={{ color: '#1a56db', fontSize: 12 }}
@@ -349,12 +437,16 @@ export default function HospitalDashboard() {
               subtitle="Your latest claims"
             >
               <div className="text-center py-5">
-                <i className="bi bi-file-earmark-plus" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-                <div className="fw-semibold text-muted mt-3">No claims submitted yet</div>
+                <i className="bi bi-file-earmark-plus"
+                  style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+                <div className="fw-semibold text-muted mt-3">
+                  No claims submitted yet
+                </div>
                 <div className="small text-muted mt-1 mb-3">
                   Click "New Claim" to file your first claim.
                 </div>
-                <Button size="sm" variant="primary" onClick={() => navigate('/claims/submit')}>
+                <Button size="sm" variant="primary"
+                  onClick={() => navigate('/claims/submit')}>
                   <i className="bi bi-plus-lg me-1"></i> Submit a Claim
                 </Button>
               </div>

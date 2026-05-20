@@ -16,11 +16,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<List<ReportResponseDto>> GetAllReportsAsync(
-            string? scope)
+    string? scope, int? userOrgId = null)
         {
             var query = _context.Reports
                 .Include(r => r.GeneratedByUser)
                 .AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
 
             if (!string.IsNullOrEmpty(scope))
             {
@@ -48,11 +52,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }).ToList();
         }
 
-        public async Task<ReportResponseDto?> GetReportByIdAsync(int id)
+        public async Task<ReportResponseDto?> GetReportByIdAsync(int id, int? userOrgId = null)
         {
-            var report = await _context.Reports
+            var query = _context.Reports
                 .Include(r => r.GeneratedByUser)
-                .FirstOrDefaultAsync(r => r.ReportID == id);
+                .Where(r => r.ReportID == id);
+
+            if (userOrgId.HasValue)
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
+
+            var report = await query.FirstOrDefaultAsync();
 
             if (report == null)
                 return null;
@@ -70,8 +79,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<ReportResponseDto> GenerateReportAsync(
-            GenerateReportDto dto,
-            int generatedById)
+    GenerateReportDto dto,
+    int generatedById,
+    int? userOrgId = null)
         {
             Enum.TryParse<ReportScope>(
                 dto.Scope, true, out var scopeEnum);
@@ -89,7 +99,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ParametersJSON = dto.ParametersJSON,
                 MetricsJSON = metrics,
                 GeneratedBy = generatedById,
-                GeneratedAt = DateTime.UtcNow
+                GeneratedAt = DateTime.UtcNow,
+                OrganizationID = userOrgId,    // ← Phase 4: tenant stamp
             };
 
             _context.Reports.Add(report);
@@ -203,9 +214,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
-        public async Task<List<KPIResponseDto>> GetAllKPIsAsync()
+        public async Task<List<KPIResponseDto>> GetAllKPIsAsync(int? userOrgId = null)
         {
-            var kpis = await _context.KPIs.ToListAsync();
+            var query = _context.KPIs.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(k => k.OrganizationID == userOrgId.Value);
+
+            var kpis = await query.ToListAsync();
 
             var totalClaims = await _context.Claims.CountAsync();
 
@@ -307,9 +324,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        public async Task<List<AuditPackageResponseDto>> GetAllAuditPackagesAsync()
+        public async Task<List<AuditPackageResponseDto>> GetAllAuditPackagesAsync(int? userOrgId = null)
         {
-            var packages = await _context.AuditPackages
+            var query = _context.AuditPackages.AsQueryable();
+
+            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            if (userOrgId.HasValue)
+                query = query.Where(p => p.OrganizationID == userOrgId.Value);
+
+            var packages = await query
                 .OrderByDescending(p => p.GeneratedAt)
                 .ToListAsync();
 
@@ -324,11 +347,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }).ToList();
         }
 
-        public async Task<AuditPackageResponseDto>
-            GenerateAuditPackageAsync(
-                DateTime periodStart,
-                DateTime periodEnd,
-                int generatedById)
+        public async Task<AuditPackageResponseDto>GenerateAuditPackageAsync(
+         DateTime periodStart,
+         DateTime periodEnd,
+         int generatedById,
+         int? userOrgId = null)
         {
             var auditLogCount = await _context.AuditLogs
                 .CountAsync(a =>
@@ -365,7 +388,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PeriodStart = periodStart,
                 PeriodEnd = periodEnd,
                 ContentsJSON = contents,
-                GeneratedAt = DateTime.UtcNow
+                GeneratedAt = DateTime.UtcNow,
+                OrganizationID = userOrgId,    // ← Phase 4: tenant stamp
             };
 
             _context.AuditPackages.Add(package);

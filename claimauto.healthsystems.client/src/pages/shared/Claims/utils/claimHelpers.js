@@ -1,7 +1,5 @@
-
 // ── DATE / CURRENCY FORMATTERS ────────────────────────────────────────────────
 
-// "2026-05-14T10:30:00Z" → "14 May 2026"
 export function formatDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-IN', {
@@ -9,7 +7,6 @@ export function formatDate(iso) {
   });
 }
 
-// "2026-05-14T10:30:00Z" → "14 May 2026, 10:30 AM"
 export function formatDateTime(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('en-IN', {
@@ -18,7 +15,6 @@ export function formatDateTime(iso) {
   });
 }
 
-// 50000 → "₹50,000"  |  null → "—"
 export function formatCurrency(val) {
   if (val == null || val === '') return '—';
   return `₹${Number(val).toLocaleString('en-IN')}`;
@@ -26,33 +22,28 @@ export function formatCurrency(val) {
 
 // ── BADGE VARIANT HELPERS ─────────────────────────────────────────────────────
 
-// Claim status → Bootstrap badge bg color
 export function statusVariant(status) {
   switch (status) {
-    case 'Submitted':    return 'secondary';
-    case 'UnderReview':  return 'info';
-    case 'Adjudicated':  return 'primary';
-    case 'Approved':     return 'success';
-    case 'Paid':         return 'success';
-    case 'Rejected':     return 'danger';
-    default:             return 'secondary';
+    case 'Submitted':   return 'secondary';
+    case 'UnderReview': return 'info';
+    case 'Approved':    return 'primary';   // payment pending execution — distinct from Paid
+    case 'Paid':        return 'success';
+    case 'Rejected':    return 'danger';
+    default:            return 'secondary';
   }
 }
 
-// Claim status → human-readable label
 export function statusLabel(status) {
   switch (status) {
-    case 'Submitted':    return 'Submitted';
-    case 'UnderReview':  return 'Under Review';
-    case 'Adjudicated':  return 'Adjudicated';
-    case 'Approved':     return 'Approved';
-    case 'Paid':         return 'Paid';
-    case 'Rejected':     return 'Rejected';
-    default:             return status || '—';
+    case 'Submitted':   return 'Submitted';
+    case 'UnderReview': return 'Under Review';
+    case 'Approved':    return 'Approved';
+    case 'Paid':        return 'Paid';
+    case 'Rejected':    return 'Rejected';
+    default:            return status || '—';
   }
 }
 
-// Priority → Bootstrap badge bg color
 export function priorityVariant(priority) {
   switch (priority) {
     case 'Normal': return 'light';
@@ -62,7 +53,6 @@ export function priorityVariant(priority) {
   }
 }
 
-// Priority → text color (for light badge readability)
 export function priorityTextColor(priority) {
   switch (priority) {
     case 'Normal': return 'dark';
@@ -72,7 +62,6 @@ export function priorityTextColor(priority) {
   }
 }
 
-// Claim type → Bootstrap badge bg color
 export function claimTypeVariant(claimType) {
   switch (claimType) {
     case 'Inpatient':     return 'primary';
@@ -84,7 +73,6 @@ export function claimTypeVariant(claimType) {
   }
 }
 
-// Claim type → icon
 export function claimTypeIcon(claimType) {
   switch (claimType) {
     case 'Inpatient':     return 'bi-hospital';
@@ -96,17 +84,15 @@ export function claimTypeIcon(claimType) {
   }
 }
 
-// Document status → Bootstrap badge bg color
 export function docStatusVariant(status) {
   switch (status) {
-    case 'Pending':   return 'warning';
-    case 'Verified':  return 'success';
-    case 'Rejected':  return 'danger';
-    default:          return 'secondary';
+    case 'Pending':  return 'warning';
+    case 'Verified': return 'success';
+    case 'Rejected': return 'danger';
+    default:         return 'secondary';
   }
 }
 
-// Line status → Bootstrap badge bg color
 export function lineStatusVariant(status) {
   switch (status) {
     case 'Pending':  return 'warning';
@@ -116,10 +102,10 @@ export function lineStatusVariant(status) {
   }
 }
 
-// Adjudication decision → variant
 export function adjDecisionVariant(decision) {
   switch (decision) {
-    case 'Approved':      return 'success';
+    case 'Paid':          return 'success';
+    case 'Partial':       return 'info';
     case 'Denied':        return 'danger';
     case 'PendingReview': return 'warning';
     default:              return 'secondary';
@@ -129,43 +115,30 @@ export function adjDecisionVariant(decision) {
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
 export const CLAIM_TYPES = [
-  'Inpatient',
-  'Outpatient',
-  'Pharmacy',
-  'Emergency',
-  'Reimbursement',
+  'Inpatient', 'Outpatient', 'Pharmacy', 'Emergency', 'Reimbursement',
 ];
 
 export const HOSPITAL_CLAIM_TYPES = [
-  'Inpatient',
-  'Outpatient',
-  'Pharmacy',
-  'Emergency',
+  'Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
 ];
 
+// Staff-visible statuses — used in filters and the UpdateStatusModal priority-only form.
+// 'Adjudicated' REMOVED — never set in new flow (Paid → Approved directly).
+// 'Validated'   REMOVED — was a manual trigger, no longer part of flow.
+// All status transitions are automatic on submission.
 export const CLAIM_STATUSES = [
-  'Submitted',
-  'UnderReview',
-  'Validated',
-  'Adjudicated',
-  'Approved',
-  'Paid',
-  'Rejected',
+  'Submitted',    // auto: fraud screening + adjudication runs immediately
+  'UnderReview',  // auto: fraud blocked OR adjudication routed to manual review
+  'Approved',     // auto: adjudication Paid/Partial → payment auto-created (Pending)
+  'Paid',         // auto: payment Executed by staff
+  'Rejected',     // auto: denied by adjudication OR fraud confirmed
 ];
 
 export const CLAIM_PRIORITIES = ['Normal', 'High', 'Urgent'];
 
 export const DOC_TYPES = [
-  'Invoice',
-  'MedicalRecord',
-  'LabReport',
-  'Prescription',
-  'DischargeSummary',
+  'Invoice', 'MedicalRecord', 'LabReport', 'Prescription', 'DischargeSummary',
 ];
-
-// ── SIMULATE FILE URI + SHA256 ────────────────────────────────────────────────
-// In production these come from S3/Azure after real file upload.
-// For this project we generate a plausible-looking value.
 
 export function simulateFileURI(claimId, docType, fileName) {
   const ext = fileName?.split('.').pop() || 'pdf';
@@ -173,7 +146,6 @@ export function simulateFileURI(claimId, docType, fileName) {
 }
 
 export function simulateSHA256() {
-  // Returns a 64-char hex string that looks like a real SHA-256 hash
   return Array.from({ length: 64 }, () =>
     Math.floor(Math.random() * 16).toString(16)
   ).join('');

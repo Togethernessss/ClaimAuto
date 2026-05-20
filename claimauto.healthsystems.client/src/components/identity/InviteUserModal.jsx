@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Modal, Button, Form, Spinner, Alert, Row, Col } from 'react-bootstrap';
 import { inviteUser } from '../../services/identity/authService';
+import { useAuth } from '../../security/AuthContext';
 
 export default function InviteUserModal({ show, onClose, onInvited }) {
+  const { user } = useAuth();
+  const orgName = user?.organizationName;
+  const brandColor = user?.organizationBrandColor || '#6c757d';
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('InsuranceStaff');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -50,7 +54,26 @@ export default function InviteUserModal({ show, onClose, onInvited }) {
         </Modal.Title>
       </Modal.Header>
 
-      <Modal.Body>
+            <Modal.Body>
+        {/* ─── Org context strip — clarifies which workspace the invite goes into ─── */}
+        {orgName && (
+          <div
+            className="d-flex align-items-center gap-2 mb-3 p-2 rounded"
+            style={{
+              background: `${brandColor}15`,
+              border: `1px solid ${brandColor}40`,
+            }}
+          >
+            <span
+              className="rounded-circle d-inline-block flex-shrink-0"
+              style={{ width: 10, height: 10, background: brandColor }}
+            />
+            <small className="text-muted">
+              Inviting to <strong style={{ color: brandColor }}>{orgName}</strong>
+            </small>
+          </div>
+        )}
+
         {success && (
           <Alert variant="success" className="d-flex align-items-center">
             <i className="bi bi-check-circle-fill me-2"></i>

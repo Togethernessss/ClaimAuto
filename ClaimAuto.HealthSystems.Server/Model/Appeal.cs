@@ -36,5 +36,10 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public User? DecisionBy { get; set; }
 
         public AppealOutcome? Outcome { get; set; }
+
+        // ─── Multi-Tenant (Phase 1) ───────────────────────────────────────
+        [ForeignKey("Organization")]
+        public int? OrganizationID { get; set; }
+        public Organization? Organization { get; set; }
     }
 }

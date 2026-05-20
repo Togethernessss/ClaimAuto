@@ -20,3 +20,16 @@ body::-webkit-scrollbar {
 *::-webkit-scrollbar {
   display: none;
 }
+
+
+
+
+/* ─── Hide Microsoft Edge/IE built-in password reveal button ─────────────
+   Edge auto-adds a black eye icon to every <input type="password">.
+   We already have our own custom show/hide eye button (better UX +
+   consistent across browsers), so we hide Edge's native one to avoid
+   showing two eye icons side-by-side. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none !important;
+}
