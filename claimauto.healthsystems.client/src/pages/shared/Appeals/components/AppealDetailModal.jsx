@@ -3,6 +3,7 @@ import {
     formatDateTime, statusStyle, statusIcon,
     outcomeStyle, outcomeIcon, outcomeLabel,
 } from '../utils/appealHelpers';
+import { downloadAppealPdf } from '../../../../services/appeals/appealService';
 
 export default function AppealDetailModal({ show, onHide, appeal }) {
     if (!appeal) return null;
@@ -76,15 +77,15 @@ export default function AppealDetailModal({ show, onHide, appeal }) {
                     </p>
                 </div>
 
-                {/* Documents */}
+                {/* Documents list */}
                 {documents.length > 0 && (
-                    <div>
+                    <div className="mb-3">
                         <h6 className="fw-semibold small mb-2">
-                            <i className="bi bi-paperclip me-1"></i>Supporting Documents ({documents.length})
+                            <i className="bi bi-paperclip me-1"></i>Attached Documents ({documents.length})
                         </h6>
-                        {documents.map((uri, i) => (
-                            <div key={i} className="small text-primary mb-1">
-                                <i className="bi bi-link-45deg me-1"></i>{uri}
+                        {documents.map((name, i) => (
+                            <div key={i} className="small text-muted mb-1">
+                                <i className="bi bi-file-earmark-image text-primary me-1"></i>{name}
                             </div>
                         ))}
                     </div>
@@ -92,6 +93,16 @@ export default function AppealDetailModal({ show, onHide, appeal }) {
             </Modal.Body>
 
             <Modal.Footer style={{ borderTop: '1px solid #e9ecef' }}>
+                {appeal.hasPDF && (
+                    <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => downloadAppealPdf(appeal.appealID)}
+                        style={{ borderRadius: '10px', marginRight: 'auto' }}
+                    >
+                        <i className="bi bi-file-earmark-pdf me-1"></i>Download Documents PDF
+                    </Button>
+                )}
                 <Button variant="outline-secondary" onClick={onHide} style={{ borderRadius: '10px' }}>
                     Close
                 </Button>

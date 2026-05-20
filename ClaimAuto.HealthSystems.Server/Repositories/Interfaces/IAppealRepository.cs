@@ -10,6 +10,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<Appeal> FileAppealAsync(Appeal appeal);
         Task<Appeal?> DecideAppealAsync(int id, string outcome, int decidedById);
         Task<Appeal?> WithdrawAppealAsync(int id);
+        Task UpdateAppealAsync(Appeal appeal);
         Task<Subrogation> CreateSubrogationAsync(Subrogation subrogation);
         Task<List<Subrogation>> GetSubrogationsAsync();
     }

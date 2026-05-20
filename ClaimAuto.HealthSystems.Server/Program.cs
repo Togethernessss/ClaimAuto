@@ -46,6 +46,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             // Register PDF generation service
             builder.Services.AddScoped<IRemittancePdfService, RemittancePdfService>();
+            builder.Services.AddScoped<IAppealPdfRepository, AppealPdfRepository>();
             builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
 
 

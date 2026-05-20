@@ -25,6 +25,7 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         public string? DocumentsJSON { get; set; }
 
+        public byte[]? AppealFilePDF { get; set; }
         [Required]
         public AppealStatus Status { get; set; } = AppealStatus.Filed;
 

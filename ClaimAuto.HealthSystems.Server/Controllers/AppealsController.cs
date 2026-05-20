@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
+using ClaimAuto.HealthSystems.Server.Services.Interfaces;
 using System.Security.Claims;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
-    /// <summary>Manages claim appeals and subrogation. All authenticated roles; role-scoped results.</summary>
     [ApiController]
     [Route("api/appeals")]
     [Authorize]
@@ -18,23 +18,24 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IClaimRepository _claimRepo;
         private readonly IUserRepository _userRepo;
         private readonly INotificationRepository _notifRepo;
+        private readonly IAppealPdfRepository _pdfService;
 
         public AppealsController(
             IAppealRepository appealRepo,
             IClaimRepository claimRepo,
             IUserRepository userRepo,
-            INotificationRepository notifRepo)
+            INotificationRepository notifRepo,
+            IAppealPdfRepository pdfService)
         {
             _appealRepo = appealRepo;
             _claimRepo = claimRepo;
             _userRepo = userRepo;
             _notifRepo = notifRepo;
+            _pdfService = pdfService;
         }
 
 
         // GET /api/appeals
-        /// <summary>Returns appeals visible to the current user. Admins and InsuranceStaff see all; others see their own.</summary>
-        /// <response code="200">Returns list of appeals.</response>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllAppeals()
@@ -48,7 +49,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             foreach (var a in appeals)
             {
                 var filedByUser = await _userRepo.GetUserByIdAsync(a.FiledBy);
-
                 string? decisionByName = a.DecisionBy?.Name;
 
                 response.Add(new AppealResponseDto
@@ -62,7 +62,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Status = a.Status.ToString(),
                     DecisionAt = a.DecisionAt,
                     DecisionByName = decisionByName,
-                    Outcome = a.Outcome?.ToString()
+                    Outcome = a.Outcome?.ToString(),
+                    HasPDF = a.AppealFilePDF != null && a.AppealFilePDF.Length > 0
                 });
             }
 
@@ -71,11 +72,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
 
         // GET /api/appeals/{id}
-        /// <summary>Returns a single appeal by ID. Non-staff users can only view their own appeals.</summary>
-        /// <param name="id">The appeal ID.</param>
-        /// <response code="200">Returns the appeal.</response>
-        /// <response code="403">Access denied — not the appeal owner.</response>
-        /// <response code="404">Appeal not found.</response>
         [HttpGet("{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -91,7 +87,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return Forbid();
 
             var filedByUser = await _userRepo.GetUserByIdAsync(appeal.FiledBy);
-
             string? decisionByName = appeal.DecisionBy?.Name;
 
             var response = new AppealResponseDto
@@ -105,98 +100,118 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Status = appeal.Status.ToString(),
                 DecisionAt = appeal.DecisionAt,
                 DecisionByName = decisionByName,
-                Outcome = appeal.Outcome?.ToString()
+                Outcome = appeal.Outcome?.ToString(),
+                HasPDF = appeal.AppealFilePDF != null && appeal.AppealFilePDF.Length > 0
             };
 
             return Ok(response);
         }
 
 
-        // POST /api/appeals — File an appeal
-        /// <summary>Files a new appeal for a Rejected or Adjudicated claim. Notifies InsuranceStaff automatically.</summary>
-        /// <param name="dto">Appeal details including ClaimID and reason.</param>
-        /// <response code="201">Appeal filed successfully.</response>
-        /// <response code="400">Claim is not in Rejected or Adjudicated status, or reason is missing.</response>
-        /// <response code="404">Claim not found.</response>
-        /// <response code="409">An active appeal already exists for this claim.</response>
+        // POST /api/appeals — File an appeal WITH attached documents
         [HttpPost]
+        [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> FileAppeal([FromBody] CreateAppealDto dto)
+        public async Task<IActionResult> FileAppeal(
+            [FromForm] int claimID,
+            [FromForm] string reason,
+            [FromForm] List<IFormFile>? files)
         {
-            var claim = await _claimRepo.GetClaimByIdAsync(dto.ClaimID);
+            var claim = await _claimRepo.GetClaimByIdAsync(claimID);
             if (claim == null)
-                return NotFound(new { message = $"Claim {dto.ClaimID} not found." });
+                return NotFound(new { message = $"Claim {claimID} not found." });
 
-            // ── FIX: Compare enum to enum, not enum to string ──
-            // OLD: claim.Status.ToString() != "Rejected"
             if (!Enum.TryParse<ClaimStatus>(claim.Status, true, out var claimStatus)
                 || (claimStatus != ClaimStatus.Rejected && claimStatus != ClaimStatus.Adjudicated))
             {
-                return BadRequest(new { message = $"Claim {dto.ClaimID} has status '{claim.Status}'. Only Rejected or Adjudicated claims can be appealed." });
+                return BadRequest(new { message = $"Claim {claimID} has status '{claim.Status}'. Only Rejected or Adjudicated claims can be appealed." });
             }
 
-            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(dto.ClaimID);
+            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(claimID);
             var activeAppeal = existingAppeals.FirstOrDefault(
                 a => a.Status == AppealStatus.Filed || a.Status == AppealStatus.UnderReview);
             if (activeAppeal != null)
-                return Conflict(new { message = $"Active appeal exists for Claim {dto.ClaimID}. AppealID: {activeAppeal.AppealID}" });
+                return Conflict(new { message = $"Active appeal exists for Claim {claimID}. AppealID: {activeAppeal.AppealID}" });
 
-            if (string.IsNullOrWhiteSpace(dto.Reason))
+            if (string.IsNullOrWhiteSpace(reason))
                 return BadRequest(new { message = "Appeal reason is required." });
 
             int userId = GetCurrentUserId();
 
+            // Store file names in DocumentsJSON
+            string? documentsJSON = null;
+            if (files != null && files.Count > 0)
+            {
+                var fileNames = files.Select(f => f.FileName).ToList();
+                documentsJSON = System.Text.Json.JsonSerializer.Serialize(fileNames);
+            }
+
             var appeal = new Appeal
             {
-                ClaimID = dto.ClaimID,
+                ClaimID = claimID,
                 FiledBy = userId,
                 FiledAt = DateTime.UtcNow,
-                Reason = dto.Reason,
-                DocumentsJSON = dto.DocumentsJSON,
+                Reason = reason,
+                DocumentsJSON = documentsJSON,
                 Status = AppealStatus.Filed
             };
 
             var created = await _appealRepo.FileAppealAsync(appeal);
 
-            // ── FIX: Use UserRole enum, not string ──
-            // OLD: await _userRepo.GetUserByRoleAsync("ClaimsProcessor")
-            // NEW: await _userRepo.GetUserByRoleAsync(UserRole.InsuranceStaff)
-            // Your enum has "InsuranceStaff" not "ClaimsProcessor"
+            // ── Compile uploaded documents into a single PDF ──
+            if (files != null && files.Count > 0)
+            {
+                try
+                {
+                    var filer = await _userRepo.GetUserByIdAsync(userId);
+                    created.AppealFilePDF = _pdfService.CompileDocumentsPdf(
+                        created,
+                        filer?.Name ?? "Unknown",
+                        files.ToList());
+                    await _appealRepo.UpdateAppealAsync(created);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[PDF ERROR] Appeal {created.AppealID}: {ex.Message}\n{ex.StackTrace}");
+                    // Non-fatal — appeal is still filed, PDF just missing
+                }
+            }
+
+            // ── Notify staff ──
             var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff);
             var assignee = staffUsers.FirstOrDefault();
             if (assignee != null)
             {
-                // ── FIX: Use enums for Notification fields ──
-                // OLD: Category = "Appeal" (string)
-                // NEW: Category = NotificationCategory.Appeal (enum)
                 await _notifRepo.CreateAsync(new Notification
                 {
                     UserID = assignee.UserID,
-                    ClaimID = dto.ClaimID,
-                    Message = $"New appeal filed for Claim {dto.ClaimID}. Review within 7 days.",
+                    ClaimID = claimID,
+                    Message = $"New appeal filed for Claim {claimID}. Review within 7 days.",
                     Category = NotificationCategory.Appeal,
                     Severity = NotificationSeverity.Warning,
                     CreatedAt = DateTime.UtcNow,
                     Status = NotificationStatus.Unread
                 });
             }
+
             var filedByUser = await _userRepo.GetUserByIdAsync(userId);
 
             var response = new AppealResponseDto
             {
                 AppealID = created.AppealID,
-                ClaimID = dto.ClaimID,
+                ClaimID = claimID,
                 FiledByName = filedByUser?.Name ?? "Unknown",
                 FiledAt = created.FiledAt,
-                Reason = dto.Reason,
-                DocumentsJSON = dto.DocumentsJSON,
+                Reason = reason,
+                DocumentsJSON = documentsJSON,
                 Status = created.Status.ToString(),
                 DecisionAt = null,
                 DecisionByName = null,
-                Outcome = null
+                Outcome = null,
+                HasPDF = created.AppealFilePDF != null && created.AppealFilePDF.Length > 0
             };
 
             return CreatedAtAction(nameof(GetAppealById),
@@ -204,19 +219,33 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
+        // GET /api/appeals/{id}/pdf
+        [HttpGet("{id}/pdf")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetAppealPdf(int id)
+        {
+            var appeal = await _appealRepo.GetAppealByIdAsync(id);
+            if (appeal == null)
+                return NotFound(new { message = $"Appeal {id} not found." });
+
+            string role = GetCurrentUserRole();
+            if (!IsStaffRole(role) && appeal.FiledBy != GetCurrentUserId())
+                return Forbid();
+
+            if (appeal.AppealFilePDF == null || appeal.AppealFilePDF.Length == 0)
+                return NotFound(new { message = $"No documents PDF for Appeal {id}." });
+
+            return File(appeal.AppealFilePDF, "application/pdf", $"Appeal-APL-{id}-Documents.pdf");
+        }
+
+
         // PUT /api/appeals/{id}/decide
-        /// <summary>Records a decision on an appeal. If Overturned, the linked claim is reset to Submitted. Admin and InsuranceStaff only.</summary>
-        /// <param name="id">The appeal ID to decide.</param>
-        /// <param name="dto">Decision outcome (Upheld, Overturned, PartiallyOverturned).</param>
-        /// <response code="200">Appeal decided successfully.</response>
-        /// <response code="400">Invalid outcome or appeal not in decidable status.</response>
-        /// <response code="404">Appeal not found.</response> 
         [HttpPut("{id}/decide")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        // ── FIX: Your enum has "InsuranceStaff", not "ClaimsProcessor" ──
         public async Task<IActionResult> DecideAppeal(int id, [FromBody] DecideAppealDto dto)
         {
             var appeal = await _appealRepo.GetAppealByIdAsync(id);
@@ -232,31 +261,16 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             int deciderId = GetCurrentUserId();
             var decided = await _appealRepo.DecideAppealAsync(id, dto.Outcome, deciderId);
 
-            // ── FIX: If Overturned → reset claim using enum ──
-            // OLD: claim.Status = "Submitted"; (string to enum = error)
-            // OLD: await _claimRepo.UpdateClaimAsync(fc.ClaimID, ...) (fc doesn't exist)
-            // NEW: Set enum directly on the claim object and save
             if (parsedOutcome == AppealOutcome.Overturned)
             {
                 var claim = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID);
                 if (claim != null)
                 {
-                    // Build an UpdateClaimDto according to your DTO definition.
-                    var updateDto = new UpdateClaimDto
-                    {
-                        // If UpdateClaimDto has an enum property:
-                        // Status = ClaimStatus.Submitted
-                        // If it expects a string:
-                        // Status = ClaimStatus.Submitted.ToString()
-                        // Set any other required properties here.
-                    };
-
-                    // Use the required signature: (int claimId, UpdateClaimDto dto, int updatedByUserId)
+                    var updateDto = new UpdateClaimDto { };
                     await _claimRepo.UpdateClaimAsync(appeal.ClaimID, updateDto, deciderId);
                 }
             }
 
-            // ── FIX: Notification with enums ──
             await _notifRepo.CreateAsync(new Notification
             {
                 UserID = appeal.FiledBy,
@@ -267,17 +281,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 CreatedAt = DateTime.UtcNow,
                 Status = NotificationStatus.Unread
             });
+
             return Ok(new { message = $"Appeal {id} decided as '{dto.Outcome}'.", appealId = id });
         }
 
 
         // PUT /api/appeals/{id}/withdraw
-        /// <summary>Withdraws an appeal. Only the original filer can withdraw their own appeal.</summary>
-        /// <param name="id">The appeal ID to withdraw.</param>
-        /// <response code="200">Appeal withdrawn successfully.</response>
-        /// <response code="400">Appeal is not in a withdrawable status.</response>
-        /// <response code="403">Access denied — not the appeal owner.</response>
-        /// <response code="404">Appeal not found.</response>
         [HttpPut("{id}/withdraw")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -301,10 +310,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
 
         // POST /api/appeals/subrogation
-        /// <summary>Creates a subrogation record to recover costs from a third party. Admin and InsuranceStaff only.</summary>
-        /// <param name="dto">Subrogation details including ClaimID, recoverable amount, and third-party info.</param>
-        /// <response code="201">Subrogation record created in Initiated status.</response>
-        /// <response code="404">Claim not found.</response>
         [HttpPost("subrogation")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -336,8 +341,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // GET /api/appeals/subrogation
-        /// <summary>Returns all subrogation records. Admin and InsuranceStaff only.</summary>
-        /// <response code="200">Returns list of subrogation records.</response>
         [HttpGet("subrogation")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -346,6 +349,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var subrogations = await _appealRepo.GetSubrogationsAsync();
             return Ok(subrogations);
         }
+
 
         // ── Helpers ──
         private int GetCurrentUserId()
@@ -364,8 +368,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         private bool IsStaffRole(string role)
         {
-            // ── FIX: Match your actual UserRole enum names ──
-            // Your enum has: Admin, InsuranceStaff, Policyholder, Hospital
             var staffRoles = new[] { "Admin", "InsuranceStaff" };
             return staffRoles.Contains(role);
         }

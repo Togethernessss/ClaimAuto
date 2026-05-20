@@ -31,12 +31,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .ToListAsync();
         }
 
-        // In AppealRepository.GetAppealByIdAsync:
         public async Task<Appeal?> GetAppealByIdAsync(int id)
         {
             return await _context.Appeals
-                .Include(a => a.DecisionBy)      // loads the User object
-                .Include(a => a.FiledByUser)     // if you have this navigation too
+                .Include(a => a.DecisionBy)
+                .Include(a => a.FiledByUser)
                 .FirstOrDefaultAsync(a => a.AppealID == id);
         }
 
@@ -58,11 +57,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 await _context.SaveChangesAsync();
 
                 // Step 2 — Auto-create Task for staff
-                var staffRoles = new[] { "InsuranceStaff", "Admin" };
                 var staffUser = await _context.Users
-    .FirstOrDefaultAsync(u =>
-        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
-        && u.Status == AccountStatus.Active);
+                    .FirstOrDefaultAsync(u =>
+                        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                        && u.Status == AccountStatus.Active);
 
                 if (staffUser != null)
                 {
@@ -72,8 +70,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = appeal.ClaimID,
                         Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
                         DueDate = DateTime.UtcNow.AddDays(7),
-                        Priority = TaskPriority.High,          // enum
-                        Status = TaskStatus.Pending,           // enum
+                        Priority = TaskPriority.High,
+                        Status = TaskStatus.Pending,
                         CreatedAt = DateTime.UtcNow
                     };
 
@@ -103,7 +101,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             appeal.DecisionAt = DateTime.UtcNow;
             appeal.DecisionByID = decidedById;
 
-            // Parse outcome string → enum
             if (Enum.TryParse<AppealOutcome>(outcome, true, out var parsedOutcome))
             {
                 appeal.Outcome = parsedOutcome;
@@ -123,6 +120,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             appeal.Status = AppealStatus.Withdrawn;
             await _context.SaveChangesAsync();
             return appeal;
+        }
+
+        public async Task UpdateAppealAsync(Appeal appeal)
+        {
+            _context.Appeals.Update(appeal);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<Subrogation> CreateSubrogationAsync(Subrogation subrogation)
