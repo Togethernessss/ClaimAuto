@@ -1,5 +1,7 @@
 ﻿using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -8,237 +10,104 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
     public class AppealPdfRepository : IAppealPdfRepository
     {
-        public byte[] CompileDocumentsPdf(
-            Appeal appeal,
-            string filedByName,
-            List<IFormFile> files)
+        public byte[] CompileDocumentsPdf(Appeal appeal, string filedByName, List<IFormFile> files)
         {
             QuestPDF.Settings.License = LicenseType.Community;
 
-            var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ".png", ".jpg", ".jpeg"
-            };
-
-            // Read files — separate images from non-images
-            var imagePages = new List<(string Name, byte[] Data)>();
-            var otherFiles = new List<string>();
-
-            foreach (var file in files)
-            {
-                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-                if (imageExtensions.Contains(ext))
-                {
-                    using var ms = new MemoryStream();
-                    file.CopyTo(ms);
-                    imagePages.Add((file.FileName, ms.ToArray()));
-                }
-                else
-                {
-                    // PDF, DOC, etc. — list on cover page, not embedded
-                    otherFiles.Add(file.FileName);
-                }
-            }
-
-            var purple = "#667eea";
-            var darkText = "#1e2a3a";
-            var grayText = "#9e9e9e";
-            var lightGray = "#e0e0e0";
+            var imageExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp" };
+            var pdfExtensions = new[] { ".pdf" };
 
             return Document.Create(container =>
             {
-                // ── PAGE 1: Cover Page ──────────────────────────
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
                     page.Margin(40);
-                    page.DefaultTextStyle(x =>
-                        x.FontSize(11).FontFamily("Helvetica").FontColor(darkText));
 
-                    page.Content().Column(col =>
+                    // ── Cover Page ──
+                    page.Header().Column(col =>
                     {
-                        // Header
-                        col.Item().Row(row =>
-                        {
-                            row.RelativeItem().Row(r =>
-                            {
-                                r.ConstantItem(32).Height(32)
-                                    .Background(purple)
-                                    .AlignCenter().AlignMiddle()
-                                    .Text("C").FontSize(16).Bold().FontColor("#ffffff");
-                                r.ConstantItem(8);
-                                r.RelativeItem().Column(inner =>
-                                {
-                                    inner.Item().Text("ClaimAuto")
-                                        .FontSize(16).Bold().FontColor(purple);
-                                    inner.Item().Text("Health Insurance")
-                                        .FontSize(9).FontColor(grayText);
-                                });
-                            });
+                        col.Item().Text($"Appeal Documents — APL-{appeal.AppealID}")
+                            .FontSize(20).Bold().FontColor(Colors.Indigo.Medium);
 
-                            row.ConstantItem(130).Column(c =>
-                            {
-                                c.Item().AlignRight()
-                                    .Text("Appeal No.").FontSize(9).FontColor(grayText);
-                                c.Item().AlignRight()
-                                    .Text($"#APL-{appeal.AppealID}")
-                                    .FontSize(15).Bold().FontColor(darkText);
-                                c.Item().AlignRight()
-                                    .Text(appeal.FiledAt.ToString("dd MMM yyyy"))
-                                    .FontSize(9).FontColor(grayText);
-                            });
+                        col.Item().PaddingTop(8).Text(txt =>
+                        {
+                            txt.Span("Claim ID: ").Bold();
+                            txt.Span($"CLM-{appeal.ClaimID}");
+                        });
+                        col.Item().Text(txt =>
+                        {
+                            txt.Span("Filed By: ").Bold();
+                            txt.Span(filedByName);
+                        });
+                        col.Item().Text(txt =>
+                        {
+                            txt.Span("Filed At: ").Bold();
+                            txt.Span(appeal.FiledAt.ToString("dd-MMM-yyyy HH:mm"));
+                        });
+                        col.Item().Text(txt =>
+                        {
+                            txt.Span("Reason: ").Bold();
+                            txt.Span(appeal.Reason);
                         });
 
-                        col.Item().Height(10);
-                        col.Item().Height(2).Background(purple);
-                        col.Item().Height(2);
-                        col.Item().Height(0.5f).Background(lightGray);
-                        col.Item().Height(20);
+                        col.Item().PaddingTop(12)
+                            .LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
 
-                        col.Item().AlignCenter()
-                            .Text("Appeal — Supporting Documents")
-                            .FontSize(18).Bold().FontColor(darkText);
-                        col.Item().Height(24);
+                        col.Item().PaddingTop(8).Text($"Attached Files: {files.Count}")
+                            .FontSize(12).Italic();
 
-                        // Detail helper
-                        void DetailRow(string label, string value)
+                        // List non-image files on cover page
+                        var nonImageFiles = files.Where(f =>
                         {
-                            col.Item().Row(r =>
-                            {
-                                r.RelativeItem()
-                                    .Text(label).FontSize(10).FontColor(grayText);
-                                r.RelativeItem().AlignRight()
-                                    .Text(value).FontSize(10).Bold().FontColor(darkText);
-                            });
-                            col.Item().Height(5);
-                        }
+                            var ext = Path.GetExtension(f.FileName).ToLowerInvariant();
+                            return !imageExtensions.Contains(ext);
+                        }).ToList();
 
-                        col.Item()
-                            .BorderBottom(1).BorderColor(lightGray)
-                            .PaddingBottom(5)
-                            .Text("Appeal Information")
-                            .FontSize(10).Bold().FontColor(purple);
-                        col.Item().Height(8);
-
-                        DetailRow("Appeal ID", $"#APL-{appeal.AppealID}");
-                        DetailRow("Claim ID", $"CLM-{appeal.ClaimID}");
-                        DetailRow("Filed By", filedByName);
-                        DetailRow("Filed At", appeal.FiledAt.ToString("dd MMM yyyy, HH:mm"));
-                        DetailRow("Status", appeal.Status.ToString());
-
-                        col.Item().Height(14);
-
-                        // Reason
-                        col.Item()
-                            .BorderBottom(1).BorderColor(lightGray)
-                            .PaddingBottom(5)
-                            .Text("Reason for Appeal")
-                            .FontSize(10).Bold().FontColor(purple);
-                        col.Item().Height(6);
-                        col.Item()
-                            .BorderLeft(3).BorderColor(purple)
-                            .Background("#fafafa")
-                            .Padding(8)
-                            .Text(appeal.Reason)
-                            .FontSize(10).Italic().FontColor("#555555");
-
-                        col.Item().Height(18);
-
-                        // File listing
-                        int totalFiles = imagePages.Count + otherFiles.Count;
-                        col.Item()
-                            .BorderBottom(1).BorderColor(lightGray)
-                            .PaddingBottom(5)
-                            .Text($"Attached Documents ({totalFiles})")
-                            .FontSize(10).Bold().FontColor(purple);
-                        col.Item().Height(6);
-
-                        int idx = 1;
-                        foreach (var img in imagePages)
+                        if (nonImageFiles.Any())
                         {
-                            int num = idx++;
-                            col.Item().PaddingVertical(2).Row(r =>
-                            {
-                                r.ConstantItem(20)
-                                    .Text($"{num}.").FontSize(9).FontColor(purple);
-                                r.RelativeItem()
-                                    .Text(img.Name).FontSize(9).FontColor(darkText);
-                                r.ConstantItem(100).AlignRight()
-                                    .Text("Image — see next pages")
-                                    .FontSize(8).FontColor(grayText);
-                            });
-                        }
-                        foreach (var name in otherFiles)
-                        {
-                            int num = idx++;
-                            col.Item().PaddingVertical(2).Row(r =>
-                            {
-                                r.ConstantItem(20)
-                                    .Text($"{num}.").FontSize(9).FontColor(purple);
-                                r.RelativeItem()
-                                    .Text(name).FontSize(9).FontColor(darkText);
-                                r.ConstantItem(100).AlignRight()
-                                    .Text("File attached separately")
-                                    .FontSize(8).FontColor(grayText);
-                            });
-                        }
+                            col.Item().PaddingTop(8).Text("Non-image files (attached separately):")
+                                .FontSize(10).Italic().FontColor(Colors.Grey.Medium);
 
-                        col.Item().Height(20);
-
-                        // Footer
-                        col.Item().Height(0.5f).Background(lightGray);
-                        col.Item().Height(2);
-                        col.Item().Height(2).Background(purple);
-                        col.Item().Height(10);
-                        col.Item()
-                            .Text($"System-generated document · DOC-APL-{appeal.AppealID}-{appeal.FiledAt:yyyyMMdd}")
-                            .FontSize(9).Italic().FontColor("#bbbbbb");
+                            foreach (var nf in nonImageFiles)
+                            {
+                                col.Item().Text($"  • {nf.FileName} ({nf.Length / 1024.0:F1} KB)")
+                                    .FontSize(9);
+                            }
+                        }
                     });
+
+                    // ── Embed each image ──
+                    page.Content().PaddingTop(20).Column(col =>
+                    {
+                        foreach (var file in files)
+                        {
+                            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                            if (!imageExtensions.Contains(ext))
+                                continue;
+
+                            using var ms = new MemoryStream();
+                            file.CopyTo(ms);
+                            var bytes = ms.ToArray();
+
+                            col.Item().PaddingBottom(8).Text(file.FileName)
+                                .FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
+
+                            col.Item().PaddingBottom(16)
+                                .Image(bytes)
+                                .FitWidth();
+                        }
+                    });
+
+                    page.Footer().AlignCenter()
+                        .Text(txt =>
+                        {
+                            txt.Span("Page ");
+                            txt.CurrentPageNumber();
+                            txt.Span(" of ");
+                            txt.TotalPages();
+                        });
                 });
-
-                // ── ONE PAGE PER IMAGE ──────────────────────────
-                foreach (var entry in imagePages)
-                {
-                    container.Page(imgPage =>
-                    {
-                        imgPage.Size(PageSizes.A4);
-                        imgPage.Margin(30);
-                        imgPage.DefaultTextStyle(x =>
-                            x.FontSize(11).FontFamily("Helvetica").FontColor(darkText));
-
-                        imgPage.Header().Column(hdr =>
-                        {
-                            hdr.Item().Row(r =>
-                            {
-                                r.RelativeItem()
-                                    .Text($"Appeal #APL-{appeal.AppealID}")
-                                    .FontSize(9).Bold().FontColor(purple);
-                                r.RelativeItem().AlignRight()
-                                    .Text(entry.Name)
-                                    .FontSize(9).FontColor(grayText);
-                            });
-                            hdr.Item().Height(4);
-                            hdr.Item().Height(1).Background(lightGray);
-                            hdr.Item().Height(8);
-                        });
-
-                        imgPage.Content()
-                            .AlignCenter()
-                            .AlignMiddle()
-                            .Image(entry.Data)
-                            .FitArea();
-
-                        imgPage.Footer().AlignCenter()
-                            .Text(text =>
-                            {
-                                text.Span("Page ").FontSize(8).FontColor(grayText);
-                                text.CurrentPageNumber().FontSize(8).FontColor(grayText);
-                                text.Span(" of ").FontSize(8).FontColor(grayText);
-                                text.TotalPages().FontSize(8).FontColor(grayText);
-                            });
-                    });
-                }
             }).GeneratePdf();
         }
     }
