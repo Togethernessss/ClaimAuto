@@ -66,7 +66,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     r => r.OrganizationID == userOrgId.Value);
 
             var report = await query.FirstOrDefaultAsync();
-
             if (report == null) return null;
 
             return new ReportResponseDto
@@ -109,6 +108,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
 
             _context.Reports.Add(report);
+            await _context.SaveChangesAsync();
+
+            // ── Audit log — Report generated ──────────────────────────
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserID = generatedById,
+                Action = "GenerateReport",
+                ResourceType = "Report",
+                ResourceID = report.ReportID.ToString(),
+                DetailsJSON = $"{{\"reportID\":{report.ReportID}," +
+                                 $"\"scope\":\"{report.Scope}\"," +
+                                 $"\"generatedBy\":{generatedById}}}",
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = userOrgId, // ← SaaS
+            });
             await _context.SaveChangesAsync();
 
             // ── Load navigation property for PDF ─────────────────────
