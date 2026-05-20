@@ -11,6 +11,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             string? status,
             int? claimId,
             int? userOrgId = null);
+
         Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null);
 
         Task<PaymentResponseDto> CreatePaymentAsync(
@@ -37,6 +38,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<RemittanceResponseDto?> GetRemittanceByPaymentIdAsync(
             int paymentId);
 
+        // ── SaaS FIX: tenant-scoped remittance list ──
         Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
             int? userId,
             string? userRole,
@@ -44,20 +46,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             string? search,
             int? claimId,
             DateTime? dateFrom,
-            DateTime? dateTo);
+            DateTime? dateTo,
+            int? userOrgId = null);
 
         Task<RemittanceResponseDto?> AcknowledgeRemittanceAsync(
             int paymentId,
             int acknowledgedByUserId);
 
-        Task<List<ReconciliationResponseDto>> GetReconciliationsAsync();
+        // ── SaaS FIX: tenant-scoped reconciliation list ──
+        Task<List<ReconciliationResponseDto>> GetReconciliationsAsync(int? userOrgId = null);
 
+        // ── SaaS FIX: tenant stamp on reconciliation creation ──
         Task<ReconciliationResponseDto> CreateReconciliationAsync(
             CreateReconciliationDto dto,
-            int performedById);
+            int performedById,
+            int? userOrgId = null);
 
         Task<byte[]?> GetRemittancePdfAsync(int paymentId);
 
-        Task<byte[]?> GetReconciliationPdfAsync(int reconId);
+        // ── SaaS FIX: tenant-scoped reconciliation PDF lookup ──
+        Task<byte[]?> GetReconciliationPdfAsync(int reconId, int? userOrgId = null);
     }
 }
