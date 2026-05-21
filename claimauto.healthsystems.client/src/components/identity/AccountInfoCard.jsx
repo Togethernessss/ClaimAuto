@@ -1,57 +1,78 @@
-import { Card } from 'react-bootstrap';
+import { Card, Badge } from 'react-bootstrap';
 
-/**
- * Small read-only card showing account metadata.
- * Sits below the MfaCard in the security column of the Profile page.
- *
- * Props:
- *   user — current user object from AuthContext
- */
 export default function AccountInfoCard({ user }) {
   if (!user) return null;
 
-  // Format the joined date — show "May 14, 2026"
   const joined = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+        year: 'numeric', month: 'long', day: 'numeric',
       })
     : '—';
 
+  const rows = [
+    { icon: 'bi-hash',              label: 'User ID',      value: `#${user.userID}`, isStatus: false },
+    { icon: 'bi-calendar3',         label: 'Member Since', value: joined,            isStatus: false },
+    { icon: 'bi-check-circle-fill', label: 'Status',       value: user.status,       isStatus: true  },
+  ];
+
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Header className="bg-white border-0 py-3">
-        <h6 className="mb-0 fw-semibold">
-          <i className="bi bi-info-circle text-primary me-2"></i>
+    <Card
+      className="border-0"
+      style={{ boxShadow:'0 4px 24px rgba(102,126,234,0.08)', borderRadius:16 }}
+    >
+      <Card.Header
+        className="border-0 py-3 px-4"
+        style={{
+          background:'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+          borderRadius:'16px 16px 0 0',
+        }}
+      >
+        <h6 className="mb-0 fw-bold" style={{ color:'#4c1d95' }}>
+          <i className="bi bi-info-circle-fill me-2" style={{ color:'#7c3aed' }}></i>
           Account Information
         </h6>
       </Card.Header>
 
-      <Card.Body>
-        <Row label="User ID" icon="bi-hash" value={`#${user.userID}`} />
-        <Row label="Account Created" icon="bi-calendar3" value={joined} />
-        <Row
-          label="Account Status"
-          icon="bi-check-circle"
-          value={user.status === 'Active' ? 'Active' : user.status}
-        />
+      <Card.Body className="px-4 py-3">
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className="d-flex align-items-center justify-content-between py-2"
+            style={{ borderBottom: i < rows.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+          >
+            {/* Label with icon */}
+            <div className="d-flex align-items-center gap-2" style={{ color:'#6b7280', fontSize:13 }}>
+              <div
+                style={{
+                  width:28, height:28, borderRadius:8,
+                  background:'#f5f3ff',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                }}
+              >
+                <i className={`bi ${row.icon}`} style={{ color:'#7c3aed', fontSize:13 }}></i>
+              </div>
+              {row.label}
+            </div>
+
+            {/* Value */}
+            {row.isStatus ? (
+              <Badge
+                className="rounded-pill"
+                style={{
+                  background: row.value === 'Active' ? '#10b981' : '#6b7280',
+                  fontSize:11, padding:'4px 10px',
+                }}
+              >
+                {row.value}
+              </Badge>
+            ) : (
+              <span className="fw-semibold" style={{ color:'#1e1b4b', fontSize:13 }}>
+                {row.value}
+              </span>
+            )}
+          </div>
+        ))}
       </Card.Body>
     </Card>
-  );
-}
-
-/**
- * Tiny helper for one label/value row.
- */
-function Row({ label, icon, value }) {
-  return (
-    <div className="d-flex justify-content-between align-items-center py-2 border-bottom">
-      <div className="small text-muted">
-        <i className={`${icon} me-1`}></i>
-        {label}
-      </div>
-      <div className="small fw-semibold">{value}</div>
-    </div>
   );
 }
