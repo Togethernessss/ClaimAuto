@@ -187,8 +187,18 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
 
+            // ── FIX: allow multiple NULL ExternalClaimRef values ─────────────
+            // ExternalClaimRef is optional. Policyholders (reimbursement flow)
+            // and some hospitals never supply one, so it is frequently NULL.
+            // Without HasFilter, SQL Server treats two NULLs as duplicates and
+            // throws a unique key violation on the second claim with no ref.
+            // HasFilter("[ExternalClaimRef] IS NOT NULL") tells SQL Server to
+            // only enforce uniqueness for rows where a value IS provided —
+            // exactly the same fix already applied to Payment.ReferenceNumber.
             mb.Entity<Claim>()
-                .HasIndex(c => c.ExternalClaimRef).IsUnique();
+                .HasIndex(c => c.ExternalClaimRef)
+                .IsUnique()
+                .HasFilter("[ExternalClaimRef] IS NOT NULL");
 
             mb.Entity<Member>()
                 .HasIndex(m => m.MemberNumber).IsUnique();
