@@ -1,115 +1,128 @@
-import { Card, Badge, Button, Alert } from 'react-bootstrap';
 import { useState } from 'react';
+import { Card, Badge, Button } from 'react-bootstrap';
 import MfaSetupModal from './MfaSetupModal';
 import MfaDisableModal from './MfaDisableModal';
-/**
- * MFA status card — sits in the security column of the Profile page.
- *
- * Props:
- *   user — current user object from AuthContext (we read user.mfaEnabled)
- *
- * Three states it can show:
- *   1. MFA enabled  → green badge + "Disable MFA" button (Phase 5 wires the modal)
- *   2. MFA disabled → orange badge + "Enable MFA" button (opens MfaSetupModal)
- *
- * Visual + behavior is the same whether you arrive here as Admin, Staff, Hospital,
- * or Policyholder — MFA is a per-user setting available to every role.
- */
+
 export default function MfaCard({ user }) {
-    const [showSetup, setShowSetup] = useState(false);
-    const [showDisable, setShowDisable] = useState(false);
+  const [showSetup,   setShowSetup]   = useState(false);
+  const [showDisable, setShowDisable] = useState(false);
 
-    if (!user) return null;
+  if (!user) return null;
 
-    const mfaEnabled = !!user.mfaEnabled;
+  const mfaEnabled = !!user.mfaEnabled;
 
-    return (
-        <>
-            <Card className="border-0 shadow-sm">
-                <Card.Header className="bg-white border-0 py-3">
-                    <h6 className="mb-0 fw-semibold">
-                        <i className="bi bi-shield-lock text-primary me-2"></i>
-                        Multi-Factor Authentication
-                    </h6>
-                    <small className="text-muted">
-                        Add a second layer of security to your account
-                    </small>
-                </Card.Header>
+  return (
+    <>
+      <Card
+        className="border-0"
+        style={{ boxShadow:'0 4px 24px rgba(102,126,234,0.08)', borderRadius:16 }}
+      >
+        <Card.Header
+          className="border-0 py-3 px-4"
+          style={{
+            background:'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+            borderRadius:'16px 16px 0 0',
+          }}
+        >
+          <h6 className="mb-0 fw-bold" style={{ color:'#4c1d95' }}>
+            <i className="bi bi-shield-lock-fill me-2" style={{ color:'#7c3aed' }}></i>
+            Two-Factor Authentication
+          </h6>
+          <small style={{ color:'#7c3aed', opacity:0.7 }}>
+            Protect your account with an authenticator app
+          </small>
+        </Card.Header>
 
-                <Card.Body>
-                    {/* ── Status display ────────────────────────────────────── */}
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                        <div>
-                            <div className="small text-muted text-uppercase fw-bold mb-1">
-                                <i className="bi bi-toggle-on me-1"></i> Status
-                            </div>
-                            <Badge
-                                bg={mfaEnabled ? 'success' : 'warning'}
-                                className="fs-6 px-3 py-2"
-                            >
-                                {mfaEnabled ? (
-                                    <>
-                                        <i className="bi bi-check-circle-fill me-1"></i> Enabled
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="bi bi-exclamation-triangle-fill me-1"></i> Not Enabled
-                                    </>
-                                )}
-                            </Badge>
-                        </div>
-                    </div>
+        <Card.Body className="px-4 py-3">
+          {/* Status row */}
+          <div className="d-flex align-items-center justify-content-between mb-3">
+            <div className="d-flex align-items-center gap-3">
 
-                    {/* ── Description that adapts to state ─────────────────── */}
-                    {mfaEnabled ? (
-                        <Alert variant="success" className="d-flex align-items-start small mb-3">
-                            <i className="bi bi-shield-check me-2 mt-1"></i>
-                            <div>
-                                Your account is protected by an Authenticator app. You'll be asked
-                                for a code each time you log in.
-                            </div>
-                        </Alert>
-                    ) : (
-                        <Alert variant="warning" className="d-flex align-items-start small mb-3">
-                            <i className="bi bi-info-circle me-2 mt-1"></i>
-                            <div>
-                                Without MFA, your account is protected only by your password.
-                                We strongly recommend enabling Multi-Factor Authentication.
-                            </div>
-                        </Alert>
-                    )}
+              {/* Shield icon box */}
+              <div
+                style={{
+                  width:44, height:44, borderRadius:12,
+                  background: mfaEnabled
+                    ? 'linear-gradient(135deg, #10b981, #059669)'
+                    : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow: mfaEnabled
+                    ? '0 4px 12px rgba(16,185,129,0.3)'
+                    : '0 4px 12px rgba(245,158,11,0.3)',
+                }}
+              >
+                <i
+                  className={`bi ${mfaEnabled ? 'bi-shield-check' : 'bi-shield-exclamation'} text-white`}
+                  style={{ fontSize:20 }}
+                ></i>
+              </div>
 
-                    {/* ── Primary action button ────────────────────────────── */}
-                    {mfaEnabled ? (
-                        <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => setShowDisable(true)}
-                        >
-                            <i className="bi bi-shield-slash me-1"></i> Disable MFA
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setShowSetup(true)}
-                        >
-                            <i className="bi bi-shield-plus me-1"></i> Enable MFA
-                        </Button>
-                    )}
-                </Card.Body>
-            </Card>
+              <div>
+                <div className="fw-semibold" style={{ color:'#1e1b4b', fontSize:14 }}>
+                  {mfaEnabled ? 'MFA is Enabled' : 'MFA is Disabled'}
+                </div>
+                <div style={{ fontSize:12, color:'#6b7280' }}>
+                  {mfaEnabled
+                    ? 'Secured with a second factor.'
+                    : 'Only a password protects this account.'}
+                </div>
+              </div>
+            </div>
 
-            {/* ── Setup modal (opens when user clicks Enable MFA) ─────── */}
-            <MfaSetupModal
-                show={showSetup}
-                onClose={() => setShowSetup(false)}
-            />
+            <Badge
+              className="rounded-pill"
+              style={{
+                background: mfaEnabled ? '#10b981' : '#f59e0b',
+                fontSize:11, padding:'5px 10px',
+              }}
+            >
+              {mfaEnabled ? 'ON' : 'OFF'}
+            </Badge>
+          </div>
 
-            <MfaDisableModal                              // ← NEW
-                show={showDisable}
-                onClose={() => setShowDisable(false)}
-            />
-        </>
-    );
+          {/* Warning strip when MFA is off */}
+          {!mfaEnabled && (
+            <div
+              className="rounded-3 p-3 mb-3 d-flex align-items-start gap-2"
+              style={{ background:'#fffbeb', border:'1px solid #fde68a' }}
+            >
+              <i className="bi bi-exclamation-triangle-fill text-warning mt-1" style={{ fontSize:14 }}></i>
+              <div style={{ fontSize:12, color:'#92400e' }}>
+                We strongly recommend enabling MFA to protect your account.
+              </div>
+            </div>
+          )}
+
+          {/* Action button — same onClick as original */}
+          {mfaEnabled ? (
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={() => setShowDisable(true)}
+              className="rounded-3"
+              style={{ fontSize:13 }}
+            >
+              <i className="bi bi-shield-slash me-1"></i> Disable MFA
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => setShowSetup(true)}
+              className="rounded-3"
+              style={{
+                background:'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border:'none', fontSize:13,
+              }}
+            >
+              <i className="bi bi-shield-plus me-1"></i> Enable MFA
+            </Button>
+          )}
+        </Card.Body>
+      </Card>
+
+      {/* Modals — exactly same as before */}
+      <MfaSetupModal   show={showSetup}   onClose={() => setShowSetup(false)}   />
+      <MfaDisableModal show={showDisable} onClose={() => setShowDisable(false)} />
+    </>
+  );
 }
