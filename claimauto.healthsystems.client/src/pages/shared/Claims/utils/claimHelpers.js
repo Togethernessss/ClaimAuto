@@ -25,8 +25,10 @@ export function formatCurrency(val) {
 export function statusVariant(status) {
   switch (status) {
     case 'Submitted':   return 'secondary';
-    case 'UnderReview': return 'info';
-    case 'Approved':    return 'primary';   // payment pending execution — distinct from Paid
+    case 'UnderReview': return 'warning';
+    case 'Validated':   return 'primary';
+    case 'Adjudicated': return 'info';
+    case 'Approved':    return 'primary';
     case 'Paid':        return 'success';
     case 'Rejected':    return 'danger';
     default:            return 'secondary';
@@ -37,13 +39,14 @@ export function statusLabel(status) {
   switch (status) {
     case 'Submitted':   return 'Submitted';
     case 'UnderReview': return 'Under Review';
+    case 'Validated':   return 'Validated';
+    case 'Adjudicated': return 'Adjudicated';
     case 'Approved':    return 'Approved';
     case 'Paid':        return 'Paid';
     case 'Rejected':    return 'Rejected';
     default:            return status || '—';
   }
 }
-
 export function priorityVariant(priority) {
   switch (priority) {
     case 'Normal': return 'light';
@@ -145,8 +148,10 @@ export function simulateFileURI(claimId, docType, fileName) {
   return `uploads/claim-${claimId}-${docType.toLowerCase()}-${Date.now()}.${ext}`;
 }
 
-export function simulateSHA256() {
-  return Array.from({ length: 64 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('');
+export async function computeSHA256(file) {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }

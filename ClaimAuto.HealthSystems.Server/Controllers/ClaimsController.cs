@@ -32,13 +32,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllClaims(
             [FromQuery] string? status,
-            [FromQuery] string? priority)
+            [FromQuery] string? priority,
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
             var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
 
-            var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole, userOrgId);
+            var claims = await _claimRepo.GetAllClaimsAsync(status, priority, userId, userRole, userOrgId, page, pageSize);
             return Ok(claims);
         }
 
@@ -83,6 +85,41 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
                                   "MemberID, and PolicyID (must be Active) all exist and are valid.");
 
+            // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on submission ─────────────────
+            var fraudScore = await _fraudRepo.ScoreClaimAsync(created.ClaimID, userOrgId);
+
+            if (fraudScore.ScoreValue >= 70)
+            {
+                var fraudCase = new FraudCase
+                {
+                    ClaimID = created.ClaimID,
+                    OpenedAt = DateTime.UtcNow,
+                    OpenedBy = userId.Value,
+                    Priority = FraudCasePriority.High,
+                    Status = FraudCaseStatus.Open,
+                    InvestigationNotes = $"Auto-opened on submission. Fraud score: {fraudScore.ScoreValue}/100. Factors: {fraudScore.FactorsJSON}",
+                    OrganizationID = userOrgId,
+                };
+
+                var notification = new Notification
+                {
+                    UserID = userId.Value,
+                    ClaimID = created.ClaimID,
+                    Message = $"Fraud alert on CLM-{created.ClaimID}: score {fraudScore.ScoreValue}/100. Claim is blocked pending fraud investigation.",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Critical,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = userOrgId,
+                };
+
+                await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
+            }
+            else
+            {
+                await _adjRepo.AutoAdjudicateAsync(created.ClaimID, userOrgId);
+            }
+
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
         }
 
@@ -98,14 +135,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value);
+            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+
+            var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value, userOrgId);
             if (updated == null)
                 return NotFound($"Claim with ID {id} was not found.");
 
             // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on Validated ──────────────
             if (dto.Status == "Validated")
             {
-                var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
 
                 // Step 1 — Run fraud scoring (only if not already scored)
                 var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(id, userOrgId);

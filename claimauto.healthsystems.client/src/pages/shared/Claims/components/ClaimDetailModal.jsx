@@ -12,7 +12,7 @@ import {
   claimTypeVariant, claimTypeIcon,
   docStatusVariant, lineStatusVariant,
   adjDecisionVariant, DOC_TYPES,
-  simulateFileURI, simulateSHA256,
+  simulateFileURI, computeSHA256,
 } from '../utils/claimHelpers';
 
 export default function ClaimDetailModal({
@@ -30,8 +30,8 @@ export default function ClaimDetailModal({
   onUploadDocument, // (claimId, dto) => void
 }) {
   const [activeTab, setActiveTab] = useState('info');
-  const [docType,   setDocType]   = useState('Invoice');
-  const [fileName,  setFileName]  = useState('');
+  const [docType, setDocType] = useState('Invoice');
+  const [fileName, setFileName] = useState('');
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -50,18 +50,20 @@ export default function ClaimDetailModal({
     if (file) setFileName(file.name);
   };
 
-  const handleUpload = () => {
+    const handleUpload = async () => {
     if (!fileName || !claim) return;
+    const file = fileRef.current?.files?.[0];
+    const sha256 = file ? await computeSHA256(file) : '';
     const dto = {
       docType,
       fileURI: simulateFileURI(claim.claimID, docType, fileName),
-      sha256:  simulateSHA256(),
+      sha256,
     };
     onUploadDocument(claim.claimID, dto);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
   };
-
+  
   return (
     <Modal
       show={show}
@@ -127,18 +129,18 @@ export default function ClaimDetailModal({
                     style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
                   >
                     {[
-                      { label: 'Member',        value: claim.memberName,        icon: 'bi-person' },
-                      { label: 'Provider',       value: claim.providerName,      icon: 'bi-hospital' },
-                      { label: 'Policy',         value: claim.policyName,        icon: 'bi-shield-check' },
-                      { label: 'Total Billed',   value: formatCurrency(claim.totalBilledAmount), icon: 'bi-cash-coin' },
-                      { label: 'Currency',       value: claim.currency,          icon: 'bi-currency-rupee' },
-                      { label: 'Source',         value: claim.sourceChannel,     icon: 'bi-send' },
-                      { label: 'Received At',    value: formatDateTime(claim.receivedAt), icon: 'bi-clock' },
+                      { label: 'Member', value: claim.memberName, icon: 'bi-person' },
+                      { label: 'Provider', value: claim.providerName, icon: 'bi-hospital' },
+                      { label: 'Policy', value: claim.policyName, icon: 'bi-shield-check' },
+                      { label: 'Total Billed', value: formatCurrency(claim.totalBilledAmount), icon: 'bi-cash-coin' },
+                      { label: 'Currency', value: claim.currency, icon: 'bi-currency-rupee' },
+                      { label: 'Source', value: claim.sourceChannel, icon: 'bi-send' },
+                      { label: 'Received At', value: formatDateTime(claim.receivedAt), icon: 'bi-clock' },
                       claim.externalClaimRef
                         ? { label: 'External Ref', value: claim.externalClaimRef, icon: 'bi-tag' }
                         : null,
                       claim.notes
-                        ? { label: 'Notes',       value: claim.notes,            icon: 'bi-chat-text' }
+                        ? { label: 'Notes', value: claim.notes, icon: 'bi-chat-text' }
                         : null,
                     ].filter(Boolean).map((row, idx, arr) => (
                       <div
@@ -366,13 +368,14 @@ export default function ClaimDetailModal({
                       <div
                         className="rounded-3 p-3 mb-3 text-center"
                         style={{
-                          background: claim.adjudication.decision === 'Approved'
-                            ? '#d1f2eb' : claim.adjudication.decision === 'Denied'
-                            ? '#ffebee' : '#fff8e1',
-                          border: `1px solid ${
-                            claim.adjudication.decision === 'Approved' ? '#a5d6a7'
-                            : claim.adjudication.decision === 'Denied' ? '#ef9a9a'
-                            : '#ffe082'}`,
+                          background: claim.adjudication.decision === 'Paid'
+                            ? '#d1f2eb' : claim.adjudication.decision === 'Partial'
+                              ? '#e3f2fd' : claim.adjudication.decision === 'Denied'
+                                ? '#ffebee' : '#fff8e1',
+                          border: `1px solid ${claim.adjudication.decision === 'Paid' ? '#a5d6a7'
+                              : claim.adjudication.decision === 'Partial' ? '#90caf9'
+                                : claim.adjudication.decision === 'Denied' ? '#ef9a9a'
+                                  : '#ffe082'}`,
                         }}
                       >
                         <Badge
@@ -394,8 +397,8 @@ export default function ClaimDetailModal({
                       >
                         {[
                           { label: 'Engine Version', value: claim.adjudication.engineVersion, icon: 'bi-cpu' },
-                          { label: 'Performed By',   value: claim.adjudication.performedByName, icon: 'bi-person' },
-                          { label: 'Notes',           value: claim.adjudication.notes, icon: 'bi-chat-text' },
+                          { label: 'Performed By', value: claim.adjudication.performedByName, icon: 'bi-person' },
+                          { label: 'Notes', value: claim.adjudication.notes, icon: 'bi-chat-text' },
                         ].filter((r) => r.value).map((row, idx, arr) => (
                           <div
                             key={row.label}
@@ -458,3 +461,5 @@ export default function ClaimDetailModal({
     </Modal>
   );
 }
+
+

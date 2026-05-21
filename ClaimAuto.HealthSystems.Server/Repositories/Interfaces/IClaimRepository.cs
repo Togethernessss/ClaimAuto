@@ -11,8 +11,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Role-based: Hospital sees own claims, Policyholder sees own, Staff/Admin see all.
         // userOrgId (Phase 4): when supplied, filters out claims that don't belong to that organization.
         Task<List<ClaimResponseDto>> GetAllClaimsAsync(string? status, string? priority,
-            int? userId, string? userRole,
-            int? userOrgId = null);
+    int? userId, string? userRole,
+    int? userOrgId = null, int? page = null, int? pageSize = null);
 
         // Used by: GET /api/claims/{id}
         // Returns full claim detail — lines, documents, adjudication.
@@ -30,7 +30,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<ClaimResponseDto?> SubmitClaimAsync(CreateClaimDto dto, int submittedByUserId, int? userOrgId = null);
 
         // Used by: PUT /api/claims/{id}
-        Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId);
+        // Used by: PUT /api/claims/{id}
+        // userOrgId (Phase 4): when supplied, returns null if claim doesn't belong to that organization
+        //                     (prevents cross-tenant mutation).
+        Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId, int? userOrgId = null);
 
         // Used by: DELETE /api/claims/{id}
         // Admin deletes a claim — only allowed for Rejected claims.

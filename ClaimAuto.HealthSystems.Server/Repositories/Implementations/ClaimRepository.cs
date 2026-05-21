@@ -19,8 +19,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         //  GET ALL CLAIMS — with role-based + tenant filtering
         // ══════════════════════════════════════════════════════════════════
         public async Task<List<ClaimResponseDto>> GetAllClaimsAsync(
-            string? status, string? priority, int? userId, string? userRole,
-            int? userOrgId = null)
+    string? status, string? priority, int? userId, string? userRole,
+    int? userOrgId = null, int? page = null, int? pageSize = null)
         {
             var query = _db.Claims.AsQueryable();
 
@@ -51,7 +51,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<ClaimPriority>(priority, out var parsedPriority))
                 query = query.Where(c => c.Priority == parsedPriority);
 
-            return await query
+                        var pagedQuery = query
                 .OrderByDescending(c => c.SubmittedAt)
                 .Select(c => new ClaimResponseDto
                 {
@@ -69,8 +69,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Priority = c.Priority.ToString(),
                     SubmittedAt = c.SubmittedAt,
                     Notes = c.Notes,
-                })
-                .ToListAsync();
+                });
+
+            if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
+                pagedQuery = pagedQuery
+                    .Skip((page.Value - 1) * pageSize.Value)
+                    .Take(pageSize.Value);
+
+            return await pagedQuery.ToListAsync();
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -127,6 +133,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     UnitPrice = l.UnitPrice,
                     LineBilledAmount = l.LineBilledAmount,
                     DiagnosisCodesJSON = l.DiagnosisCodesJSON,
+                    ProcedureCodesJSON = l.ProcedureCodesJSON,
                     LineStatus = l.LineStatus.ToString()
                 }).ToList(),
 
@@ -205,6 +212,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (!Enum.TryParse<SourceChannel>(dto.SourceChannel, out var sourceChannel))
                 return null;
 
+            if (dto.TotalBilledAmount <= 0)
+                return null;
+
             var now = DateTime.UtcNow;
 
             var claim = new Claim
@@ -242,10 +252,35 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
 
             _db.AuditLogs.Add(audit);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync();   // ← After this line, claim.ClaimID is populated by the DB
+
+            // ── Persist service lines submitted with the claim ────────────────
+            // Lines are sent inside the POST body so the adjudication engine has
+            // real line data to work with immediately after submission.
+            // Each line inherits OrganizationID from the parent claim (multi-tenant).
+            // LineStatus starts as Pending — adjudication sets Approved / Denied.
+            if (dto.Lines != null && dto.Lines.Count > 0)
+            {
+                foreach (var lineDto in dto.Lines)
+                {
+                    _db.ClaimLines.Add(new ClaimLine
+                    {
+                        ClaimID            = claim.ClaimID,
+                        ServiceCode        = lineDto.ServiceCode,
+                        ServiceDate        = lineDto.ServiceDate,
+                        Quantity           = lineDto.Quantity,
+                        UnitPrice          = lineDto.UnitPrice,
+                        LineBilledAmount   = lineDto.LineBilledAmount,
+                        DiagnosisCodesJSON = lineDto.DiagnosisCodesJSON,
+                        ProcedureCodesJSON = lineDto.ProcedureCodesJSON,
+                        LineStatus         = LineStatus.Pending,
+                        OrganizationID     = userOrgId,
+                    });
+                }
+            }
 
             audit.ResourceID = claim.ClaimID.ToString();
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync();   // ← Saves the lines above + updates audit ResourceID
 
             return new ClaimResponseDto
             {
@@ -269,13 +304,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  UPDATE CLAIM — staff updates status or priority
         // ══════════════════════════════════════════════════════════════════
-        public async Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId)
+        public async Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId, int? userOrgId = null)
         {
-            var claim = await _db.Claims
+            var query = _db.Claims
                 .Include(c => c.Provider)
                 .Include(c => c.Member)
                 .Include(c => c.Policy)
-                .FirstOrDefaultAsync(c => c.ClaimID == claimId);
+                .Where(c => c.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
 
             if (claim == null) return null;
 
@@ -365,12 +405,42 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
             _db.AuditLogs.Add(audit);
 
+            // ── Step 1: Remove all child records that block deletion (FK Restrict) ──
+            // Order does not matter here because all changes go into a single
+            // SaveChangesAsync() at the end — EF sends them as one DB transaction.
+
+            // ClaimLines and ClaimDocuments (were already handled — kept as-is)
             var lines = await _db.ClaimLines.Where(l => l.ClaimID == claimId).ToListAsync();
             _db.ClaimLines.RemoveRange(lines);
 
             var docs = await _db.ClaimDocuments.Where(d => d.ClaimID == claimId).ToListAsync();
             _db.ClaimDocuments.RemoveRange(docs);
 
+            // AdjudicationRecords — exist on any claim that went through the engine
+            var adjRecords = await _db.AdjudicationRecords.Where(a => a.ClaimID == claimId).ToListAsync();
+            _db.AdjudicationRecords.RemoveRange(adjRecords);
+
+            // FraudScores — created during validation for every claim
+            var fraudScores = await _db.FraudScores.Where(f => f.ClaimID == claimId).ToListAsync();
+            _db.FraudScores.RemoveRange(fraudScores);
+
+            // FraudCases — auto-opened if fraud score was >= 70
+            var fraudCases = await _db.FraudCases.Where(f => f.ClaimID == claimId).ToListAsync();
+            _db.FraudCases.RemoveRange(fraudCases);
+
+            // Notifications — fraud alerts and status change notifications
+            var notifications = await _db.Notifications.Where(n => n.ClaimID == claimId).ToListAsync();
+            _db.Notifications.RemoveRange(notifications);
+
+            // ClaimTasks — any task assigned against this claim
+            var tasks = await _db.ClaimTasks.Where(t => t.ClaimID == claimId).ToListAsync();
+            _db.ClaimTasks.RemoveRange(tasks);
+
+            // Appeals — member may have filed an appeal before rejection
+            var appeals = await _db.Appeals.Where(a => a.ClaimID == claimId).ToListAsync();
+            _db.Appeals.RemoveRange(appeals);
+
+            // ── Step 2: Now it is safe to remove the Claim itself ──
             _db.Claims.Remove(claim);
             await _db.SaveChangesAsync();
 
@@ -384,6 +454,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var claim = await _db.Claims.FindAsync(claimId);
             if (claim == null) return null;
+
+            if (claim.Status == ClaimStatus.Approved ||
+                claim.Status == ClaimStatus.Paid ||
+                claim.Status == ClaimStatus.Rejected)
+                return null;
 
             var line = new ClaimLine
             {
@@ -429,6 +504,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 UnitPrice = line.UnitPrice,
                 LineBilledAmount = line.LineBilledAmount,
                 DiagnosisCodesJSON = line.DiagnosisCodesJSON,
+                ProcedureCodesJSON = line.ProcedureCodesJSON,
                 LineStatus = line.LineStatus.ToString()
             };
         }
@@ -455,6 +531,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     UnitPrice = l.UnitPrice,
                     LineBilledAmount = l.LineBilledAmount,
                     DiagnosisCodesJSON = l.DiagnosisCodesJSON,
+                    ProcedureCodesJSON = l.ProcedureCodesJSON,
                     LineStatus = l.LineStatus.ToString()
                 })
                 .ToListAsync();
