@@ -66,13 +66,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (member == null)                                                    // ← SaaS FIX
                 return NotFound($"Member with ID {id} was not found.");           // ← SaaS FIX
 
-            var result = await _memberRepo.CheckEligibilityAsync(id);
+            var result = await _memberRepo.CheckEligibilityAsync(id, GetLoggedInUserOrgId());
             if (result == null)
                 return NotFound($"Member with ID {id} was not found.");
             return Ok(result);
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -83,12 +84,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            if (!string.IsNullOrEmpty(dto.MemberNumber))
-            {
-                var exists = await _memberRepo.MemberNumberExistsAsync(dto.MemberNumber);
-                if (exists)
-                    return Conflict($"A member with MemberNumber '{dto.MemberNumber}' already exists.");
-            }
+            // Validate that PolicyholderUserID is provided — every member must link to a registered user
+            if (dto.PolicyholderUserID <= 0)
+                return BadRequest("A registered Policyholder user must be selected to enroll a member.");
 
             var userOrgId = GetLoggedInUserOrgId();
             var created = await _memberRepo.CreateMemberAsync(dto, userId.Value, userOrgId);
@@ -99,6 +97,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -125,8 +124,36 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> CheckExpiredMembers()
         {
-            var result = await _memberRepo.AutoExpireMembersAsync();
+            var userOrgId = GetLoggedInUserOrgId();
+            var result = await _memberRepo.AutoExpireMembersAsync(userOrgId);
             return Ok(result);
+        }
+
+
+        /// <summary>
+        /// Returns the current Policyholder's own member record.
+        /// Called by the Policyholder dashboard to show coverage card.
+        /// </summary>
+        [HttpGet("my")]
+        [Authorize(Roles = "Policyholder")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetMyMember()
+        {
+            var userId = GetLoggedInUserId();
+            var userOrgId = GetLoggedInUserOrgId();
+
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            var member = await _memberRepo.GetMemberByPolicyholderUserIdAsync(userId.Value, userOrgId);
+
+            if (member == null)
+                return NotFound(
+                    "No member record found for your account. " +
+                    "Please contact your insurance provider to complete enrollment.");
+
+            return Ok(member);
         }
     }
 }

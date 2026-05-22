@@ -24,7 +24,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // ── Multi-tenant filter ──────────────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(r => r.OrganizationID == userOrgId.Value);
+                query = query.Where(r => r.OrganizationID == userOrgId.Value
+                                       || r.OrganizationID == null);
 
             if (!string.IsNullOrEmpty(status))
             {
@@ -220,7 +221,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ResourceID = ruleId.ToString(),
                 DetailsJSON = $"{{\"newVersion\":{rule.Version}," +
                                $"\"changes\":[{string.Join(",", changes.Select(c => $"\"{c}\""))}]}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = rule.OrganizationID,
             };
             _db.AuditLogs.Add(audit);
 
@@ -266,7 +268,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"version\":{rule.Version}," +
                                $"\"previousStatus\":\"Draft/Inactive\"," +
                                $"\"newStatus\":\"Active\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = rule.OrganizationID,
             };
             _db.AuditLogs.Add(audit);
 
@@ -296,7 +299,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"version\":{rule.Version}," +
                                $"\"previousStatus\":\"Active\"," +
                                $"\"newStatus\":\"Inactive\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = rule.OrganizationID,
             };
             _db.AuditLogs.Add(audit);
 
@@ -324,7 +328,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                $"\"version\":{rule.Version}," +
                                $"\"status\":\"Draft\"," +
                                $"\"reason\":\"Draft rule permanently deleted\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = rule.OrganizationID,
             };
             _db.AuditLogs.Add(audit);
 

@@ -26,7 +26,7 @@ export const MENU_ITEMS = [
   { key: 'notifications', label: 'Notifications',   icon: 'bi-bell',             path: '/notifications',   roles: ['Admin','InsuranceStaff','Hospital','Policyholder'] },
    
   // Admin + Staff
-  { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff','Policyholder'] },
+  { key: 'members',     label: 'Members',           icon: 'bi-people',           path: '/members',         roles: ['Admin','InsuranceStaff','Hospital'] },
   { key: 'adjudication',label: 'Adjudication',      icon: 'bi-check2-square',    path: '/adjudication',    roles: ['Admin','InsuranceStaff'] },
   { key: 'fraud',       label: 'Fraud Cases',       icon: 'bi-shield-exclamation', path: '/fraud',         roles: ['Admin','InsuranceStaff'] },
   { key: 'payments',    label: 'Payments',          icon: 'bi-credit-card',      path: '/payments',        roles: ['Admin','InsuranceStaff'] },

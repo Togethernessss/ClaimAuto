@@ -14,7 +14,7 @@ import CoverageUtilization from '../../components/policyholder/CoverageUtilizati
 import ClaimStatsRow       from '../../components/policyholder/ClaimsStatsRow';
 import RecentClaimsTable   from '../../components/policyholder/RecentClaimsTable';
 import ActiveAppealCard    from '../../components/policyholder/ActiveAppealCard';
-import FamilyMembersCard   from '../../components/policyholder/FamilyMembersCard';
+import MyMemberCard        from '../../components/policyholder/MyMemberCard';
 import RecentPaymentsCard  from '../../components/policyholder/RecentPaymentsCard';
 import QuickActionsPanel   from '../../components/policyholder/QuickActionsPanel';
 
@@ -70,7 +70,7 @@ export default function PolicyholderDashboard() {
     );
   }
 
-  const { policy, claims, notifications, appeals, members, payments } = data;
+  const { policy, claims, notifications, appeals, member, payments } = data;
   const activeAppeal = findActiveAppeal(appeals);
   const unreadCount  = notifications.filter((n) => n.status === 'Unread').length;
   const pendingClaims = claims.filter((c) => ['Pending', 'UnderReview', 'Submitted'].includes(c.status)).length;
@@ -88,7 +88,7 @@ export default function PolicyholderDashboard() {
       <RenewalAlert policy={policy} />
 
       {/* POLICY HERO */}
-      <PolicyOverviewCard policy={policy} memberCount={members.length} />
+      <PolicyOverviewCard policy={policy} memberCount={member ? 1 : 0} />
 
       {/* COVERAGE UTILIZATION */}
       <CoverageUtilization policy={policy} claims={claims} />
@@ -101,7 +101,7 @@ export default function PolicyholderDashboard() {
         <Col lg={8}>
           <div className="d-flex flex-column gap-3">
             <RecentClaimsTable claims={claims} />
-            <FamilyMembersCard members={members} claims={claims} />
+            <MyMemberCard member={member} />
           </div>
         </Col>
 

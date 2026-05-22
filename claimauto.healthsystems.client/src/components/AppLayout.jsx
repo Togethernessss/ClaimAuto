@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef  } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../security/AuthContext';
 import Sidebar from './Sidebar';
@@ -15,25 +15,30 @@ function AppealBell() {
   const isStaff = user?.role === 'Admin' ||
                   user?.role === 'InsuranceStaff';
  
+  const failCountRef = useRef(0);
+
   const refresh = useCallback(async () => {
+    if (!isStaff) return;                  // skip entirely for non-staff
+    if (failCountRef.current >= 3) return; // stop after 3 consecutive failures
     try {
       const data = await getAllAppeals();
       const active = data.filter(
         a => a.status === 'Filed' ||
-             a.status === 'UnderReview'
+            a.status === 'UnderReview'
       ).length;
       setCount(active);
+      failCountRef.current = 0;            // reset on success
     } catch {
-      // silent
+      failCountRef.current += 1;
     }
-  }, []);
- 
+  }, [isStaff]);
+
   useEffect(() => {
     refresh();
     const interval = setInterval(refresh, 30000);
     return () => clearInterval(interval);
   }, [refresh]);
- 
+
   if (!isStaff || count === 0) return null;
  
   return (

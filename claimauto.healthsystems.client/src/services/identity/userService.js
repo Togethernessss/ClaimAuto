@@ -25,3 +25,14 @@ export async function updateUser(id, dto) {
   await api.put(`/api/users/${id}`, dto);
   // No body to return — caller should refresh local state from the DTO it sent
 }
+
+// ── GET USERS BY ROLE ─────────────────────────────────────────────
+// Backend:  GET /api/users/role/{role}
+// Returns:  All users matching the given role within the caller's org
+// Who uses: InsuranceStaff + Admin — to populate Policyholder dropdown in Create Member form
+// Example:  getUsersByRole('Policyholder')
+
+export async function getUsersByRole(role) {
+  const response = await api.get(`/api/users/role/${role}`);
+  return response.data;
+}

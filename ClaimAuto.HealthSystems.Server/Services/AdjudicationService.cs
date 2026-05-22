@@ -118,6 +118,93 @@ namespace ClaimAuto.HealthSystems.Server.Services
                             trace.Reason = "No deductible applicable for this policy.";
                         }
                         break;
+                    case "Reimbursement Duplicate Check":
+                        // Only applies to reimbursement claims — all others pass through
+                        if (claim.ClaimType != ClaimType.Reimbursement)
+                        {
+                            trace.Result = "PASS";
+                            trace.Reason = "Not a reimbursement claim — check not applicable.";
+                            break;
+                        }
+
+                        // If the same member already has a non-rejected, non-reimbursement
+                        // claim (Inpatient / Outpatient / Pharmacy / Emergency) within 7 days,
+                        // the hospital has already billed the insurer for the same episode.
+                        // Filing a reimbursement ON TOP of that = double payment.
+                        var reimb7Days = DateTime.UtcNow.AddDays(-7);
+                        var hasConflictingClaim = await _db.Claims
+                            .AnyAsync(c => c.MemberID == claim.MemberID
+                                        && c.ClaimID != claim.ClaimID
+                                        && c.ClaimType != ClaimType.Reimbursement
+                                        && c.SubmittedAt >= reimb7Days
+                                        && c.Status != ClaimStatus.Rejected);
+
+                        if (hasConflictingClaim)
+                        {
+                            trace.Result = "FAIL";
+                            trace.Reason = "Member already has an active hospital claim submitted within " +
+                                           "the last 7 days. Filing a reimbursement for the same period " +
+                                           "would result in double payment for the same episode.";
+                            shouldDeny = true;
+                        }
+                        else
+                        {
+                            trace.Result = "PASS";
+                            trace.Reason = "No conflicting active hospital claims in the last 7 days. " +
+                                           "Reimbursement is eligible.";
+                        }
+                        break;
+
+                    case "Coverage Remaining Check":
+                        var policyForCoverage = await _db.Policies.FindAsync(claim.PolicyID);
+
+                        if (policyForCoverage?.SumInsured == null || policyForCoverage.SumInsured <= 0)
+                        {
+                            // No coverage limit configured on this policy — allow through
+                            trace.Result = "PASS";
+                            trace.Reason = "No coverage limit (sum insured) configured for this policy.";
+                            break;
+                        }
+
+                        // Total of all non-failed payments already raised against this policy
+                        // (includes pending and authorized — conservative: counts committed payments)
+                        var totalUtilized = await (
+                            from p in _db.Payments
+                            join c in _db.Claims on p.ClaimID equals c.ClaimID
+                            where c.PolicyID == claim.PolicyID
+                               && c.ClaimID != claim.ClaimID          // exclude current claim
+                               && p.Status != PaymentStatus.Failed     // only count active payments
+                            select p.Amount
+                        ).SumAsync(a => (decimal?)a) ?? 0m;
+
+                        var remainingCoverage = policyForCoverage.SumInsured.Value - totalUtilized;
+
+                        if (remainingCoverage <= 0)
+                        {
+                            trace.Result = "FAIL";
+                            trace.Reason = $"Policy coverage fully exhausted. " +
+                                           $"Sum insured: ₹{policyForCoverage.SumInsured:N0}. " +
+                                           $"Total utilized: ₹{totalUtilized:N0}. " +
+                                           $"No remaining coverage available.";
+                            shouldDeny = true;
+                        }
+                        else if (claim.TotalBilledAmount > remainingCoverage)
+                        {
+                            trace.Result = "ROUTE";
+                            trace.Reason = $"Claimed ₹{claim.TotalBilledAmount:N0} exceeds remaining coverage " +
+                                           $"₹{remainingCoverage:N0} " +
+                                           $"(utilized ₹{totalUtilized:N0} of ₹{policyForCoverage.SumInsured:N0}). " +
+                                           $"Routed for manual review — partial approval may apply.";
+                            routeToManual = true;
+                        }
+                        else
+                        {
+                            trace.Result = "PASS";
+                            trace.Reason = $"Coverage available: ₹{remainingCoverage:N0} remaining " +
+                                           $"(utilized ₹{totalUtilized:N0} of " +
+                                           $"₹{policyForCoverage.SumInsured:N0}).";
+                        }
+                        break;
 
                     default:
                         trace.Result = "SKIPPED";

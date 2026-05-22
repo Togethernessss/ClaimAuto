@@ -55,6 +55,7 @@ export default function Reports() {
   const [generating, setGenerating] = useState(false);
   const [genError,   setGenError]   = useState(null);
   const [pdfLoading, setPdfLoading] = useState(null);
+  const [pdfError,   setPdfError]   = useState(null);
 
   // ── Form valid only when scope selected ──────────────────────
   const isFormValid = scope !== '';
@@ -119,7 +120,7 @@ export default function Reports() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch {
-      // silently fail
+      setPdfError('Could not download the PDF. Please try again.');
     } finally {
       setPdfLoading(null);
     }
@@ -165,6 +166,18 @@ export default function Reports() {
                 className="d-flex align-items-center py-2 mb-3">
                 <i className="bi bi-check-circle-fill me-2"></i>
                 {successMsg}
+              </Alert>
+            )}
+
+            {pdfError && (
+              <Alert
+                variant="danger"
+                dismissible
+                onClose={() => setPdfError(null)}
+                className="d-flex align-items-center py-2 mb-3"
+              >
+                <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                {pdfError}
               </Alert>
             )}
 

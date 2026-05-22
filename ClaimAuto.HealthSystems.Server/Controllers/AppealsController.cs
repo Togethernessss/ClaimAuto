@@ -20,19 +20,22 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IUserRepository _userRepo;
         private readonly INotificationRepository _notifRepo;
         private readonly IAppealPdfRepository _pdfService;
+        private readonly ILogger<AppealsController> _logger;
 
         public AppealsController(
             IAppealRepository appealRepo,
             IClaimRepository claimRepo,
             IUserRepository userRepo,
             INotificationRepository notifRepo,
-            IAppealPdfRepository pdfService)
+            IAppealPdfRepository pdfService,
+            ILogger<AppealsController> logger)
         {
             _appealRepo = appealRepo;
             _claimRepo = claimRepo;
             _userRepo = userRepo;
             _notifRepo = notifRepo;
             _pdfService = pdfService;
+            _logger = logger;
         }
 
 
@@ -199,7 +202,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[PDF ERROR] Appeal {created.AppealID}: {ex.Message}\n{ex.StackTrace}");
+                    _logger.LogWarning(ex,
+                        "PDF generation failed for Appeal {AppealID}. Appeal was saved without a PDF.",
+                        created.AppealID);
                     // Non-fatal — appeal is still filed, PDF just missing
                 }
             }
@@ -217,7 +222,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Category = NotificationCategory.Appeal,
                     Severity = NotificationSeverity.Warning,
                     CreatedAt = DateTime.UtcNow,
-                    Status = NotificationStatus.Unread
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = userOrgId,
                 });
             }
 
@@ -308,7 +314,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     {
                         Status = ClaimStatus.Submitted.ToString()
                     };
-                    await _claimRepo.UpdateClaimAsync(appeal.ClaimID, updateDto, deciderId);
+                    await _claimRepo.UpdateClaimAsync(appeal.ClaimID, updateDto, deciderId, GetLoggedInUserOrgId());
                 }
             }
 
@@ -321,7 +327,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Category = NotificationCategory.Appeal,
                 Severity = NotificationSeverity.Info,
                 CreatedAt = DateTime.UtcNow,
-                Status = NotificationStatus.Unread
+                Status = NotificationStatus.Unread,
+                OrganizationID = GetLoggedInUserOrgId(),
             });
 
             return Ok(new { message = $"Appeal {id} decided as '{dto.Outcome}'.", appealId = id });

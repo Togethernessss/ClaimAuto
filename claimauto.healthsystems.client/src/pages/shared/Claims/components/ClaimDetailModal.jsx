@@ -422,28 +422,79 @@ export default function ClaimDetailModal({
                         ))}
                       </div>
 
-                      {/* Applied rules */}
-                      {claim.adjudication.appliedRulesJSON && (
-                        <div className="mt-3">
-                          <div className="small fw-semibold mb-2 text-muted">
-                            <i className="bi bi-gear me-1"></i>Applied Rules
-                          </div>
-                          <pre
-                            className="bg-dark text-light p-3 rounded small mb-0"
-                            style={{ maxHeight: 120, overflowY: 'auto', fontSize: '0.78rem' }}
-                          >
-                            {(() => {
-                              try {
-                                return JSON.stringify(
-                                  JSON.parse(claim.adjudication.appliedRulesJSON), null, 2
+                      {/* Applied rules — human-readable, NOT raw JSON */}
+                      {claim.adjudication.appliedRulesJSON && (() => {
+                        let rules = [];
+                        try { rules = JSON.parse(claim.adjudication.appliedRulesJSON); } catch { rules = []; }
+                        if (!Array.isArray(rules) || rules.length === 0) return null;
+                        return (
+                          <div className="mt-3">
+                            <div className="small fw-semibold mb-2 text-muted">
+                              <i className="bi bi-gear me-1"></i>Applied Rules ({rules.length})
+                            </div>
+                            <div className="d-flex flex-column gap-1">
+                              {rules.map((r, i) => {
+                                const resultVal = (r.result ?? r.Result ?? '').toUpperCase();
+                                const isPassed  = resultVal === 'PASS';
+                                const isFailed  = resultVal === 'FAIL';
+                                const isRouted  = resultVal === 'ROUTE';
+                                const isApplied = resultVal === 'APPLIED';
+                                // anything else (SKIPPED etc.) → grey neutral
+
+                                const bgColor     = isPassed  ? '#f0fdf4'
+                                                  : isFailed  ? '#fff5f5'
+                                                  : isRouted  ? '#fffbeb'
+                                                  : isApplied ? '#eff6ff'
+                                                  : '#f9fafb';
+
+                                const borderColor = isPassed  ? '#bbf7d0'
+                                                  : isFailed  ? '#fecaca'
+                                                  : isRouted  ? '#fde68a'
+                                                  : isApplied ? '#bfdbfe'
+                                                  : '#e5e7eb';
+
+                                const iconClass   = isPassed  ? 'bi-check-circle-fill text-success'
+                                                  : isFailed  ? 'bi-x-circle-fill text-danger'
+                                                  : isRouted  ? 'bi-arrow-right-circle-fill text-warning'
+                                                  : isApplied ? 'bi-info-circle-fill text-primary'
+                                                  : 'bi-dash-circle text-secondary';
+
+                                const labelColor  = isPassed  ? '#16a34a'
+                                                  : isFailed  ? '#dc2626'
+                                                  : isRouted  ? '#d97706'
+                                                  : isApplied ? '#2563eb'
+                                                  : '#6b7280';
+
+                                return (
+                                  <div
+                                    key={i}
+                                    className="d-flex align-items-center justify-content-between px-3 py-2 rounded"
+                                    style={{
+                                      background: bgColor,
+                                      border: `1px solid ${borderColor}`,
+                                      fontSize: '0.8rem',
+                                    }}
+                                  >
+                                    <div>
+                                      <i className={`bi ${iconClass} me-2`}></i>
+                                      <span className="fw-semibold">{r.ruleName ?? r.RuleName ?? 'Rule'}</span>
+                                      {(r.reason ?? r.Reason) && (
+                                        <span className="text-muted ms-2">— {r.reason ?? r.Reason}</span>
+                                      )}
+                                    </div>
+                                    <span
+                                      className="fw-semibold"
+                                      style={{ color: labelColor, whiteSpace: 'nowrap' }}
+                                    >
+                                      {resultVal || '—'}
+                                    </span>
+                                  </div>
                                 );
-                              } catch {
-                                return claim.adjudication.appliedRulesJSON;
-                              }
-                            })()}
-                          </pre>
-                        </div>
-                      )}
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

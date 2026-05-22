@@ -85,6 +85,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
                                   "MemberID, and PolicyID (must be Active) all exist and are valid.");
 
+
             // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on submission ─────────────────
             var fraudScore = await _fraudRepo.ScoreClaimAsync(created.ClaimID, userOrgId);
 
@@ -117,7 +118,25 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
             else
             {
-                await _adjRepo.AutoAdjudicateAsync(created.ClaimID, userOrgId);
+                var adjResult = await _adjRepo.AutoAdjudicateAsync(created.ClaimID, userOrgId);
+
+                var adjMessage = adjResult?.Decision switch
+                {
+                    "Denied" => $"CLM-{created.ClaimID} submitted and auto-denied by adjudication engine.",
+                    "PendingReview" => $"CLM-{created.ClaimID} submitted and routed to manual review queue.",
+                    "Paid" => $"CLM-{created.ClaimID} submitted and approved. Payment created automatically.",
+                    "Partial" => $"CLM-{created.ClaimID} submitted and partially approved. Payment created automatically.",
+                    _ => $"CLM-{created.ClaimID} submitted successfully."
+                };
+
+                return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
+                {
+                    claim = created,
+                    fraudDetected = false,
+                    autoAdjudicated = true,
+                    adjudication = adjResult,
+                    message = adjMessage
+                });
             }
 
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);

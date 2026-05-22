@@ -248,7 +248,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                               $"\"memberID\":{dto.MemberID}," +
                               $"\"policyID\":{dto.PolicyID}," +
                               $"\"amount\":{dto.TotalBilledAmount}}}",
-                Timestamp = now
+                Timestamp = now,
+                OrganizationID = userOrgId,
             };
 
             _db.AuditLogs.Add(audit);
@@ -351,7 +352,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ResourceID = claimId.ToString(),
                     DetailsJSON = $"{{\"changes\": " +
                                    $"[{string.Join(", ", changes.Select(c => $"\"{c}\""))}]}}",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = userOrgId,
                 };
                 _db.AuditLogs.Add(audit);
                 await _db.SaveChangesAsync();
@@ -401,7 +403,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 DetailsJSON = $"{{\"externalRef\":\"{claim.ExternalClaimRef}\"," +
                               $"\"status\":\"{claim.Status}\"," +
                               $"\"reason\":\"Hard deleted — Rejected claim removed\"}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = userOrgId,
             };
             _db.AuditLogs.Add(audit);
 
@@ -485,7 +488,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 DetailsJSON = $"{{\"claimID\":{claimId}," +
                                $"\"serviceCode\":\"{dto.ServiceCode}\"," +
                                $"\"amount\":{dto.LineBilledAmount}}}",
-                Timestamp = DateTime.UtcNow
+                OrganizationID = claim.OrganizationID,
+                Timestamp = DateTime.UtcNow,
+
             };
             _db.AuditLogs.Add(audit);
 

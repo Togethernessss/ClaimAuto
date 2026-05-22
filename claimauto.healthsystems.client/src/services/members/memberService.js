@@ -62,3 +62,13 @@ export async function checkExpiredMembers() {
   const response = await api.post('/api/members/check-expired');
   return response.data;
 }
+
+// ── GET MY MEMBER (Policyholder only) ─────────────────────────────
+// Backend:  GET /api/members/my
+// Returns:  The single member record linked to the current Policyholder user
+// Returns 404 if the user hasn't been enrolled by staff yet
+
+export async function getMyMember() {
+  const response = await api.get('/api/members/my');
+  return response.data;
+}

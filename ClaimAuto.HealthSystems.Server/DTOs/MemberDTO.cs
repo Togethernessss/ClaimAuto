@@ -1,17 +1,17 @@
 ﻿namespace ClaimAuto.HealthSystems.Server.DTOs
 {
     // ── CreateMemberDto 
+    // ── CreateMemberDto 
     public class CreateMemberDto
     {
         public int PolicyID { get; set; }                        // which policy covers this member
         public string Name { get; set; } = string.Empty;
         public DateTime DOB { get; set; }                        // immutable after creation
         public string Gender { get; set; } = string.Empty;      // "Male","Female","Other" — immutable
-        public string? MemberNumber { get; set; }
         public string? ContactInfoJSON { get; set; }
         public DateTime CoverageStart { get; set; }
         public DateTime? CoverageEnd { get; set; }
-        public int? PolicyholderUserID { get; set; }   //  which policyholder owns this member
+        public int PolicyholderUserID { get; set; }              // REQUIRED — must link to a registered Policyholder user
     }
 
     // ── UpdateMemberDto 
