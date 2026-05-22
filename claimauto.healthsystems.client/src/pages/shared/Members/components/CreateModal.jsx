@@ -1,17 +1,31 @@
-import {
-  Modal, Form, Button, Alert, Spinner, Row, Col,
-} from 'react-bootstrap';
+import { useState }                         from 'react';
+import { Modal, Form, Button, Alert, Spinner, Row, Col, ListGroup } from 'react-bootstrap';
 
 export default function CreateModal({
   show,
   loading,
   error,
   form,
-  policies,       // array of active policies for dropdown
+  policies,           // array of active policies for dropdown
+  policyholderUsers,  // array of registered Policyholder users for dropdown
   onHide,
   onFieldChange,
   onSubmit,
 }) {
+  // Local state for searching within the Policyholder user dropdown
+  const [userSearch, setUserSearch] = useState('');
+
+  // Filter users based on search input
+  const filteredUsers = (policyholderUsers || []).filter((u) =>
+    u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearch.toLowerCase())
+  );
+
+  // Find selected user for display confirmation
+  const selectedUser = (policyholderUsers || []).find(
+    (u) => String(u.userID) === String(form.policyholderUserID)
+  );
+
   return (
     <Modal show={show} onHide={onHide} size="lg" backdrop="static">
       <Modal.Header closeButton className="border-0 pb-0">
@@ -22,7 +36,7 @@ export default function CreateModal({
       </Modal.Header>
 
       <Form onSubmit={onSubmit}>
-        <Modal.Body className="pt-3" style={{ overflowY: 'auto', maxHeight: '65vh' }}>
+        <Modal.Body className="pt-3" style={{ overflowY: 'auto', maxHeight: '70vh' }}>
 
           {error && (
             <Alert variant="danger" className="d-flex align-items-center py-2">
@@ -33,7 +47,108 @@ export default function CreateModal({
 
           <Row className="g-3">
 
-            {/* Policy dropdown */}
+            {/* ── Policyholder User Selection (searchable) ── */}
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">
+                  Link to Registered User <span className="text-danger">*</span>
+                </Form.Label>
+
+                {/* Search box */}
+                <Form.Control
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="mb-1"
+                />
+
+                {/* Scrollable user list */}
+                <div
+                  style={{
+                    border: '1px solid #dee2e6',
+                    borderRadius: 6,
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {filteredUsers.length === 0 ? (
+                    <div className="text-muted small p-3 text-center">
+                      {userSearch
+                        ? 'No registered users match your search'
+                        : 'No registered Policyholder users found'}
+                    </div>
+                  ) : (
+                    <ListGroup variant="flush">
+                      {filteredUsers.map((u) => {
+                        const isSelected = String(form.policyholderUserID) === String(u.userID);
+                        return (
+                          <ListGroup.Item
+                            key={u.userID}
+                            action
+                            active={isSelected}
+                            onClick={() =>
+                              onFieldChange('policyholderUserID')({
+                                target: { value: String(u.userID) },
+                              })
+                            }
+                            className="d-flex align-items-center gap-2 py-2"
+                            style={{ cursor: 'pointer', fontSize: '0.85rem' }}
+                          >
+                            <i className="bi bi-person-circle text-primary"></i>
+                            <div>
+                              <div className="fw-semibold">{u.name}</div>
+                              <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                {u.email}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <i className="bi bi-check-circle-fill text-white ms-auto"></i>
+                            )}
+                          </ListGroup.Item>
+                        );
+                      })}
+                    </ListGroup>
+                  )}
+                </div>
+
+                {/* Hidden native select for form validation */}
+                <Form.Select
+                  value={form.policyholderUserID}
+                  onChange={onFieldChange('policyholderUserID')}
+                  required
+                  style={{ display: 'none' }}
+                  aria-hidden="true"
+                >
+                  <option value=""></option>
+                  {(policyholderUsers || []).map((u) => (
+                    <option key={u.userID} value={u.userID}>{u.name}</option>
+                  ))}
+                </Form.Select>
+
+                {/* Confirmation chip when a user is selected */}
+                {selectedUser && (
+                  <div
+                    className="mt-2 d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill"
+                    style={{
+                      background: '#e8f5e9',
+                      border: '1px solid #a5d6a7',
+                      fontSize: '0.78rem',
+                      color: '#2e7d32',
+                    }}
+                  >
+                    <i className="bi bi-check-circle-fill"></i>
+                    Selected: <strong>{selectedUser.name}</strong>
+                  </div>
+                )}
+
+                <Form.Text className="text-muted">
+                  The member record will be linked to this user's account.
+                </Form.Text>
+              </Form.Group>
+            </Col>
+
+            {/* ── Policy dropdown ── */}
             <Col md={12}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -57,7 +172,7 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Full Name */}
+            {/* ── Full Name ── */}
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -72,25 +187,7 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Member Number */}
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">
-                  Member Number <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Control
-                  placeholder="e.g. MEM-2025-001"
-                  value={form.memberNumber}
-                  onChange={onFieldChange('memberNumber')}
-                  required
-                />
-                <Form.Text className="text-muted">
-                  Unique identifier. Cannot be changed after enrollment.
-                </Form.Text>
-              </Form.Group>
-            </Col>
-
-            {/* Date of Birth */}
+            {/* ── Date of Birth ── */}
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -100,6 +197,7 @@ export default function CreateModal({
                   type="date"
                   value={form.dob}
                   onChange={onFieldChange('dob')}
+                  max={new Date().toISOString().split('T')[0]}
                   required
                 />
                 <Form.Text className="text-muted">
@@ -108,7 +206,7 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Gender */}
+            {/* ── Gender ── */}
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -130,7 +228,7 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Coverage Start */}
+            {/* ── Coverage Start ── */}
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -145,7 +243,7 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Coverage End */}
+            {/* ── Coverage End ── */}
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
@@ -155,6 +253,7 @@ export default function CreateModal({
                   type="date"
                   value={form.coverageEnd}
                   onChange={onFieldChange('coverageEnd')}
+                  min={form.coverageStart || undefined}
                 />
                 <Form.Text className="text-muted">
                   Leave blank for open-ended coverage.
@@ -162,46 +261,42 @@ export default function CreateModal({
               </Form.Group>
             </Col>
 
-            {/* Contact Info — normal fields, JSON built automatically */}
+            {/* ── Phone ── */}
             <Col md={6}>
-            <Form.Group>
-                <Form.Label className="small fw-semibold">
-                Phone
-                </Form.Label>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Phone</Form.Label>
                 <Form.Control
-                type="tel"
-                placeholder="e.g. 9000000000"
-                value={form.contactPhone}
-                onChange={onFieldChange('contactPhone')}
+                  type="tel"
+                  placeholder="e.g. 9000000000"
+                  value={form.contactPhone}
+                  onChange={onFieldChange('contactPhone')}
                 />
-            </Form.Group>
+              </Form.Group>
             </Col>
 
+            {/* ── Email ── */}
             <Col md={6}>
-            <Form.Group>
-                <Form.Label className="small fw-semibold">
-                Email
-                </Form.Label>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Email</Form.Label>
                 <Form.Control
-                type="email"
-                placeholder="e.g. member@example.com"
-                value={form.contactEmail}
-                onChange={onFieldChange('contactEmail')}
+                  type="email"
+                  placeholder="e.g. member@example.com"
+                  value={form.contactEmail}
+                  onChange={onFieldChange('contactEmail')}
                 />
-            </Form.Group>
+              </Form.Group>
             </Col>
 
+            {/* ── Address ── */}
             <Col md={12}>
-            <Form.Group>
-                <Form.Label className="small fw-semibold">
-                Address
-                </Form.Label>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">Address</Form.Label>
                 <Form.Control
-                placeholder="e.g. 123 MG Road, Mumbai"
-                value={form.contactAddress}
-                onChange={onFieldChange('contactAddress')}
+                  placeholder="e.g. 123 MG Road, Mumbai"
+                  value={form.contactAddress}
+                  onChange={onFieldChange('contactAddress')}
                 />
-            </Form.Group>
+              </Form.Group>
             </Col>
 
           </Row>
@@ -215,7 +310,7 @@ export default function CreateModal({
             type="submit"
             variant="primary"
             className="px-4 fw-semibold"
-            disabled={loading}
+            disabled={loading || !form.policyholderUserID}
           >
             {loading ? (
               <>

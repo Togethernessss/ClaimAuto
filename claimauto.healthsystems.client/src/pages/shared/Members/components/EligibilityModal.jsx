@@ -160,6 +160,17 @@ export default function EligibilityModal({
                 </div>
               ))}
             </div>
+
+            {/* Cache / live indicator */}
+            <div
+              className="text-center mt-2"
+              style={{ fontSize: '0.68rem', color: '#9e9e9e' }}
+            >
+              <i className="bi bi-clock me-1"></i>
+              {result.source === 'Cached'
+                ? `Cached result · checked at ${new Date(result.checkedAt).toLocaleTimeString('en-IN')}`
+                : `Live result · ${new Date(result.checkedAt).toLocaleTimeString('en-IN')}`}
+            </div>
           </>
         )}
 

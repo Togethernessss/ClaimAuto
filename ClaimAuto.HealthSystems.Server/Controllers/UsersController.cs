@@ -82,7 +82,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         [HttpGet("role/{role}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsersByRole(UserRole role)
         {

@@ -7,12 +7,12 @@
 
 import { getActivePolicies }                          from '../policies/policyService';
 import { getAllClaims }                               from '../claims/claimService';
+import { getMyMember }                               from '../members/memberService';
 import {
   getMyNotifications,
   markAsRead,
   dismissNotification,
 } from '../notifications/notificationService';
-import { getAllMembers }                              from '../members/memberService';
 import { getAllPayments }                             from '../payments/paymentService';
 import {
   getAllAppeals,
@@ -106,23 +106,19 @@ function mapClaim(c) {
  * so we infer eligibility from the Member.Status field.
  */
 function mapMember(m) {
+  if (!m) return null;
   return {
-    memberID:  m.memberID,
-    name:      m.name,
-    relation:  parseRelation(m.contactInfoJSON) ?? 'Family Member',
-    dob:       m.dob,
-    eligible:  m.status === 'Active',
+    memberID:     m.memberID,
+    memberNumber: m.memberNumber,
+    name:         m.name,
+    dob:          m.dob,
+    gender:       m.gender,
+    policyName:   m.policyName,
+    coverageStart: m.coverageStart,
+    coverageEnd:  m.coverageEnd,
+    status:       m.status,
+    eligible:     m.status === 'Active',
   };
-}
-
-function parseRelation(json) {
-  if (!json) return null;
-  try {
-    const parsed = JSON.parse(json);
-    return parsed.relation ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -165,7 +161,7 @@ export async function fetchDashboardData() {
       claims:        demoClaims,
       notifications: demoNotifications,
       appeals:       demoAppeals,
-      members:       demoMembers,
+      member:        demoMembers[0] ?? null,
       payments:      demoPayments,
     };
   }
@@ -181,23 +177,23 @@ export async function fetchDashboardData() {
       return fallback;
     });
 
-  const [policies, claims, notifications, appeals, members, payments] =
+  const [policies, claims, notifications, appeals, member, payments] =
     await Promise.all([
-      safe(getActivePolicies(),   []),
-      safe(getAllClaims(),        []),
-      safe(getMyNotifications(),  []),
-      safe(getAllAppeals(),       []),
-      safe(getAllMembers(),       []),
-      safe(getAllPayments(),      []),
+      safe(getActivePolicies(),  []),
+      safe(getAllClaims(),       []),
+      safe(getMyNotifications(), []),
+      safe(getAllAppeals(),      []),
+      safe(getMyMember(),        null),   // single member, not a list
+      safe(getAllPayments(),     []),
     ]);
 
   return {
-    policy:        policies.length > 0 ? mapPolicy(policies[0]) : null,
-    claims:        claims.map(mapClaim),
-    notifications: notifications.map(mapNotification),
-    appeals:       appeals.map(mapAppeal),
-    members:       members.map(mapMember),
-    payments:      payments.map(mapPayment),
+      policy:        policies.length > 0 ? mapPolicy(policies[0]) : null,
+      claims:        claims.map(mapClaim),
+      notifications: notifications.map(mapNotification),
+      appeals:       appeals.map(mapAppeal),
+      member:        mapMember(member),   // singular — own member record only
+      payments:      payments.map(mapPayment),
   };
 }
 

@@ -169,7 +169,7 @@ export default function MembersTable({
 
                     {/* Action buttons */}
                     <td className="py-3 pe-4">
-                      <div className="d-flex flex-column align-items-end gap-1">
+                      <div className="d-flex flex-row align-items-center justify-content-end gap-2">
 
                         {/* Eligibility check — all roles can check */}
                         <Button

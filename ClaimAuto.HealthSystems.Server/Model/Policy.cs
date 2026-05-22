@@ -47,6 +47,9 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [ForeignKey("Organization")]
         public int? OrganizationID { get; set; }
         public Organization? Organization { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? SumInsured { get; set; }   // ← Total coverage limit per policy period
     }
 }
 

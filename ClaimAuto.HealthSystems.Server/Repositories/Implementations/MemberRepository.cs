@@ -87,7 +87,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  CHECK ELIGIBILITY — with TTL-based caching (300 seconds)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<EligibilityResponseDto?> CheckEligibilityAsync(int memberId)
+        public async Task<EligibilityResponseDto?> CheckEligibilityAsync(int memberId, int? userOrgId = null)
         {
             var now = DateTime.UtcNow;
 
@@ -134,16 +134,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (member == null) return null;
 
             // ── Step 3: Load claims for this member in ONE query ────────────
-           
+
             var memberClaims = await _db.Claims
                 .Where(c => c.MemberID == memberId
-                         && (c.Status == ClaimStatus.Adjudicated
-                          || c.Status == ClaimStatus.Paid))
-                .Select(c => c.TotalBilledAmount)  // only fetch the amount — nothing else needed
+                         && (c.Status == ClaimStatus.Approved   // payment created, money committed
+                          || c.Status == ClaimStatus.Paid))      // payment fully executed
+                .Select(c => c.TotalBilledAmount)
                 .ToListAsync();
 
             // ── Step 4: Calculate both values in MEMORY using the loaded list
-            
+
             var totalPaid = memberClaims.Sum();    // sum all approved/paid claim amounts
 
             var policyMax = member.Policy.OutOfPocketMax ?? 0m;
@@ -191,7 +191,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CheckedAt = now,
                 Source = "API",
                 ResultJSON = resultJson,
-                TTL = 300
+                TTL = 300,
+                OrganizationID = userOrgId,   // ← stamp the org
             };
 
             _db.EligibilityChecks.Add(check);
@@ -213,24 +214,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }        
 
-        // ══════════════════════════════════════════════════════════════════
-        //  CHECK IF MEMBER NUMBER EXISTS — duplicate detection
-        // ══════════════════════════════════════════════════════════════════
-        public async Task<bool> MemberNumberExistsAsync(string memberNumber)
-        {
-            return await _db.Members
-                .AnyAsync(m => m.MemberNumber == memberNumber);
-        }
 
         // ══════════════════════════════════════════════════════════════════
         //  CREATE MEMBER — enroll under a policy
         // ══════════════════════════════════════════════════════════════════
         public async Task<MemberResponseDto?> CreateMemberAsync(CreateMemberDto dto, int createdByUserId, int? userOrgId = null)
         {
-            
-            // Validate that the Policy exists and is active
+
+            // Validate that the Policy exists, is active, AND belongs to the same org
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
+                return null;
+
+            // Multi-tenant guard: prevent cross-org enrollment
+            if (userOrgId.HasValue && policy.OrganizationID != userOrgId)
                 return null;
 
             // Parse the Gender enum from the string in DTO
@@ -243,34 +240,36 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Name = dto.Name,
                 DOB = dto.DOB,
                 Gender = gender,
-                MemberNumber = dto.MemberNumber,
+                MemberNumber = null,          // auto-generated after first save
                 ContactInfoJSON = dto.ContactInfoJSON,
                 CoverageStart = dto.CoverageStart,
                 CoverageEnd = dto.CoverageEnd,
-                Status = MemberStatus.Active,     // server sets this — always Active on creation
+                Status = MemberStatus.Active,
                 PolicyholderUserID = dto.PolicyholderUserID,
-                OrganizationID = userOrgId,       // ← Phase 4: tenant stamp
+                OrganizationID = userOrgId,
             };
 
             _db.Members.Add(member);
 
-            // Audit log — same pattern as Utkarsh's PolicyRepository
+            // Audit log
             var audit = new AuditLog
             {
                 UserID = createdByUserId,
                 Action = "CreateMember",
                 ResourceType = "Member",
                 ResourceID = "PENDING",
-                DetailsJSON = $"{{\"name\":\"{dto.Name}\",\"memberNumber\":\"{dto.MemberNumber}\",\"policyId\":{dto.PolicyID}}}",
+                DetailsJSON = $"{{\"name\":\"{dto.Name}\",\"policyId\":{dto.PolicyID},\"policyholderUserID\":{dto.PolicyholderUserID}}}",
                 Timestamp = DateTime.UtcNow
             };
 
             _db.AuditLogs.Add(audit);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync();    // ← First save: gets auto-assigned MemberID
 
-            // Update ResourceID with the auto-generated MemberID
+            // Auto-generate MemberNumber from the database-assigned MemberID
+            // Format: MEM-000001, MEM-000042, MEM-100523 — guaranteed unique, no manual input
+            member.MemberNumber = $"MEM-{member.MemberID:D6}";
             audit.ResourceID = member.MemberID.ToString();
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync();    // ← Second save: writes MemberNumber + ResourceID
 
             return new MemberResponseDto
             {
@@ -447,15 +446,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
-        public async Task<object> AutoExpireMembersAsync()
+        public async Task<object> AutoExpireMembersAsync(int? userOrgId = null)
         {
             var now = DateTime.UtcNow;
 
-            var expiredMembers = await _db.Members
+            var query = _db.Members
                 .Where(m => m.Status == MemberStatus.Active
                          && m.CoverageEnd != null
-                         && m.CoverageEnd < now)
-                .ToListAsync();
+                         && m.CoverageEnd < now);
+
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            var expiredMembers = await query.ToListAsync();
 
             if (!expiredMembers.Any())
                 return new { expired = 0, message = "No members to expire." };
@@ -466,7 +469,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
                 _db.AuditLogs.Add(new AuditLog
                 {
-                    UserID = 1,
+                    UserID = 0,
                     Action = "AutoExpireMember",
                     ResourceType = "Member",
                     ResourceID = member.MemberID.ToString(),
@@ -487,6 +490,40 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                           $"auto-expired.",
             };
         }
+
+
+        // ══════════════════════════════════════════════════════════════════
+        //  GET MEMBER BY POLICYHOLDER USER ID
+        //  Used by: GET /api/members/my — Policyholder's own member record
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<MemberResponseDto?> GetMemberByPolicyholderUserIdAsync(
+            int userId, int? userOrgId = null)
+        {
+            var query = _db.Members
+                .Where(m => m.PolicyholderUserID == userId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            return await query
+                .Select(m => new MemberResponseDto
+                {
+                    MemberID = m.MemberID,
+                    PolicyID = m.PolicyID,
+                    PolicyName = m.Policy.PlanName,
+                    Name = m.Name,
+                    DOB = m.DOB,
+                    Gender = m.Gender.ToString(),
+                    MemberNumber = m.MemberNumber,
+                    ContactInfoJSON = m.ContactInfoJSON,
+                    CoverageStart = m.CoverageStart,
+                    CoverageEnd = m.CoverageEnd,
+                    Status = m.Status.ToString(),
+                    PolicyholderUserID = m.PolicyholderUserID,
+                })
+                .FirstOrDefaultAsync();
+        }
+
 
         private string ExtractReasonFromCache(string? resultJson)
         {
