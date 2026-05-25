@@ -54,9 +54,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
 
             var activeRules = await _db.Rules
-                .Where(r => r.Status == RuleStatus.Active)
-                .OrderBy(r => r.Priority)
-                .ToListAsync();
+            .Where(r => r.Status == RuleStatus.Active &&
+                        (r.OrganizationID == null ||
+                            r.OrganizationID == claim.OrganizationID))
+            .OrderBy(r => r.Priority)
+            .ToListAsync();
 
             var engineResult = await _engine.EvaluateClaimAsync(claim, activeRules);
 
@@ -117,6 +119,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PaymentMethod = PaymentMethod.EFT,
                     Status = PaymentStatus.Pending,
                     CreatedAt = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
                 };
                 _db.Payments.Add(payment);
 
@@ -139,7 +142,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 DetailsJSON = $"{{\"decision\":\"{engineResult.Decision}\"," +
                                $"\"payable\":{engineResult.PayableAmount}," +
                                $"\"rulesEvaluated\":{activeRules.Count}}}",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = claim.OrganizationID,
             });
 
             await _db.SaveChangesAsync();
@@ -255,6 +259,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PaymentMethod = PaymentMethod.EFT,
                     Status = PaymentStatus.Pending,
                     CreatedAt = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
                 });
             }
 
@@ -272,7 +277,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     notes = dto.Notes,
                     claimStatus = claim.Status.ToString()
                 }),
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = claim.OrganizationID,
             });
 
             await _db.SaveChangesAsync();
@@ -458,22 +464,44 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             });
 
             // Notify policyholder (member's owner)
-            var memberUser = await _db.Users
-                .Where(u => u.Name == claim.Member.Name
-                         && u.Role == UserRole.Policyholder
-                         && u.Status == AccountStatus.Active)
-                .FirstOrDefaultAsync();
-
-            if (memberUser != null)
+            if (claim.Member?.PolicyholderUserID != null)
             {
                 await _notificationRepo.CreateAsync(new Notification
                 {
-                    UserID = memberUser.UserID,
+                    UserID = claim.Member.PolicyholderUserID.Value,
                     ClaimID = claim.ClaimID,
                     Message = memberMessage,
                     Category = category,
                     Severity = severity
                 });
+            }
+            // ── Notify InsuranceStaff to authorize the payment ────────────────────
+            // (Only for Paid/Partial — staff must authorize before payment executes)
+            if (decision == AdjDecision.Paid || decision == AdjDecision.Partial)
+            {
+                var staffUsers = await _db.Users
+                    .Where(u => u.Role == UserRole.InsuranceStaff
+                             && u.Status == AccountStatus.Active
+                             && u.OrganizationID == claim.OrganizationID)
+                    .ToListAsync();
+
+                foreach (var staff in staffUsers)
+                {
+                    await _notificationRepo.CreateAsync(new Notification
+                    {
+                        UserID = staff.UserID,
+                        ClaimID = claim.ClaimID,
+                        Message = $"Claim {claim.ExternalClaimRef} adjudicated — " +
+                                        $"{decision}. Payment of ₹{payableAmount} created " +
+                                        $"and is pending your authorization. Please review " +
+                                        $"and authorize in the Payments module.",
+                        Category = NotificationCategory.Payment,
+                        Severity = NotificationSeverity.Warning,
+                        CreatedAt = DateTime.UtcNow,
+                        Status = NotificationStatus.Unread,
+                        OrganizationID = claim.OrganizationID
+                    });
+                }
             }
         }
     }

@@ -27,6 +27,7 @@
         public DateTime? DecisionAt { get; set; }
         public string? DecisionByName { get; set; }              // resolved — "Sneha Kapoor"
         public string? Outcome { get; set; }                     // null until decided
+        public bool HasPDF { get; set; }
     }
 
     // ── CreateSubrogationDto

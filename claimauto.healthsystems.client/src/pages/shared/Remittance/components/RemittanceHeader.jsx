@@ -8,7 +8,8 @@ export default function RemittanceHeader({ successMsg, errorMsg }) {
 
   return (
     <div className="px-4 pt-3 mb-4">
-      <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div className="d-flex align-items-center
+        justify-content-between flex-wrap gap-3">
         <div className="d-flex align-items-center">
           <i className="bi bi-receipt fs-2 text-primary me-3"></i>
           <div>
@@ -17,22 +18,24 @@ export default function RemittanceHeader({ successMsg, errorMsg }) {
             </h3>
             <small className="text-muted">
               {isHospital
-                ? 'Payment advices sent to your account — confirm receipt to close the loop'
-                : 'Track payment advices — Generated → Sent → Acknowledged'}
+                ? 'Payment advices sent to your account · showing last 30 days'
+                : 'Track payment advices · showing last 30 days'}
             </small>
           </div>
         </div>
       </div>
 
       {successMsg && (
-        <Alert variant="success" className="d-flex align-items-center py-2 mb-0 mt-3">
+        <Alert variant="success"
+          className="d-flex align-items-center py-2 mb-0 mt-3">
           <i className="bi bi-check-circle-fill me-2"></i>
           {successMsg}
         </Alert>
       )}
 
       {errorMsg && (
-        <Alert variant="danger" className="d-flex align-items-center py-2 mb-0 mt-3">
+        <Alert variant="danger"
+          className="d-flex align-items-center py-2 mb-0 mt-3">
           <i className="bi bi-exclamation-triangle-fill me-2"></i>
           {errorMsg}
         </Alert>

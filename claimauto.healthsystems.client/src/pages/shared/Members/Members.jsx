@@ -9,6 +9,7 @@ import {
   checkEligibility,
   checkExpiredMembers,
 } from '../../../services/members/memberService';
+import { getUsersByRole } from '../../../services/identity/userService';
 import { getActivePolicies } from '../../../services/policies/policyService';
 import {
   CreateMemberDto,
@@ -47,6 +48,9 @@ export default function Members() {
 
   // ── POLICIES (for create dropdown) ────────────────────────────────────────
   const [policies, setPolicies] = useState([]);
+
+  // Policyholder users — for the "Link to Registered User" dropdown in Create modal
+const [policyholderUsers, setPolicyholderUsers] = useState([]);
 
   // ── CREATE MODAL STATE ────────────────────────────────────────────────────
   const [showCreate,    setShowCreate]    = useState(false);
@@ -87,12 +91,17 @@ export default function Members() {
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
-  // Load active policies for the create dropdown
+  // Load active policies + registered Policyholder users — only Admin/Staff need these
+  // (they are the only roles that can open the Create Member modal)
   useEffect(() => {
-    getActivePolicies()
-      .then(setPolicies)
-      .catch(() => setPolicies([]));
-  }, []);
+      if (!isAdmin && !isStaff) return;
+      getActivePolicies()
+        .then(setPolicies)
+        .catch(() => setPolicies([]));
+      getUsersByRole('Policyholder')
+        .then(setPolicyholderUsers)
+        .catch(() => setPolicyholderUsers([]));
+  }, [isAdmin, isStaff]);
 
   // Auto-clear success message after 5 seconds
   useEffect(() => {
@@ -103,12 +112,14 @@ export default function Members() {
 
   // ── FILTERED LIST ─────────────────────────────────────────────────────────
   const filtered = members.filter((m) => {
-    const matchSearch =
-      m.name?.toLowerCase().includes(search.toLowerCase()) ||
-      m.memberNumber?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus =
-      statusFilter === 'All' || m.status === statusFilter;
-    return matchSearch && matchStatus;
+      const q = search.toLowerCase();
+      const matchSearch =
+        m.name?.toLowerCase().includes(q)         ||
+        m.memberNumber?.toLowerCase().includes(q)  ||
+        m.policyName?.toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === 'All' || m.status === statusFilter;
+      return matchSearch && matchStatus;
   });
 
   const hasFilters = !!search || statusFilter !== 'All';
@@ -129,17 +140,16 @@ export default function Members() {
       if (createForm.contactAddress) contactInfo.address = createForm.contactAddress;
 
       await createMember({
-        policyID:        Number(createForm.policyID),
-        name:            createForm.name,
-        dob:             createForm.dob,
-        gender:          createForm.gender,
-        memberNumber:    createForm.memberNumber,
-        contactInfoJSON: Object.keys(contactInfo).length > 0
-                          ? JSON.stringify(contactInfo)
-                          : null,
-        coverageStart:   createForm.coverageStart,
-        coverageEnd:     createForm.coverageEnd || null,
-        policyholderUserID: isPolicyholder ? user.userID : null, 
+          policyID:           Number(createForm.policyID),
+          name:               createForm.name,
+          dob:                createForm.dob,
+          gender:             createForm.gender,
+          contactInfoJSON:    Object.keys(contactInfo).length > 0
+                                ? JSON.stringify(contactInfo)
+                                : null,
+          coverageStart:      createForm.coverageStart,
+          coverageEnd:        createForm.coverageEnd || null,
+          policyholderUserID: Number(createForm.policyholderUserID),
       });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
@@ -214,11 +224,15 @@ export default function Members() {
 
       // ── Run expiry check immediately after save ──────────────────
       // Handles case where CoverageEnd was set to a past date
+      // Only trigger auto-expiry check if CoverageEnd was actually changed
+      // (no need to scan all members when just a name or phone was updated)
       let expireResult = null;
-      try {
-        expireResult = await checkExpiredMembers();
-      } catch {
-        // silently ignore
+      if (editForm.coverageEnd !== undefined) {
+          try {
+              expireResult = await checkExpiredMembers();
+          } catch {
+              // silently ignore
+          }
       }
 
       await loadMembers();
@@ -296,8 +310,8 @@ export default function Members() {
         onStatusChange={setStatusFilter}
       />
 
-      {!loading && !error && (
-        <MembersSummary members={members} />
+      {!loading && !error && members.length > 0 && (
+          <MembersSummary members={members} />
       )}
 
       <MembersTable
@@ -320,6 +334,7 @@ export default function Members() {
         error={createError}
         form={createForm}
         policies={policies}
+        policyholderUsers={policyholderUsers}
         onHide={() => setShowCreate(false)}
         onFieldChange={handleCreateField}
         onSubmit={handleCreateSubmit}

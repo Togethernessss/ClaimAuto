@@ -24,6 +24,8 @@ import Profile from './pages/identity/Profile';
 import ForceChangePassword from './pages/identity/ForceChangePassword';
 import ForgotPassword from './pages/identity/ForgotPassword';
 import ResetPassword from './pages/identity/ResetPassword';
+import Reports from './pages/shared/Reports/Reports';
+import RequireRole from './security/RequireRole';
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -65,20 +67,20 @@ export default function App() {
 
             {/* Shared modules ✅ */}
             <Route path="/policies"      element={<Policies />} />
-            <Route path="/members"       element={<Members />} />
+            <Route path="/members"       element={<RequireRole roles={['Admin', 'InsuranceStaff', 'Hospital']}><Members /></RequireRole> } />
             <Route path="/claims"        element={<Claims />} />
             <Route path="/adjudication"  element={<Adjudication />} />
             <Route path="/payments"      element={<Payments />} />
             <Route path="/remittance"    element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/reports" element={<Reports />} />
 
             {/* Coming soon */}
             <Route path="/fraud" element={<Fraud />} />
             <Route path="/appeals"        element={<Appeals />} /> 
             <Route path="/tasks"          element={<Tasks />} /> 
-            {/* <Route path="/reports"        element={<Reports />} /> */}
             {/* <Route path="/audit-packages" element={<AuditPackages />} /> */}
-
+            
           </Route>
 
           {/* Catch-all */}

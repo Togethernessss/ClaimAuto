@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getUnreadNotifications } from '../services/notifications/notificationService';
 
 const NotificationContext = createContext();
@@ -8,14 +8,18 @@ export function NotificationProvider({ children }) {
   const [unreadList,  setUnreadList]  = useState([]);
   const [loading,     setLoading]     = useState(false);
 
+  const failCountRef = useRef(0);
+
   const refresh = useCallback(async () => {
+    if (failCountRef.current >= 3) return;  // stop flooding after 3 failures
     setLoading(true);
     try {
       const data = await getUnreadNotifications();
       setUnreadList(data);
       setUnreadCount(data.length);
+      failCountRef.current = 0;             // reset on success
     } catch {
-      // silent
+      failCountRef.current += 1;
     } finally {
       setLoading(false);
     }

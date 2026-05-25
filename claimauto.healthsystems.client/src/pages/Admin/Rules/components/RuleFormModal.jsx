@@ -86,6 +86,8 @@ export default function RuleFormModal({
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   // Whether user wants custom expressions instead of template
   const [useCustom, setUseCustom] = useState(false);
+  // JSON validation errors for the expression fields
+  const [jsonErrors, setJsonErrors] = useState({ condition: null, action: null });
 
   // Reset on open
   useEffect(() => {
@@ -109,6 +111,20 @@ export default function RuleFormModal({
       // Auto-assign priority based on template order
       const idx = RULE_TEMPLATES.findIndex(t => t.id === template.id);
       onFieldChange('priority')({ target: { value: String(idx + 1) } });
+    }
+  };
+
+  // Validates that a field contains valid JSON when user leaves the textarea
+  const handleJsonBlur = (field, value) => {
+    if (!value || value.trim() === '') {
+      setJsonErrors(prev => ({ ...prev, [field]: null }));
+      return;
+    }
+    try {
+      JSON.parse(value);
+      setJsonErrors(prev => ({ ...prev, [field]: null }));
+    } catch (e) {
+      setJsonErrors(prev => ({ ...prev, [field]: e.message }));
     }
   };
 
@@ -371,15 +387,22 @@ export default function RuleFormModal({
                     <div className="text-muted small mb-2">
                       When should this rule fire?
                     </div>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      value={form.conditionExpressionJSON}
-                      onChange={onFieldChange('conditionExpressionJSON')}
-                      required
-                      className="font-monospace"
-                      style={{ fontSize: 11, background: 'white' }}
-                    />
+                      <Form.Control
+                        as="textarea"
+                        rows={3}
+                        value={form.conditionExpressionJSON}
+                        onChange={onFieldChange('conditionExpressionJSON')}
+                        onBlur={() => handleJsonBlur('condition', form.conditionExpressionJSON)}
+                        required
+                        isInvalid={!!jsonErrors.condition}
+                        className="font-monospace"
+                        style={{ fontSize: 11, background: 'white' }}
+                      />
+                      {jsonErrors.condition && (
+                        <Form.Control.Feedback type="invalid">
+                          Invalid JSON — {jsonErrors.condition}
+                        </Form.Control.Feedback>
+                      )}
                   </div>
                 </Col>
 
@@ -404,15 +427,22 @@ export default function RuleFormModal({
                     <div className="text-muted small mb-2">
                       What happens when the condition is met?
                     </div>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      value={form.actionExpressionJSON}
-                      onChange={onFieldChange('actionExpressionJSON')}
-                      required
-                      className="font-monospace"
-                      style={{ fontSize: 11, background: 'white' }}
-                    />
+                      <Form.Control
+                        as="textarea"
+                        rows={3}
+                        value={form.actionExpressionJSON}
+                        onChange={onFieldChange('actionExpressionJSON')}
+                        onBlur={() => handleJsonBlur('action', form.actionExpressionJSON)}
+                        required
+                        isInvalid={!!jsonErrors.action}
+                        className="font-monospace"
+                        style={{ fontSize: 11, background: 'white' }}
+                      />
+                      {jsonErrors.action && (
+                        <Form.Control.Feedback type="invalid">
+                          Invalid JSON — {jsonErrors.action}
+                        </Form.Control.Feedback>
+                      )}
                   </div>
                 </Col>
 
@@ -443,7 +473,7 @@ export default function RuleFormModal({
             type="submit"
             variant={isEdit ? 'warning' : 'primary'}
             className="px-4 fw-semibold"
-            disabled={loading || (!isEdit && !useCustom && !selectedTemplate)}
+            disabled={loading || (!isEdit && !useCustom && !selectedTemplate) || !!jsonErrors.condition || !!jsonErrors.action}
           >
             {loading ? (
               <>

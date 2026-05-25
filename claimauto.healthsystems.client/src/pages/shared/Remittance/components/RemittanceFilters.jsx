@@ -19,10 +19,12 @@ export default function RemittanceFilters({
   const { user } = useAuth();
   const isHospital = canAccess(user?.role, ['Hospital']);
 
-  const hasFilters = search || statusFilter !== 'All' || dateFrom || dateTo;
+  const hasFilters = search ||
+    statusFilter !== 'All' ||
+    dateFrom || dateTo;
 
   return (
-    <Row className="g-3 mb-4">
+    <Row className="g-3 mb-4 align-items-center">
 
       {/* Search */}
       <Col md={4}>
@@ -38,7 +40,8 @@ export default function RemittanceFilters({
             style={{ fontSize: 13 }}
           />
           {search && (
-            <Button variant="outline-secondary" onClick={() => onSearchChange('')}>
+            <Button variant="outline-secondary"
+              onClick={() => onSearchChange('')}>
               <i className="bi bi-x"></i>
             </Button>
           )}
@@ -53,7 +56,9 @@ export default function RemittanceFilters({
           style={{ fontSize: 13 }}
         >
           <option value="All">All Statuses</option>
-          {!isHospital && <option value="Generated">Generated</option>}
+          {!isHospital && (
+            <option value="Generated">Generated</option>
+          )}
           <option value="Sent">Sent</option>
           <option value="Acknowledged">Acknowledged</option>
         </Form.Select>
@@ -66,7 +71,6 @@ export default function RemittanceFilters({
           value={dateFrom}
           onChange={(e) => onDateFromChange(e.target.value)}
           style={{ fontSize: 13 }}
-          placeholder="From date"
         />
       </Col>
 
@@ -77,27 +81,31 @@ export default function RemittanceFilters({
           value={dateTo}
           onChange={(e) => onDateToChange(e.target.value)}
           style={{ fontSize: 13 }}
-          placeholder="To date"
         />
       </Col>
 
       {/* Count + clear */}
-      <Col className="d-flex align-items-center gap-3">
+      <Col className="d-flex align-items-center gap-2">
         {!loading && (
           <span className="text-muted small">
-            {filteredCount} of {totalCount}{' '}
-            {totalCount === 1 ? 'remittance' : 'remittances'}
+            {filteredCount}{' '}
+            {filteredCount === 1 ? 'remittance' : 'remittances'}
           </span>
         )}
         {hasFilters && (
-          <button
-            className="btn btn-sm btn-outline-secondary"
+          <span
             onClick={onClearFilters}
-            style={{ fontSize: 12 }}
+            style={{
+              fontSize: 12,
+              color: '#667eea',
+              cursor: 'pointer',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
           >
             <i className="bi bi-x-circle me-1"></i>
             Clear
-          </button>
+          </span>
         )}
       </Col>
 

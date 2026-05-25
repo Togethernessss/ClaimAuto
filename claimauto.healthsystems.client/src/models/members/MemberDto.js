@@ -3,28 +3,26 @@
 
 export class CreateMemberDto {
   constructor({
-    policyID        = '',
-    name            = '',
-    dob             = '',
-    gender          = '',
-    memberNumber    = '',
-    contactPhone    = '',
-    contactEmail    = '',
-    contactAddress  = '',
-    coverageStart   = '',
-    coverageEnd     = '',
-    policyholderUserID = null,
+    policyID           = '',
+    name               = '',
+    dob                = '',
+    gender             = '',
+    contactPhone       = '',
+    contactEmail       = '',
+    contactAddress     = '',
+    coverageStart      = '',
+    coverageEnd        = '',
+    policyholderUserID = '',   // required — staff selects from dropdown
   } = {}) {
-    this.policyID        = policyID;
-    this.name            = name;
-    this.dob             = dob;
-    this.gender          = gender;
-    this.memberNumber    = memberNumber;
-    this.contactPhone    = contactPhone;
-    this.contactEmail    = contactEmail;
-    this.contactAddress  = contactAddress;
-    this.coverageStart   = coverageStart;
-    this.coverageEnd     = coverageEnd;
+    this.policyID           = policyID;
+    this.name               = name;
+    this.dob                = dob;
+    this.gender             = gender;
+    this.contactPhone       = contactPhone;
+    this.contactEmail       = contactEmail;
+    this.contactAddress     = contactAddress;
+    this.coverageStart      = coverageStart;
+    this.coverageEnd        = coverageEnd;
     this.policyholderUserID = policyholderUserID;
   }
 }

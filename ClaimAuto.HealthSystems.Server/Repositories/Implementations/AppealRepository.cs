@@ -15,13 +15,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context = context;
         }
 
-        // ── Role-based filtering ──
         // ── Role-based + tenant filtering ──
         public async Task<List<Appeal>> GetAllAppealsAsync(int userId, string role, int? userOrgId = null)
         {
             var query = _context.Appeals.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
                 query = query.Where(a => a.OrganizationID == userOrgId.Value);
 
@@ -35,27 +33,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .OrderByDescending(a => a.FiledAt)
                 .ToListAsync();
         }
-        // In AppealRepository.GetAppealByIdAsync:
-        // In AppealRepository.GetAppealByIdAsync:
+
         public async Task<Appeal?> GetAppealByIdAsync(int id, int? userOrgId = null)
         {
             var query = _context.Appeals
-                .Include(a => a.DecisionBy)      // loads the User object
-                .Include(a => a.FiledByUser)     // if you have this navigation too
+                .Include(a => a.DecisionBy)
                 .AsQueryable();
 
-            // ── Multi-tenant ownership check (Phase 3) ───────────────────
             if (userOrgId.HasValue)
                 query = query.Where(a => a.OrganizationID == userOrgId.Value);
 
             return await query.FirstOrDefaultAsync(a => a.AppealID == id);
         }
 
-        public async Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId)
+        // ── SaaS FIX: tenant-scoped appeals-by-claim lookup ──
+        public async Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId, int? userOrgId = null)
         {
-            return await _context.Appeals
-                .Where(a => a.ClaimID == claimId)
-                .ToListAsync();
+            var query = _context.Appeals.Where(a => a.ClaimID == claimId);
+            if (userOrgId.HasValue)
+                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+            return await query.ToListAsync();
         }
 
         // ── ACID: Appeal + Task created together ──
@@ -64,16 +61,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Step 1 — Save appeal
                 _context.Appeals.Add(appeal);
                 await _context.SaveChangesAsync();
 
-                // Step 2 — Auto-create Task for staff
-                var staffRoles = new[] { "InsuranceStaff", "Admin" };
+                // Auto-create Task for staff in the SAME org as the appeal
                 var staffUser = await _context.Users
-    .FirstOrDefaultAsync(u =>
-        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
-        && u.Status == AccountStatus.Active);
+                    .FirstOrDefaultAsync(u =>
+                        (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                        && u.Status == AccountStatus.Active
+                        && u.OrganizationID == appeal.OrganizationID);    // ← SaaS FIX: org-matched staff
 
                 if (staffUser != null)
                 {
@@ -83,10 +79,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = appeal.ClaimID,
                         Description = $"Review appeal #{appeal.AppealID} for Claim #{appeal.ClaimID}. Reason: {appeal.Reason}",
                         DueDate = DateTime.UtcNow.AddDays(7),
-                        Priority = TaskPriority.High,          // enum
-                        Status = TaskStatus.Pending,           // enum
+                        Priority = TaskPriority.High,
+                        Status = TaskStatus.Pending,
                         CreatedAt = DateTime.UtcNow,
-                        OrganizationID = appeal.OrganizationID, // ← Phase 4: inherit from appeal
+                        OrganizationID = appeal.OrganizationID,
                     };
 
                     _context.ClaimTasks.Add(task);
@@ -115,7 +111,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             appeal.DecisionAt = DateTime.UtcNow;
             appeal.DecisionByID = decidedById;
 
-            // Parse outcome string → enum
             if (Enum.TryParse<AppealOutcome>(outcome, true, out var parsedOutcome))
             {
                 appeal.Outcome = parsedOutcome;
@@ -137,6 +132,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return appeal;
         }
 
+        public async Task UpdateAppealAsync(Appeal appeal)
+        {
+            _context.Appeals.Update(appeal);
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<Subrogation> CreateSubrogationAsync(Subrogation subrogation)
         {
             _context.Subrogations.Add(subrogation);
@@ -144,11 +145,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return subrogation;
         }
 
-        public async Task<List<Subrogation>> GetSubrogationsAsync()
+        // ── SaaS FIX: tenant-scoped subrogation list ──
+        public async Task<List<Subrogation>> GetSubrogationsAsync(int? userOrgId = null)
         {
-            return await _context.Subrogations
-                .OrderByDescending(s => s.InitiatedAt)
-                .ToListAsync();
+            var query = _context.Subrogations.AsQueryable();
+            if (userOrgId.HasValue)
+                query = query.Where(s => s.OrganizationID == userOrgId.Value);
+            return await query.ToListAsync();
         }
     }
 }

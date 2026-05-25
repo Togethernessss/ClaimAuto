@@ -17,12 +17,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: GET /api/members/{id}/eligibility
         // Checks if member is currently eligible for coverage
         // Uses TTL-based caching — returns cached result if within 300 seconds
-        Task<EligibilityResponseDto?> CheckEligibilityAsync(int memberId);
+        Task<EligibilityResponseDto?> CheckEligibilityAsync(int memberId, int? userOrgId = null);
 
-        // ── WRITE operations ────────────────────────────────────────────
-
-        // Check if a MemberNumber already exists (for duplicate detection)
-        Task<bool> MemberNumberExistsAsync(string memberNumber);
 
         // Used by: POST /api/members
         // Creates a new member under a policy
@@ -35,6 +31,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Returns null if member not found
         Task<MemberResponseDto?> UpdateMemberAsync(int memberId, UpdateMemberDto dto, int updatedByUserId);
 
-        Task<object> AutoExpireMembersAsync();
+        Task<object> AutoExpireMembersAsync(int? userOrgId = null);
+
+        // Used by: GET /api/members/my
+        // Returns the single member record linked to a specific Policyholder user.
+        // Returns null if no member is enrolled for this user yet.
+        Task<MemberResponseDto?> GetMemberByPolicyholderUserIdAsync(int userId, int? userOrgId = null);
     }
 }

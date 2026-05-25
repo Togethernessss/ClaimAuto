@@ -55,9 +55,8 @@ export default function ReconciliationTab() {
     setGenError(null);
     try {
       await createReconciliation({
-        periodStart:      new Date(periodStart).toISOString(),
-        periodEnd:        new Date(periodEnd).toISOString(),
-        bankStatementURI: null,
+        periodStart: new Date(periodStart).toISOString(),
+        periodEnd:   new Date(periodEnd).toISOString(),
       });
       setSuccessMsg('Reconciliation report generated successfully.');
       setPeriodStart('');
@@ -87,6 +86,14 @@ export default function ReconciliationTab() {
     }
   }
 
+  // ── Only show reconciliations from last 7 days ────────────────
+  const recentRecords = records.filter(r => {
+    const generatedAt  = new Date(r.reconciledAt);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return generatedAt >= sevenDaysAgo;
+  });
+
   function parseMetrics(json) {
     try { return JSON.parse(json); }
     catch { return {}; }
@@ -112,18 +119,6 @@ export default function ReconciliationTab() {
       {/* ── Generate Form ───────────────────────────────────── */}
       <Card className="border-0 shadow-sm mb-4">
         <Card.Body>
-          <div className="d-flex align-items-center mb-3">
-            <i className="bi bi-clipboard-data text-primary me-2 fs-5"></i>
-            <div>
-              <div className="fw-semibold">
-                Generate Reconciliation Report
-              </div>
-              <small className="text-muted">
-                Select a date range to generate a payment
-                reconciliation report
-              </small>
-            </div>
-          </div>
 
           {genError && (
             <Alert variant="danger"
@@ -208,12 +203,6 @@ export default function ReconciliationTab() {
       {/* ── Past Reconciliations ────────────────────────────── */}
       <Card className="border-0 shadow-sm">
         <Card.Body className="p-0">
-          <div className="px-4 py-3 border-bottom">
-            <div className="fw-semibold">Past Reconciliations</div>
-            <small className="text-muted">
-              All generated reconciliation reports
-            </small>
-          </div>
 
           {loading ? (
             <div className="text-center py-5">
@@ -230,15 +219,15 @@ export default function ReconciliationTab() {
                 {error}
               </Alert>
             </div>
-          ) : records.length === 0 ? (
+          ) : recentRecords.length === 0 ? (
             <div className="text-center py-5">
               <i className="bi bi-clipboard-data"
                 style={{ fontSize: 48, color: '#dfe4ea' }}></i>
               <div className="fw-semibold text-muted mt-3">
-                No reconciliations yet
+                No reconciliations in the last 7 days
               </div>
               <div className="small text-muted mt-1">
-                Select a date range above to generate your first report.
+                Select a date range above to generate a new report.
               </div>
             </div>
           ) : (
@@ -273,7 +262,7 @@ export default function ReconciliationTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map((r) => {
+                  {recentRecords.map((r) => {
                     const metrics       = parseMetrics(
                       r.paymentsSummaryJSON);
                     const discrepancies = parseMetrics(

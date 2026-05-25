@@ -98,18 +98,11 @@ export default function Claims() {
   useEffect(() => { loadClaims(); }, [loadClaims]);
 
   // ── LOAD SUPPORTING DATA ──────────────────────────────────────────────────
-  useEffect(() => {
+    useEffect(() => {
     // Hospital — load all active members for the enrollment picker.
     // Each member record contains policyID + policyName, so Hospital
     // does NOT need a separate policies API call.
     if (isHospital) {
-      getAllMembers()
-        .then(setMembers)
-        .catch(() => setMembers([]));
-    }
-
-    // Admin / Staff — load all members for potential use (e.g. filtering)
-    if (isAdmin || isStaff) {
       getAllMembers()
         .then(setMembers)
         .catch(() => setMembers([]));
@@ -124,7 +117,7 @@ export default function Claims() {
         .then(setMembers)
         .catch(() => setMembers([]));
     }
-  }, [isHospital, isPolicyholder, isAdmin, isStaff]);
+  }, [isHospital, isPolicyholder]);
 
   // ── AUTO-CLEAR SUCCESS MESSAGE ─────────────────────────────────────────
   useEffect(() => {
@@ -159,24 +152,15 @@ export default function Claims() {
       // (Approved/Denied) are set correctly by the adjudication engine.
       const payload = { ...formData, lines: lines ?? [] };
       const result = await submitClaim(payload);
-      const claimId = result?.claim?.claimID ?? result?.claimID;
+      const claimId = result?.claimID;
 
       setShowSubmit(false);
       await loadClaims();
 
-      if (result?.fraudDetected) {
-        setSuccessMsg(
-          `⚠️ CLM-${claimId} submitted but BLOCKED — ` +
-          `Fraud score ${result.fraudScore}/100. Check Fraud Detection page.`
-        );
-      } else if (result?.message) {
-        setSuccessMsg(result.message);
-      } else {
-        setSuccessMsg(
-          `Claim CLM-${claimId} submitted successfully ` +
-          `with ${lines.length} service line${lines.length !== 1 ? 's' : ''}.`
-        );
-      }
+      setSuccessMsg(
+        `Claim CLM-${claimId} submitted successfully ` +
+        `with ${lines.length} service line${lines.length !== 1 ? 's' : ''}.`
+      );
     } catch (err) {
       const msg = err.response?.data?.message
                || err.response?.data
@@ -257,7 +241,7 @@ export default function Claims() {
     setUpdateError(null);
     setUpdateLoading(true);
     try {
-      const result = await updateClaim(updateTarget.claimID, dto);
+      await updateClaim(updateTarget.claimID, dto);
       setShowUpdate(false);
       await loadClaims();
 

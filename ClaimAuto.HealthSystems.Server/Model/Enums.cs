@@ -8,7 +8,7 @@
     public enum ClaimPriority { Normal, High, Urgent }
     public enum SourceChannel { Portal, EDI, API, BatchCSV }
     public enum LineStatus { Pending, Approved, Denied }
-    public enum DocType { Invoice, MedicalRecord, LabReport }
+    public enum DocType { Invoice, MedicalRecord, LabReport, Prescription, DischargeSummary }
     public enum DocStatus { Pending, Verified, Rejected }
     public enum MemberStatus { Active, Inactive, Suspended }
     public enum PolicyStatus { Active, Expired, Suspended }

@@ -83,6 +83,7 @@
         public decimal UnitPrice { get; set; }
         public decimal LineBilledAmount { get; set; }
         public string? DiagnosisCodesJSON { get; set; }
+        public string? ProcedureCodesJSON { get; set; }
         public string LineStatus { get; set; } = string.Empty;   // "Pending","Approved","Denied"
     }
 

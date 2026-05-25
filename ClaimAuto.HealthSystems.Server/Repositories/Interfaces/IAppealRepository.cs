@@ -7,11 +7,17 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // userOrgId (Phase 3): when supplied, filters to that organization's appeals.
         Task<List<Appeal>> GetAllAppealsAsync(int userId, string role, int? userOrgId = null);
         Task<Appeal?> GetAppealByIdAsync(int id, int? userOrgId = null);
-        Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId);
+
+        // ── SaaS FIX: now accepts userOrgId for tenant scoping ──
+        Task<List<Appeal>> GetAppealsByClaimIdAsync(int claimId, int? userOrgId = null);
+
         Task<Appeal> FileAppealAsync(Appeal appeal);
         Task<Appeal?> DecideAppealAsync(int id, string outcome, int decidedById);
         Task<Appeal?> WithdrawAppealAsync(int id);
+        Task UpdateAppealAsync(Appeal appeal);
         Task<Subrogation> CreateSubrogationAsync(Subrogation subrogation);
-        Task<List<Subrogation>> GetSubrogationsAsync();
+
+        // ── SaaS FIX: now accepts userOrgId for tenant scoping ──
+        Task<List<Subrogation>> GetSubrogationsAsync(int? userOrgId = null);
     }
 }

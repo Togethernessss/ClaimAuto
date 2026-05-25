@@ -12,7 +12,7 @@ import {
   claimTypeVariant, claimTypeIcon,
   docStatusVariant, lineStatusVariant,
   adjDecisionVariant, DOC_TYPES,
-  simulateFileURI, simulateSHA256,
+  simulateFileURI, computeSHA256,
 } from '../utils/claimHelpers';
 
 export default function ClaimDetailModal({
@@ -30,8 +30,8 @@ export default function ClaimDetailModal({
   onUploadDocument, // (claimId, dto) => void
 }) {
   const [activeTab, setActiveTab] = useState('info');
-  const [docType,   setDocType]   = useState('Invoice');
-  const [fileName,  setFileName]  = useState('');
+  const [docType, setDocType] = useState('Invoice');
+  const [fileName, setFileName] = useState('');
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -50,18 +50,20 @@ export default function ClaimDetailModal({
     if (file) setFileName(file.name);
   };
 
-  const handleUpload = () => {
+    const handleUpload = async () => {
     if (!fileName || !claim) return;
+    const file = fileRef.current?.files?.[0];
+    const sha256 = file ? await computeSHA256(file) : '';
     const dto = {
       docType,
       fileURI: simulateFileURI(claim.claimID, docType, fileName),
-      sha256:  simulateSHA256(),
+      sha256,
     };
     onUploadDocument(claim.claimID, dto);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
   };
-
+  
   return (
     <Modal
       show={show}
@@ -127,18 +129,18 @@ export default function ClaimDetailModal({
                     style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
                   >
                     {[
-                      { label: 'Member',        value: claim.memberName,        icon: 'bi-person' },
-                      { label: 'Provider',       value: claim.providerName,      icon: 'bi-hospital' },
-                      { label: 'Policy',         value: claim.policyName,        icon: 'bi-shield-check' },
-                      { label: 'Total Billed',   value: formatCurrency(claim.totalBilledAmount), icon: 'bi-cash-coin' },
-                      { label: 'Currency',       value: claim.currency,          icon: 'bi-currency-rupee' },
-                      { label: 'Source',         value: claim.sourceChannel,     icon: 'bi-send' },
-                      { label: 'Received At',    value: formatDateTime(claim.receivedAt), icon: 'bi-clock' },
+                      { label: 'Member', value: claim.memberName, icon: 'bi-person' },
+                      { label: 'Provider', value: claim.providerName, icon: 'bi-hospital' },
+                      { label: 'Policy', value: claim.policyName, icon: 'bi-shield-check' },
+                      { label: 'Total Billed', value: formatCurrency(claim.totalBilledAmount), icon: 'bi-cash-coin' },
+                      { label: 'Currency', value: claim.currency, icon: 'bi-currency-rupee' },
+                      { label: 'Source', value: claim.sourceChannel, icon: 'bi-send' },
+                      { label: 'Received At', value: formatDateTime(claim.receivedAt), icon: 'bi-clock' },
                       claim.externalClaimRef
                         ? { label: 'External Ref', value: claim.externalClaimRef, icon: 'bi-tag' }
                         : null,
                       claim.notes
-                        ? { label: 'Notes',       value: claim.notes,            icon: 'bi-chat-text' }
+                        ? { label: 'Notes', value: claim.notes, icon: 'bi-chat-text' }
                         : null,
                     ].filter(Boolean).map((row, idx, arr) => (
                       <div
@@ -366,13 +368,14 @@ export default function ClaimDetailModal({
                       <div
                         className="rounded-3 p-3 mb-3 text-center"
                         style={{
-                          background: claim.adjudication.decision === 'Approved'
-                            ? '#d1f2eb' : claim.adjudication.decision === 'Denied'
-                            ? '#ffebee' : '#fff8e1',
-                          border: `1px solid ${
-                            claim.adjudication.decision === 'Approved' ? '#a5d6a7'
-                            : claim.adjudication.decision === 'Denied' ? '#ef9a9a'
-                            : '#ffe082'}`,
+                          background: claim.adjudication.decision === 'Paid'
+                            ? '#d1f2eb' : claim.adjudication.decision === 'Partial'
+                              ? '#e3f2fd' : claim.adjudication.decision === 'Denied'
+                                ? '#ffebee' : '#fff8e1',
+                          border: `1px solid ${claim.adjudication.decision === 'Paid' ? '#a5d6a7'
+                              : claim.adjudication.decision === 'Partial' ? '#90caf9'
+                                : claim.adjudication.decision === 'Denied' ? '#ef9a9a'
+                                  : '#ffe082'}`,
                         }}
                       >
                         <Badge
@@ -394,8 +397,8 @@ export default function ClaimDetailModal({
                       >
                         {[
                           { label: 'Engine Version', value: claim.adjudication.engineVersion, icon: 'bi-cpu' },
-                          { label: 'Performed By',   value: claim.adjudication.performedByName, icon: 'bi-person' },
-                          { label: 'Notes',           value: claim.adjudication.notes, icon: 'bi-chat-text' },
+                          { label: 'Performed By', value: claim.adjudication.performedByName, icon: 'bi-person' },
+                          { label: 'Notes', value: claim.adjudication.notes, icon: 'bi-chat-text' },
                         ].filter((r) => r.value).map((row, idx, arr) => (
                           <div
                             key={row.label}
@@ -419,28 +422,79 @@ export default function ClaimDetailModal({
                         ))}
                       </div>
 
-                      {/* Applied rules */}
-                      {claim.adjudication.appliedRulesJSON && (
-                        <div className="mt-3">
-                          <div className="small fw-semibold mb-2 text-muted">
-                            <i className="bi bi-gear me-1"></i>Applied Rules
-                          </div>
-                          <pre
-                            className="bg-dark text-light p-3 rounded small mb-0"
-                            style={{ maxHeight: 120, overflowY: 'auto', fontSize: '0.78rem' }}
-                          >
-                            {(() => {
-                              try {
-                                return JSON.stringify(
-                                  JSON.parse(claim.adjudication.appliedRulesJSON), null, 2
+                      {/* Applied rules — human-readable, NOT raw JSON */}
+                      {claim.adjudication.appliedRulesJSON && (() => {
+                        let rules = [];
+                        try { rules = JSON.parse(claim.adjudication.appliedRulesJSON); } catch { rules = []; }
+                        if (!Array.isArray(rules) || rules.length === 0) return null;
+                        return (
+                          <div className="mt-3">
+                            <div className="small fw-semibold mb-2 text-muted">
+                              <i className="bi bi-gear me-1"></i>Applied Rules ({rules.length})
+                            </div>
+                            <div className="d-flex flex-column gap-1">
+                              {rules.map((r, i) => {
+                                const resultVal = (r.result ?? r.Result ?? '').toUpperCase();
+                                const isPassed  = resultVal === 'PASS';
+                                const isFailed  = resultVal === 'FAIL';
+                                const isRouted  = resultVal === 'ROUTE';
+                                const isApplied = resultVal === 'APPLIED';
+                                // anything else (SKIPPED etc.) → grey neutral
+
+                                const bgColor     = isPassed  ? '#f0fdf4'
+                                                  : isFailed  ? '#fff5f5'
+                                                  : isRouted  ? '#fffbeb'
+                                                  : isApplied ? '#eff6ff'
+                                                  : '#f9fafb';
+
+                                const borderColor = isPassed  ? '#bbf7d0'
+                                                  : isFailed  ? '#fecaca'
+                                                  : isRouted  ? '#fde68a'
+                                                  : isApplied ? '#bfdbfe'
+                                                  : '#e5e7eb';
+
+                                const iconClass   = isPassed  ? 'bi-check-circle-fill text-success'
+                                                  : isFailed  ? 'bi-x-circle-fill text-danger'
+                                                  : isRouted  ? 'bi-arrow-right-circle-fill text-warning'
+                                                  : isApplied ? 'bi-info-circle-fill text-primary'
+                                                  : 'bi-dash-circle text-secondary';
+
+                                const labelColor  = isPassed  ? '#16a34a'
+                                                  : isFailed  ? '#dc2626'
+                                                  : isRouted  ? '#d97706'
+                                                  : isApplied ? '#2563eb'
+                                                  : '#6b7280';
+
+                                return (
+                                  <div
+                                    key={i}
+                                    className="d-flex align-items-center justify-content-between px-3 py-2 rounded"
+                                    style={{
+                                      background: bgColor,
+                                      border: `1px solid ${borderColor}`,
+                                      fontSize: '0.8rem',
+                                    }}
+                                  >
+                                    <div>
+                                      <i className={`bi ${iconClass} me-2`}></i>
+                                      <span className="fw-semibold">{r.ruleName ?? r.RuleName ?? 'Rule'}</span>
+                                      {(r.reason ?? r.Reason) && (
+                                        <span className="text-muted ms-2">— {r.reason ?? r.Reason}</span>
+                                      )}
+                                    </div>
+                                    <span
+                                      className="fw-semibold"
+                                      style={{ color: labelColor, whiteSpace: 'nowrap' }}
+                                    >
+                                      {resultVal || '—'}
+                                    </span>
+                                  </div>
                                 );
-                              } catch {
-                                return claim.adjudication.appliedRulesJSON;
-                              }
-                            })()}
-                          </pre>
-                        </div>
-                      )}
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -458,3 +512,5 @@ export default function ClaimDetailModal({
     </Modal>
   );
 }
+
+

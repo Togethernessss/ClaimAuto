@@ -160,18 +160,21 @@ export default function ScoreClaimModal({ show, onHide, onScored }) {
                                     <div
                                         key={i}
                                         className="d-flex justify-content-between align-items-center p-2 mb-1 rounded"
-                                        style={{ background: f.points > 0 ? '#fff5f5' : '#f0fdf0' }}
+                                        style={{ background: f.points > 0 ? '#fff5f5' : '#f9fafb' }}
                                     >
                                         <div>
-                                            <i className={`bi ${f.points > 0 ? 'bi-exclamation-triangle text-danger' : 'bi-check-circle text-success'} me-2`}></i>
+                                            <i className={`bi ${f.points > 0 ? 'bi-exclamation-triangle text-danger' : 'bi-info-circle text-secondary'} me-2`}></i>
                                             <span className="small">{f.factor}</span>
                                         </div>
                                         <Badge
                                             pill
-                                            bg={f.points > 0 ? 'danger' : 'success'}
-                                            style={{ fontSize: '0.75rem' }}
+                                            style={{
+                                                fontSize: '0.75rem',
+                                                background: f.points > 0 ? '#fee2e2' : '#f3f4f6',
+                                                color: f.points > 0 ? '#dc2626' : '#6b7280',
+                                            }}
                                         >
-                                            +{f.points} pts
+                                            {f.points > 0 ? `+${f.points} pts` : 'Info'}
                                         </Badge>
                                     </div>
                                 ))}

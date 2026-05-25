@@ -11,6 +11,20 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
     {
         private readonly Data.ApplicationDbContext _context;
 
+        // ── IST timezone helper ───────────────────────────────────────
+        private static readonly TimeZoneInfo IST =
+            TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+
+        private static string ToIST(DateTime? utc, string format) =>
+            utc.HasValue
+                ? TimeZoneInfo.ConvertTimeFromUtc(utc.Value, IST)
+                    .ToString(format)
+                : "—";
+
+        private static string ToIST(DateTime utc, string format) =>
+            TimeZoneInfo.ConvertTimeFromUtc(utc, IST)
+                .ToString(format);
+
         public RemittancePdfService(Data.ApplicationDbContext context)
         {
             _context = context;
@@ -29,15 +43,18 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
             var memberName = claim?.Member?.Name ?? "—";
             var memberNumber = claim?.Member?.MemberNumber ?? "—";
-            var memberDob = claim?.Member?.DOB.ToString("dd MMM yyyy") ?? "—";
+            var memberDob = claim?.Member?.DOB
+                                   .ToString("dd MMM yyyy") ?? "—";
             var planName = claim?.Member?.Policy?.PlanName ?? "—";
             var planCode = claim?.Member?.Policy?.PlanCode ?? "—";
             var deductible = claim?.Member?.Policy?.DeductibleAmount ?? 0;
             var oopMax = claim?.Member?.Policy?.OutOfPocketMax ?? 0;
             var claimType = claim?.ClaimType.ToString() ?? "—";
             var claimNotes = string.IsNullOrWhiteSpace(claim?.Notes)
-                               ? "—" : claim!.Notes!;
-            var submittedAt = claim?.SubmittedAt.ToString("dd MMM yyyy") ?? "—";
+                                   ? "—" : claim!.Notes!;
+            var submittedAt = claim != null
+                ? ToIST(claim.SubmittedAt, "dd MMM yyyy")
+                : "—";
 
             var purple = "#667eea";
             var darkPurple = "#764ba2";
@@ -106,7 +123,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                         // ── HEADER ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            // Logo + name only — no subtitle
                             row.RelativeItem().Row(r =>
                             {
                                 r.ConstantItem(32).Height(32)
@@ -132,7 +148,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 });
                             });
 
-                            // Receipt number top right
                             row.ConstantItem(120).Column(c =>
                             {
                                 c.Item().AlignRight()
@@ -144,20 +159,17 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                     .FontSize(15).Bold()
                                     .FontColor(darkText);
                                 c.Item().AlignRight()
-                                    .Text(remittance.GeneratedAt
-                                        .ToString("dd MMM yyyy"))
+                                    .Text(ToIST(remittance.GeneratedAt,
+                                        "dd MMM yyyy"))
                                     .FontSize(9)
                                     .FontColor(grayText);
                             });
                         });
 
                         col.Item().Height(10);
-
-                        // ── Double divider ────────────────────────────
                         col.Item().Height(2).Background(purple);
                         col.Item().Height(2);
                         col.Item().Height(0.5f).Background(lightGray);
-
                         col.Item().Height(14);
 
                         // ── Title ─────────────────────────────────────
@@ -168,8 +180,8 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
                         col.Item().Height(18);
 
-                        // ── Local helpers ─────────────────────────────
-                        void SectionHeader(ColumnDescriptor c, string title)
+                        void SectionHeader(ColumnDescriptor c,
+                            string title)
                         {
                             c.Item()
                                 .BorderBottom(1).BorderColor(lightGray)
@@ -210,12 +222,11 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 DetailRow(c, "Claim ID",
                                     $"Claim #{payment.ClaimID}");
                                 DetailRow(c, "Date issued",
-                                    remittance.GeneratedAt
-                                        .ToString("dd MMM yyyy"));
+                                    ToIST(remittance.GeneratedAt,
+                                        "dd MMM yyyy"));
                                 DetailRow(c, "Executed on",
-                                    payment.ExecutedAt?
-                                        .ToString("dd MMM yyyy, HH:mm")
-                                    ?? "—");
+                                    ToIST(payment.ExecutedAt,
+                                        "dd MMM yyyy, hh:mm tt"));
                             });
 
                             row.ConstantItem(24);
@@ -265,7 +276,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
                         col.Item().Height(18);
 
-                        // ── Amount box — compact ──────────────────────
+                        // ── Amount box ────────────────────────────────
                         col.Item()
                             .Border(1).BorderColor("#c5bef5")
                             .Background(purpleBg)
@@ -308,7 +319,7 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
 
                         col.Item().Height(14);
 
-                        // ── Treatment notes — grows naturally ─────────
+                        // ── Treatment notes ───────────────────────────
                         col.Item()
                             .BorderBottom(1).BorderColor(lightGray)
                             .PaddingBottom(5)
@@ -351,7 +362,8 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                             {
                                 table.Cell()
                                     .Background(lightBg)
-                                    .BorderBottom(1).BorderColor(lightGray)
+                                    .BorderBottom(1)
+                                    .BorderColor(lightGray)
                                     .Padding(6)
                                     .Text(text)
                                     .FontSize(9).Bold()
@@ -375,7 +387,8 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 .Border(0.5f).BorderColor(lightGray)
                                 .Padding(6)
                                 .Text(payment.Payee?.Name ?? "—")
-                                .FontSize(10).Bold().FontColor(darkText);
+                                .FontSize(10).Bold()
+                                .FontColor(darkText);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
@@ -393,14 +406,16 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 .Border(0.5f).BorderColor(lightGray)
                                 .Padding(6)
                                 .Text($"INR {payment.Amount:N2}")
-                                .FontSize(10).Bold().FontColor(darkPurple);
+                                .FontSize(10).Bold()
+                                .FontColor(darkPurple);
 
                             table.Cell()
                                 .Border(0.5f).BorderColor(lightGray)
                                 .Background(greenBg)
                                 .Padding(6)
                                 .Text("Sent")
-                                .FontSize(10).Bold().FontColor(greenText);
+                                .FontSize(10).Bold()
+                                .FontColor(greenText);
                         });
 
                         col.Item().Height(20);
@@ -414,7 +429,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                         // ── Footer ────────────────────────────────────
                         col.Item().Row(row =>
                         {
-                            // Left — doc info
                             row.RelativeItem().AlignMiddle().Column(c =>
                             {
                                 c.Item()
@@ -425,24 +439,21 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 c.Item().Height(2);
                                 c.Item()
                                     .Text($"DOC-REM-{remittance.RemittanceID}" +
-                                          $"-{remittance.GeneratedAt:yyyyMMdd}")
+                                          $"-{ToIST(remittance.GeneratedAt, "yyyyMMdd")}")
                                     .FontSize(9)
                                     .FontColor("#bbbbbb");
                             });
 
                             row.ConstantItem(16);
 
-                            // Right — seal ON TOP, ClaimAuto BELOW
                             row.ConstantItem(160).Column(c =>
                             {
-                                // Circular SVG stamp
                                 c.Item().AlignCenter()
                                     .Width(90)
                                     .Svg(stampSvg);
 
                                 c.Item().Height(6);
 
-                                // ClaimAuto Health Insurance below stamp
                                 c.Item().Row(r =>
                                 {
                                     r.ConstantItem(18).Height(18)
