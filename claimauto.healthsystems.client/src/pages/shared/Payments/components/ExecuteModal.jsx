@@ -9,11 +9,13 @@ import { formatPaymentId } from '../utils/paymentHelpers';
 // UPI/20260518/TXN8823671234
 const REFERENCE_REGEX = /^[A-Z]+\/\d{8}\/[A-Z0-9]+$/;
 
+const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // "20260526"
+
 const FORMATS = [
-  { type: 'NEFT', example: 'NEFT/20260518/HDFC000123'    },
-  { type: 'RTGS', example: 'RTGS/20260518/ICICI000456'   },
-  { type: 'IMPS', example: 'IMPS/20260518/428512345678'  },
-  { type: 'UPI',  example: 'UPI/20260518/TXN8823671234'  },
+  { type: 'NEFT', example: `NEFT/${todayStr}/HDFC000123`   },
+  { type: 'RTGS', example: `RTGS/${todayStr}/ICICI000456`  },
+  { type: 'IMPS', example: `IMPS/${todayStr}/428512345678` },
+  { type: 'UPI',  example: `UPI/${todayStr}/TXN8823671234` },
 ];
 
 export default function ExecuteModal({
@@ -65,7 +67,7 @@ export default function ExecuteModal({
           </Form.Label>
           <Form.Control
             type="text"
-            placeholder="e.g. NEFT/20260518/HDFC000123"
+            placeholder={`e.g. NEFT/${todayStr}/HDFC000123`}
             value={referenceNumber}
             onChange={(e) => {
               onReferenceChange(e.target.value.toUpperCase());

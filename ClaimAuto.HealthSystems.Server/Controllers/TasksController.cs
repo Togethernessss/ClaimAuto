@@ -341,18 +341,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // ── Helpers ───────────────────────────────────
-        private int GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("UserID")?.Value;
-            return int.Parse(userIdClaim ?? "0");
-        }
-
-        private string GetCurrentUserRole()
-        {
-            return User.FindFirst(ClaimTypes.Role)?.Value
-                ?? User.FindFirst("Role")?.Value
-                ?? "Unknown";
-        }
+        private int GetCurrentUserId() => GetLoggedInUserId() ?? 0;
+        private string GetCurrentUserRole() => GetLoggedInUserRole() ?? "Unknown";
     }
 }

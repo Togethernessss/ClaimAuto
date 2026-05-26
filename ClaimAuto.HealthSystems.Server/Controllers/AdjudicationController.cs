@@ -85,6 +85,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("Notes are required for manual adjudication. " +
                                   "Please document your reason for this decision.");
 
+            if ((parsedDecision == AdjDecision.Paid || parsedDecision == AdjDecision.Partial)
+                && dto.PayableAmount.HasValue && dto.PayableAmount.Value <= 0)
+                return BadRequest("PayableAmount must be greater than zero for Paid or Partial decisions.");
+
             var userOrgId = GetLoggedInUserOrgId();
             var result = await _adjRepo.ManualAdjudicateAsync(dto, userId.Value, userOrgId);
 

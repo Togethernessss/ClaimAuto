@@ -47,14 +47,30 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Returns a single claim by ID.</summary>
         [HttpGet("{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
             var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+            var userRole = GetLoggedInUserRole();
+            var userId = GetLoggedInUserId();
 
             var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
             if (claim == null)
                 return NotFound($"Claim with ID {id} was not found.");
+
+            // Policyholder: can only view claims where they are the enrolled member
+            if (userRole == "Policyholder" && userId.HasValue)
+            {
+                var myMemberIds = await _claimRepo.GetMemberIdsByPolicyholderAsync(userId.Value, userOrgId);
+                if (!myMemberIds.Contains(claim.MemberID))
+                    return Forbid();
+            }
+
+            // Hospital: can only view claims they submitted
+            if (userRole == "Hospital" && userId.HasValue && claim.ProviderID != userId.Value)
+                return Forbid();
+
             return Ok(claim);
         }
 
@@ -115,6 +131,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 };
 
                 await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
+
+                await _claimRepo.UpdateClaimAsync(
+                    created.ClaimID,
+                    new UpdateClaimDto { Status = "UnderReview" },
+                    userId.Value,
+                    userOrgId
+                );
             }
             else
             {
@@ -139,7 +162,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 });
             }
 
-            return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, created);
+            return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
+            {
+                claim = created,
+                fraudDetected = true,
+                autoAdjudicated = false,
+                fraudScore = fraudScore.ScoreValue,
+                message = $"CLM-{created.ClaimID} submitted but BLOCKED — fraud score {fraudScore.ScoreValue}/100. Claim set to UnderReview pending investigation."
+            });
         }
 
         /// <summary>Updates an existing claim. Admin and InsuranceStaff only.</summary>
@@ -159,82 +189,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value, userOrgId);
             if (updated == null)
                 return NotFound($"Claim with ID {id} was not found.");
-
-            // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on Validated ──────────────
-            if (dto.Status == "Validated")
-            {
-
-                // Step 1 — Run fraud scoring (only if not already scored)
-                var existingScore = await _fraudRepo.GetFraudScoreByClaimIdAsync(id, userOrgId);
-                if (existingScore == null)
-                {
-                    // ★ FIX 3.1 — pass tenant so new FraudScore is stamped
-                    var fraudScore = await _fraudRepo.ScoreClaimAsync(id, userOrgId);
-
-                    // High risk (≥70) → auto-open fraud case, block adjudication
-                    if (fraudScore.ScoreValue >= 70)
-                    {
-                        var fraudCase = new FraudCase
-                        {
-                            ClaimID = id,
-                            OpenedAt = DateTime.UtcNow,
-                            OpenedBy = userId.Value,
-                            Priority = FraudCasePriority.High,
-                            Status = FraudCaseStatus.Open,
-                            InvestigationNotes =
-                                $"Auto-opened on validation. " +
-                                $"Fraud score: {fraudScore.ScoreValue}/100. " +
-                                $"Factors: {fraudScore.FactorsJSON}",
-                            OrganizationID = userOrgId,
-                        };
-
-                        var notification = new Notification
-                        {
-                            UserID = userId.Value,
-                            ClaimID = id,
-                            Message = $"Fraud alert on CLM-{id}: score {fraudScore.ScoreValue}/100. " +
-                                      $"Claim is blocked pending fraud investigation.",
-                            Category = NotificationCategory.Exception,
-                            Severity = NotificationSeverity.Critical,
-                            CreatedAt = DateTime.UtcNow,
-                            Status = NotificationStatus.Unread,
-                            OrganizationID = userOrgId,
-                        };
-
-                        await _fraudRepo.CreateFraudCaseWithNotificationAsync(
-                            fraudCase, notification);
-
-                        return Ok(new
-                        {
-                            claim = updated,
-                            fraudScore = fraudScore.ScoreValue,
-                            fraudDetected = true,
-                            autoAdjudicated = false,
-                            message = $"CLM-{id} validated but BLOCKED — " +
-                                      $"fraud score {fraudScore.ScoreValue}/100. " +
-                                      $"Fraud case opened for investigation."
-                        });
-                    }
-                }
-
-                // Step 2 — No fraud (or already scored clean) → run adjudication
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);
-                if (adjResult != null)
-                {
-                    var message = adjResult.Decision == "PendingReview"
-                        ? $"CLM-{id} validated and routed to manual review queue."
-                        : $"CLM-{id} validated and auto-adjudicated. Decision: {adjResult.Decision}.";
-
-                    return Ok(new
-                    {
-                        claim = updated,
-                        adjudication = adjResult,
-                        fraudDetected = false,
-                        autoAdjudicated = true,
-                        message
-                    });
-                }
-            }
 
             return Ok(updated);
         }

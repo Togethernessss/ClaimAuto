@@ -41,6 +41,8 @@
     {
         public int ClaimID { get; set; }
         public string? ExternalClaimRef { get; set; }
+        public int ProviderID { get; set; }
+        public int MemberID { get; set; }
         public string ProviderName { get; set; } = string.Empty;
         public string MemberName { get; set; } = string.Empty;
         public string PolicyName { get; set; } = string.Empty;
@@ -111,7 +113,7 @@
     // ── UpdateClaimDto 
     public class UpdateClaimDto
     {
-        public string? Status { get; set; }    // "Validated","Adjudicated","Rejected"
+        public string? Status { get; set; }    // "UnderReview" | "Approved" | "Rejected"
         public string? Priority { get; set; } // "Normal","High","Urgent"
     }
 }

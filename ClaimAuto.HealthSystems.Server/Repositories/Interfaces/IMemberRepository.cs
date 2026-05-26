@@ -7,8 +7,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: GET /api/members
         // Returns all members, with optional filters for PolicyID and Status.
         // userOrgId (Phase 3): when supplied, restricts to members of that organization.
-        Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status, int? userOrgId = null);
-
+        Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status, int? userOrgId = null, int? providerUserId = null);
         // Used by: GET /api/members/{id}
         // Returns one member with PolicyName resolved, or null if not found
         // (also null if userOrgId is supplied and doesn't match the member's org).
@@ -37,5 +36,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Returns the single member record linked to a specific Policyholder user.
         // Returns null if no member is enrolled for this user yet.
         Task<MemberResponseDto?> GetMemberByPolicyholderUserIdAsync(int userId, int? userOrgId = null);
+
+        // Used by: GET /api/members/lookup?memberNumber=MEM-000042
+        // Allows Hospital to find a patient by member card number before submitting a claim.
+        // Returns null if not found or doesn't belong to this org.
+        Task<MemberResponseDto?> GetMemberByNumberAsync(string memberNumber, int? userOrgId = null);
     }
 }

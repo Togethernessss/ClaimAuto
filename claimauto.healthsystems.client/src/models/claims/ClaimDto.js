@@ -33,7 +33,7 @@ export class CreateClaimDto {
 // Used by: Staff/Admin  →  PUT /api/claims/{id}
 export class UpdateClaimDto {
   constructor({
-    status   = '', // "Submitted"|"UnderReview"|"Adjudicated"|"Approved"|"Paid"|"Rejected"
+    status   = '', // "UnderReview" | "Approved" | "Rejected" — staff-settable only
     priority = '', // "Normal"|"High"|"Urgent"
   } = {}) {
     this.status   = status   || null;

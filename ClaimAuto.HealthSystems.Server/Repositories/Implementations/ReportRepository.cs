@@ -244,16 +244,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var query = _context.KPIs.AsQueryable();
 
-            if (userOrgId.HasValue)
-                query = query.Where(
-                    k => k.OrganizationID == userOrgId.Value);
-
             var kpis = await query.ToListAsync();
-            var totalClaims = await _context.Claims.CountAsync();
+            var totalClaims = await _context.Claims
+                .Where(c => !userOrgId.HasValue || c.OrganizationID == userOrgId.Value)
+                .CountAsync();
 
             if (totalClaims > 0)
             {
                 var autoPaid = await _context.AdjudicationRecords
+                    .Where(a => !userOrgId.HasValue || a.OrganizationID == userOrgId.Value)
                     .CountAsync(a =>
                         a.Decision == AdjDecision.Paid
                         && a.PerformedByID == null);
@@ -263,6 +262,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
                 var adjRecords = await _context.AdjudicationRecords
                     .Include(a => a.Claim)
+                    .Where(a => !userOrgId.HasValue || a.OrganizationID == userOrgId.Value)
                     .ToListAsync();
 
                 var avgTAT = adjRecords.Any()
@@ -272,6 +272,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     : 0;
 
                 var deniedCount = await _context.AdjudicationRecords
+                    .Where(a => !userOrgId.HasValue || a.OrganizationID == userOrgId.Value)
                     .CountAsync(a =>
                         a.Decision == AdjDecision.Denied);
 
@@ -279,6 +280,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     (double)deniedCount / totalClaims * 100, 2), 100);
 
                 var fraudFlagged = await _context.FraudScores
+                    .Where(f => !userOrgId.HasValue || f.OrganizationID == userOrgId.Value)
                     .CountAsync(f => f.ScoreValue >= 70);
 
                 var fraudRate = Math.Min(Math.Round(

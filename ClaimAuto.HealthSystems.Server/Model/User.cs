@@ -62,7 +62,7 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [ForeignKey("Organization")]
         public int? OrganizationID { get; set; }
         public Organization? Organization { get; set; }
-
+        public bool IsInNetwork { get; set; } = true;
         // Navigation
         public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>(); // 1-to-many with AuditLog
     

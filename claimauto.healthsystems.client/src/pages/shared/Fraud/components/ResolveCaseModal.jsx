@@ -44,6 +44,8 @@ export default function ResolveCaseModal({ show, onHide, fraudCase, onResolved }
 
             const actionMsg = outcome === 'Confirmed'
                 ? `Case FC-${fraudCase.caseID} resolved as Confirmed — Claim CLM-${fraudCase.claimID} has been rejected.`
+                : outcome === 'Cleared'
+                ? `Case FC-${fraudCase.caseID} cleared — Claim CLM-${fraudCase.claimID} has been sent for auto-adjudication.`
                 : `Case FC-${fraudCase.caseID} resolved as ${outcome}.`;
 
             onResolved(actionMsg);
@@ -119,6 +121,13 @@ export default function ResolveCaseModal({ show, onHide, fraudCase, onResolved }
                     <Alert variant="danger" className="py-2">
                         <i className="bi bi-exclamation-triangle me-1"></i>
                         <strong>Warning:</strong> Confirming fraud will automatically <strong>reject</strong> the linked claim (CLM-{fraudCase.claimID}).
+                    </Alert>
+                )}
+
+                {outcome === 'Cleared' && (
+                    <Alert variant="info" className="py-2">
+                        <i className="bi bi-info-circle me-1"></i>
+                        <strong>Note:</strong> Clearing this case will automatically trigger <strong>auto-adjudication</strong> on Claim CLM-{fraudCase.claimID}.
                     </Alert>
                 )}
 

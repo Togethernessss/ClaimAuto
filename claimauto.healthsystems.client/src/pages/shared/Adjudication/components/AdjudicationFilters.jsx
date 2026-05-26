@@ -39,9 +39,9 @@ export default function AdjudicationFilters({
           {/* Only statuses that appear on adjudication page */}
           <option value="Submitted">Submitted</option>
           <option value="UnderReview">Under Review</option>
-          <option value="Adjudicated">Adjudicated</option>
           <option value="Approved">Approved</option>
           <option value="Rejected">Rejected</option>
+          <option value="Paid">Paid</option>
         </Form.Select>
       </Col>
 

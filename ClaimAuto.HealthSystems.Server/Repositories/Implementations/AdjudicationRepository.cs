@@ -42,8 +42,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // Accept Submitted or UnderReview (fraud-cleared path sends it back in UnderReview)
             if (claim.Status != ClaimStatus.Submitted &&
-                claim.Status != ClaimStatus.UnderReview &&
-                claim.Status != ClaimStatus.Validated)
+                claim.Status != ClaimStatus.UnderReview)
             {
                 return new AdjudicationResponseDto
                 {
@@ -72,8 +71,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CalculationsJSON = engineResult.CalculationsJSON,
                 AppliedRulesJSON = engineResult.AppliedRulesJSON,
                 Notes = $"Auto-adjudicated. Decision: {engineResult.Decision}. " +
-                       $"Payable: ₹{engineResult.PayableAmount}.",
+                    $"Payable: ₹{engineResult.PayableAmount}.",
                 PerformedByID = null,
+                DeductibleApplied = engineResult.DeductibleApplied,
                 OrganizationID = claim.OrganizationID   // ← inherit from claim
             };
             _db.AdjudicationRecords.Add(adjRecord);
@@ -245,7 +245,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // ── Auto-create Payment on Paid/Partial ───────────────────────
             var payableAmount = decision == AdjDecision.Paid || decision == AdjDecision.Partial
-                ? claim.TotalBilledAmount
+                ? (dto.PayableAmount ?? claim.TotalBilledAmount)
                 : 0m;
 
             if (decision == AdjDecision.Paid || decision == AdjDecision.Partial)
@@ -453,27 +453,64 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     return;
             }
 
-            // Notify provider (hospital)
-            await _notificationRepo.CreateAsync(new Notification
-            {
-                UserID = claim.ProviderID,
-                ClaimID = claim.ClaimID,
-                Message = providerMessage,
-                Category = category,
-                Severity = severity
-            });
+            bool isReimbursement = claim.ClaimType == ClaimType.Reimbursement;
 
-            // Notify policyholder (member's owner)
-            if (claim.Member?.PolicyholderUserID != null)
+            if (isReimbursement)
             {
+                // For reimbursement, ProviderID = Policyholder's UserID.
+                // Send ONE clear reimbursement-specific notification — no duplicate.
+                var reimbMessage = decision switch
+                {
+                    AdjDecision.Paid => $"Your reimbursement request (CLM-{claim.ClaimID}) has been approved. " +
+                                           $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
+                    AdjDecision.Partial => $"Your reimbursement request (CLM-{claim.ClaimID}) has been partially approved. " +
+                                           $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
+                    AdjDecision.Denied => $"Your reimbursement request (CLM-{claim.ClaimID}) has been denied. " +
+                                           $"You may file an appeal if you disagree with this decision.",
+                    _ => $"Your reimbursement request (CLM-{claim.ClaimID}) status has been updated."
+                };
+
                 await _notificationRepo.CreateAsync(new Notification
                 {
-                    UserID = claim.Member.PolicyholderUserID.Value,
+                    UserID = claim.ProviderID,   // = Policyholder for reimbursement
                     ClaimID = claim.ClaimID,
-                    Message = memberMessage,
+                    Message = reimbMessage,
                     Category = category,
-                    Severity = severity
+                    Severity = severity,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
                 });
+            }
+            else
+            {
+                // Standard hospital claim — notify provider and member separately
+                await _notificationRepo.CreateAsync(new Notification
+                {
+                    UserID = claim.ProviderID,
+                    ClaimID = claim.ClaimID,
+                    Message = providerMessage,
+                    Category = category,
+                    Severity = severity,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
+                });
+
+                if (claim.Member?.PolicyholderUserID != null)
+                {
+                    await _notificationRepo.CreateAsync(new Notification
+                    {
+                        UserID = claim.Member.PolicyholderUserID.Value,
+                        ClaimID = claim.ClaimID,
+                        Message = memberMessage,
+                        Category = category,
+                        Severity = severity,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = claim.OrganizationID,
+                    });
+                }
             }
             // ── Notify InsuranceStaff to authorize the payment ────────────────────
             // (Only for Paid/Partial — staff must authorize before payment executes)
@@ -491,15 +528,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     {
                         UserID = staff.UserID,
                         ClaimID = claim.ClaimID,
-                        Message = $"Claim {claim.ExternalClaimRef} adjudicated — " +
-                                        $"{decision}. Payment of ₹{payableAmount} created " +
-                                        $"and is pending your authorization. Please review " +
-                                        $"and authorize in the Payments module.",
+                        Message = $"Claim {claim.ExternalClaimRef ?? $"CLM-{claim.ClaimID}"} adjudicated — " +
+                                    $"{decision}. Payment of ₹{payableAmount:N2} created " +
+                                    $"and is pending your authorization. Please review " +
+                                    $"and authorize in the Payments module.",
                         Category = NotificationCategory.Payment,
                         Severity = NotificationSeverity.Warning,
-                        CreatedAt = DateTime.UtcNow,
                         Status = NotificationStatus.Unread,
-                        OrganizationID = claim.OrganizationID
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = claim.OrganizationID,
                     });
                 }
             }
