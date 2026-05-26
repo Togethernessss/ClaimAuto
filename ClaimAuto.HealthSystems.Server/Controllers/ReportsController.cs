@@ -27,7 +27,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromQuery] string? scope)
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GetAllReportsAsync(scope, userOrgId);
             return Ok(response);
         }
@@ -39,7 +39,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetReportById(int id)
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GetReportByIdAsync(id, userOrgId);
             if (response == null)
                 return NotFound($"Report {id} not found.");
@@ -67,7 +67,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "Regulatory, Financial, Fraud");
 
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GenerateReportAsync(dto, userId.Value, userOrgId);
 
             return CreatedAtAction(
@@ -105,7 +105,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllKPIs()
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GetAllKPIsAsync(userOrgId);
             return Ok(response);
         }
@@ -120,7 +120,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         {
             // ── SaaS: verify KPI belongs to this tenant ───────────────
             var userOrgId = GetLoggedInUserOrgId();
-            var allKPIs   = await _reportRepository
+            var allKPIs = await _reportRepository
                 .GetAllKPIsAsync(userOrgId);
             var kpiExists = allKPIs.Any(k => k.KPIID == id);
             if (!kpiExists)
@@ -139,7 +139,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         public async Task<IActionResult> GetAllAuditPackages()
         {
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GetAllAuditPackagesAsync(userOrgId);
             return Ok(response);
         }
@@ -163,7 +163,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "PeriodStart must be before PeriodEnd.");
 
             var userOrgId = GetLoggedInUserOrgId();
-            var response  = await _reportRepository
+            var response = await _reportRepository
                 .GenerateAuditPackageAsync(
                     periodStart, periodEnd,
                     userId.Value, userOrgId);
@@ -172,6 +172,32 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 nameof(GetAllAuditPackages),
                 new { id = response.PackageID },
                 response);
+        }
+
+        /// <summary>Downloads the PDF for an audit package. Admin only.</summary>
+        [HttpGet("audit-packages/{id}/pdf")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetAuditPackagePdf(int id)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var pdfBytes = await _reportRepository
+                .GetAuditPackagePdfAsync(id, userOrgId);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+                return NotFound(
+                    $"PDF not found for Audit Package {id}.");
+
+            return File(
+                pdfBytes,
+                "application/pdf",
+                $"AuditPackage-PKG-{id}.pdf");
         }
     }
 }

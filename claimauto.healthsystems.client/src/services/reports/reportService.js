@@ -24,3 +24,20 @@ export async function getReportPdf(id) {
   );
   return res.data;
 }
+
+export async function generateAuditPackage(periodStart, periodEnd) {
+  const res = await api.post(
+    '/api/reports/audit-packages',
+    null,
+    { params: { periodStart, periodEnd } }
+  );
+  return res.data;
+}
+
+export async function getAuditPackagePdf(id) {
+  const res = await api.get(
+    `/api/reports/audit-packages/${id}/pdf`,
+    { responseType: 'blob' }
+  );
+  return res.data;
+}

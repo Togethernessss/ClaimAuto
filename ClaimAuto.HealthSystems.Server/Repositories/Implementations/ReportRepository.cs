@@ -10,16 +10,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class ReportRepository : IReportRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly IReportPdfService _pdfService;
+        private readonly IReportPdfService _reportPdfService;
+        private readonly IAuditPackagePdfService _auditPackagePdfService;
 
         public ReportRepository(
             ApplicationDbContext context,
-            IReportPdfService pdfService)
+            IReportPdfService reportPdfService,
+            IAuditPackagePdfService auditPackagePdfService)
         {
             _context = context;
-            _pdfService = pdfService;
+            _reportPdfService = reportPdfService;
+            _auditPackagePdfService = auditPackagePdfService;
         }
 
+        // ── GET ALL REPORTS ───────────────────────────────────────────
         public async Task<List<ReportResponseDto>> GetAllReportsAsync(
             string? scope, int? userOrgId = null)
         {
@@ -54,6 +58,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }).ToList();
         }
 
+        // ── GET REPORT BY ID ──────────────────────────────────────────
         public async Task<ReportResponseDto?> GetReportByIdAsync(
             int id, int? userOrgId = null)
         {
@@ -82,6 +87,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
+        // ── GENERATE REPORT ───────────────────────────────────────────
         public async Task<ReportResponseDto> GenerateReportAsync(
             GenerateReportDto dto,
             int generatedById,
@@ -110,7 +116,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
 
-            // ── Audit log — Report generated ──────────────────────────
+            // ── Audit log ─────────────────────────────────────────────
             _context.AuditLogs.Add(new AuditLog
             {
                 UserID = generatedById,
@@ -121,7 +127,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                  $"\"scope\":\"{report.Scope}\"," +
                                  $"\"generatedBy\":{generatedById}}}",
                 Timestamp = DateTime.UtcNow,
-                OrganizationID = userOrgId, // ← SaaS
+                OrganizationID = userOrgId,
             });
             await _context.SaveChangesAsync();
 
@@ -134,7 +140,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             try
             {
                 report.ReportFilePDF =
-                    _pdfService.GenerateReportPdf(report);
+                    _reportPdfService.GenerateReportPdf(report);
                 await _context.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -166,6 +172,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return report?.ReportFilePDF;
         }
 
+        // ── COMPUTE METRICS ───────────────────────────────────────────
         private async Task<string> ComputeMetricsAsync(
             ReportScope scope)
         {
@@ -239,6 +246,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
 
+        // ── GET ALL KPIs ──────────────────────────────────────────────
         public async Task<List<KPIResponseDto>> GetAllKPIsAsync(
             int? userOrgId = null)
         {
@@ -319,6 +327,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }).ToList();
         }
 
+        // ── UPDATE KPI ────────────────────────────────────────────────
         public async Task<KPIResponseDto?> UpdateKPIAsync(
             int id, UpdateKPIDto dto)
         {
@@ -347,10 +356,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
+        // ── GET ALL AUDIT PACKAGES ────────────────────────────────────
         public async Task<List<AuditPackageResponseDto>>
             GetAllAuditPackagesAsync(int? userOrgId = null)
         {
-            var query = _context.AuditPackages.AsQueryable();
+            var query = _context.AuditPackages
+                .Include(p => p.GeneratedByUser)
+                .AsQueryable();
 
             if (userOrgId.HasValue)
                 query = query.Where(
@@ -367,10 +379,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PeriodEnd = p.PeriodEnd,
                 ContentsJSON = p.ContentsJSON,
                 GeneratedAt = p.GeneratedAt,
-                PackageURI = p.PackageURI
+                GeneratedByName = p.GeneratedByUser?.Name ?? "System",
+                HasPDF = p.PackageFilePDF != null
+                                  && p.PackageFilePDF.Length > 0,
             }).ToList();
         }
 
+        // ── GENERATE AUDIT PACKAGE ────────────────────────────────────
         public async Task<AuditPackageResponseDto>
             GenerateAuditPackageAsync(
                 DateTime periodStart,
@@ -378,29 +393,192 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 int generatedById,
                 int? userOrgId = null)
         {
-            var auditLogCount = await _context.AuditLogs
-                .CountAsync(a =>
-                    a.Timestamp >= periodStart &&
-                    a.Timestamp <= periodEnd);
+            // ── End of day fix — includes full last day ───────────────
+            var endOfDay = periodEnd.Date.AddDays(1).AddTicks(-1);
+            // e.g. 30 May → 2026-05-30 23:59:59.9999999 ✅
 
-            var adjRecordCount = await _context.AdjudicationRecords
-                .CountAsync(a =>
+            // ── Section 2: Claims ─────────────────────────────────────
+            var claimsQuery = _context.Claims
+                .Where(c =>
+                    c.SubmittedAt >= periodStart &&
+                    c.SubmittedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                claimsQuery = claimsQuery.Where(
+                    c => c.OrganizationID == userOrgId.Value);
+
+            var claims = await claimsQuery.ToListAsync();
+            var totalClaims = claims.Count;
+            var claimsByStatus = claims
+                .GroupBy(c => c.Status)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // ── Section 3: Payments ───────────────────────────────────
+            var paymentsQuery = _context.Payments
+                .Where(p =>
+                    p.CreatedAt >= periodStart &&
+                    p.CreatedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                paymentsQuery = paymentsQuery.Where(
+                    p => p.OrganizationID == userOrgId.Value);
+
+            var payments = await paymentsQuery.ToListAsync();
+            var totalPayments = payments.Count;
+            var executedPayments = payments.Count(
+                p => p.Status == PaymentStatus.Executed);
+            var pendingPayments = payments.Count(
+                p => p.Status == PaymentStatus.Pending);
+            var onHoldPayments = payments.Count(
+                p => p.Status == PaymentStatus.OnHold);
+            var totalAmountPaid = payments
+                .Where(p => p.Status == PaymentStatus.Executed)
+                .Sum(p => p.Amount);
+
+            // ── Section 4: Adjudication ───────────────────────────────
+            var adjQuery = _context.AdjudicationRecords
+                .Where(a =>
                     a.ExecutedAt >= periodStart &&
-                    a.ExecutedAt <= periodEnd);
+                    a.ExecutedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                adjQuery = adjQuery.Where(
+                    a => a.OrganizationID == userOrgId.Value);
 
-            var reportIds = await _context.Reports
+            var adjRecords = await adjQuery.ToListAsync();
+            var totalAdj = adjRecords.Count;
+            var autoAdj = adjRecords.Count(
+                a => a.PerformedByID == null);
+            var manualAdj = adjRecords.Count(
+                a => a.PerformedByID != null);
+            var adjApproved = adjRecords.Count(
+                a => a.Decision == AdjDecision.Paid);
+            var adjDenied = adjRecords.Count(
+                a => a.Decision == AdjDecision.Denied);
+            var denialRate = totalClaims > 0
+                ? Math.Round(
+                    (double)adjDenied / totalClaims * 100, 2)
+                : 0;
+
+            // ── Section 5: Remittances ────────────────────────────────
+            var remitQuery = _context.Remittances
+                .Include(r => r.Payment)
                 .Where(r =>
                     r.GeneratedAt >= periodStart &&
-                    r.GeneratedAt <= periodEnd)
-                .Select(r => r.ReportID)
+                    r.GeneratedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                remitQuery = remitQuery.Where(
+                    r => r.Payment.OrganizationID == userOrgId.Value);
+
+            var remittances = await remitQuery.ToListAsync();
+            var totalRemittances = remittances.Count;
+            var remittancesSent = remittances.Count(
+                r => r.Status == RemittanceStatus.Sent);
+            var remittancesAcknowledged = remittances.Count(
+                r => r.Status == RemittanceStatus.Acknowledged);
+            var remittancesPending = remittances.Count(
+                r => r.Status == RemittanceStatus.Generated);
+
+            // ── Section 6: Fraud Scores ───────────────────────────────
+            var fraudScoreQuery = _context.FraudScores
+                .Where(f =>
+                    f.GeneratedAt >= periodStart &&
+                    f.GeneratedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                fraudScoreQuery = fraudScoreQuery.Where(
+                    f => f.OrganizationID == userOrgId.Value);
+
+            var fraudScores = await fraudScoreQuery.ToListAsync();
+            var totalScored = fraudScores.Count;
+            var highRisk = fraudScores.Count(
+                f => f.ScoreValue >= 70);
+            var fraudRate = totalClaims > 0
+                ? Math.Round(
+                    (double)highRisk / totalClaims * 100, 2)
+                : 0;
+
+            // ── Section 6: Fraud Cases ────────────────────────────────
+            var fraudCaseQuery = _context.FraudCases
+                .Where(f =>
+                    f.OpenedAt >= periodStart &&
+                    f.OpenedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                fraudCaseQuery = fraudCaseQuery.Where(
+                    f => f.OrganizationID == userOrgId.Value);
+
+            var fraudCases = await fraudCaseQuery.ToListAsync();
+            var casesOpened = fraudCases.Count;
+            var casesResolved = fraudCases.Count(
+                f => f.Status == FraudCaseStatus.Resolved);
+
+            // ── Section 7: Audit Logs ─────────────────────────────────
+            var logsQuery = _context.AuditLogs
+                .Where(a =>
+                    a.Timestamp >= periodStart &&
+                    a.Timestamp <= endOfDay);
+            if (userOrgId.HasValue)
+                logsQuery = logsQuery.Where(
+                    a => a.OrganizationID == userOrgId.Value);
+
+            var logs = await logsQuery.ToListAsync();
+            var totalLogs = logs.Count;
+            var paymentLogs = logs.Count(
+                a => a.ResourceType == "Payment");
+            var claimLogs = logs.Count(
+                a => a.ResourceType == "Claim");
+            var remittanceLogs = logs.Count(
+                a => a.ResourceType == "Remittance");
+            var reconciliationLogs = logs.Count(
+                a => a.ResourceType == "Reconciliation");
+            var reportLogs = logs.Count(
+                a => a.ResourceType == "Report");
+            var otherLogs = totalLogs
+                - paymentLogs - claimLogs
+                - remittanceLogs - reconciliationLogs
+                - reportLogs;
+
+            // ── Section 8: Reports ────────────────────────────────────
+            var reportsQuery = _context.Reports
+                .Include(r => r.GeneratedByUser)
+                .Where(r =>
+                    r.GeneratedAt >= periodStart &&
+                    r.GeneratedAt <= endOfDay);
+            if (userOrgId.HasValue)
+                reportsQuery = reportsQuery.Where(
+                    r => r.OrganizationID == userOrgId.Value);
+
+            var reportsList = await reportsQuery
+                .OrderBy(r => r.GeneratedAt)
                 .ToListAsync();
 
+            // ── Section 9: KPIs ───────────────────────────────────────
+            var kpisQuery = _context.KPIs.AsQueryable();
+            if (userOrgId.HasValue)
+                kpisQuery = kpisQuery.Where(
+                    k => k.OrganizationID == userOrgId.Value);
+            var kpis = await kpisQuery.ToListAsync();
+
+            // ── Organization name ─────────────────────────────────────
+            var orgName = "ClaimAuto Health Insurance";
+            if (userOrgId.HasValue)
+            {
+                var org = await _context.Organizations
+                    .FirstOrDefaultAsync(
+                        o => o.OrganizationID == userOrgId.Value);
+                if (org != null) orgName = org.Name;
+            }
+
+            // ── Generated by name ─────────────────────────────────────
+            var generatedByName = await _context.Users
+                .Where(u => u.UserID == generatedById)
+                .Select(u => u.Name)
+                .FirstOrDefaultAsync() ?? "System";
+
+            // ── ContentsJSON ──────────────────────────────────────────
             var contents = System.Text.Json.JsonSerializer.Serialize(
                 new
                 {
-                    auditLogs = auditLogCount,
-                    adjudicationRecords = adjRecordCount,
-                    reports = reportIds,
+                    auditLogs = totalLogs,
+                    adjudicationRecords = totalAdj,
+                    reports = reportsList
+                        .Select(r => r.ReportID).ToList(),
                     periodStart =
                         periodStart.ToString("yyyy-MM-dd"),
                     periodEnd =
@@ -413,11 +591,113 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PeriodEnd = periodEnd,
                 ContentsJSON = contents,
                 GeneratedAt = DateTime.UtcNow,
+                GeneratedByID = generatedById,
                 OrganizationID = userOrgId,
             };
 
             _context.AuditPackages.Add(package);
             await _context.SaveChangesAsync();
+
+            // ── Audit log ─────────────────────────────────────────────
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserID = generatedById,
+                Action = "GenerateAuditPackage",
+                ResourceType = "AuditPackage",
+                ResourceID = package.PackageID.ToString(),
+                DetailsJSON =
+                    $"{{\"packageID\":{package.PackageID}," +
+                    $"\"periodStart\":\"{periodStart:yyyy-MM-dd}\"," +
+                    $"\"periodEnd\":\"{periodEnd:yyyy-MM-dd}\"}}",
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = userOrgId,
+            });
+            await _context.SaveChangesAsync();
+
+            // ── Build PDF data ────────────────────────────────────────
+            var pdfData = new AuditPackageData
+            {
+                OrganizationName = orgName,
+                GeneratedByName = generatedByName,
+                TotalClaims = totalClaims,
+                ClaimsSubmitted = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Submitted),
+                ClaimsUnderReview = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.UnderReview),
+                ClaimsValidated = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Validated),
+                ClaimsAdjudicated = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Adjudicated),
+                ClaimsApproved = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Approved),
+                ClaimsPaid = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Paid),
+                ClaimsRejected = claimsByStatus
+                    .GetValueOrDefault(ClaimStatus.Rejected),
+                TotalPayments = totalPayments,
+                ExecutedPayments = executedPayments,
+                PendingPayments = pendingPayments,
+                OnHoldPayments = onHoldPayments,
+                TotalAmountPaid = totalAmountPaid,
+                TotalAdjudications = totalAdj,
+                AutoAdjudicated = autoAdj,
+                ManualAdjudicated = manualAdj,
+                AdjApproved = adjApproved,
+                AdjDenied = adjDenied,
+                DenialRate = denialRate,
+                TotalRemittances = totalRemittances,
+                RemittancesSent = remittancesSent,
+                RemittancesAcknowledged = remittancesAcknowledged,
+                RemittancesPending = remittancesPending,
+                TotalScored = totalScored,
+                HighRisk = highRisk,
+                CasesOpened = casesOpened,
+                CasesResolved = casesResolved,
+                FraudRate = fraudRate,
+                TotalLogs = totalLogs,
+                PaymentLogs = paymentLogs,
+                ClaimLogs = claimLogs,
+                RemittanceLogs = remittanceLogs,
+                ReconciliationLogs = reconciliationLogs,
+                ReportLogs = reportLogs,
+                OtherLogs = Math.Max(otherLogs, 0),
+                Reports = reportsList.Select(r =>
+                    new ReportSummaryItem
+                    {
+                        ReportID = r.ReportID,
+                        Scope = r.Scope.ToString(),
+                        GeneratedAt = r.GeneratedAt,
+                        GeneratedBy = r.GeneratedByUser?.Name
+                                      ?? "System",
+                    }).ToList(),
+                KPIs = kpis.Select(k => new KPISummaryItem
+                {
+                    Name = k.Name,
+                    Target = k.Target.HasValue
+                        ? $"{k.Target.Value:F2}" : "—",
+                    CurrentValue = k.CurrentValue.HasValue
+                        ? $"{k.CurrentValue.Value:F2}" : "—",
+                    OnTarget = k.Target.HasValue
+                        && k.CurrentValue.HasValue
+                        && k.CurrentValue.Value >= k.Target.Value,
+                }).ToList(),
+            };
+
+            // ── Generate and store PDF ────────────────────────────────
+            try
+            {
+                package.PackageFilePDF =
+                    _auditPackagePdfService
+                        .GenerateAuditPackagePdf(package, pdfData);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"[AUDIT PKG PDF ERROR] " +
+                    $"PackageID {package.PackageID}: {ex.Message}");
+                package.PackageFilePDF = null;
+            }
 
             return new AuditPackageResponseDto
             {
@@ -426,8 +706,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PeriodEnd = package.PeriodEnd,
                 ContentsJSON = package.ContentsJSON,
                 GeneratedAt = package.GeneratedAt,
-                PackageURI = package.PackageURI
+                GeneratedByName = generatedByName,
+                HasPDF = package.PackageFilePDF != null
+                                  && package.PackageFilePDF.Length > 0,
             };
+        }
+
+        // ── GET AUDIT PACKAGE PDF ─────────────────────────────────────
+        public async Task<byte[]?> GetAuditPackagePdfAsync(
+            int packageId, int? userOrgId = null)
+        {
+            var query = _context.AuditPackages
+                .Where(p => p.PackageID == packageId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(
+                    p => p.OrganizationID == userOrgId.Value);
+
+            var package = await query.FirstOrDefaultAsync();
+            return package?.PackageFilePDF;
         }
     }
 }

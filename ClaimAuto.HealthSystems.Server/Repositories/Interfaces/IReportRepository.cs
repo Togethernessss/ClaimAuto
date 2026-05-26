@@ -24,5 +24,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
             DateTime periodEnd,
             int generatedById,
             int? userOrgId = null);
+
+        // ── NEW: read PDF from DB ─────────────────────────────────
+        Task<byte[]?> GetAuditPackagePdfAsync(
+            int packageId,
+            int? userOrgId = null);
     }
 }

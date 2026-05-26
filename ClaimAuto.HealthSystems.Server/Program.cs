@@ -52,6 +52,7 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IReconciliationPdfService, ReconciliationPdfService>();
             builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
             builder.Services.AddScoped<IReportPdfService, ReportPdfService>();
+            builder.Services.AddScoped<IAuditPackagePdfService, AuditPackagePdfService>();
 
 
             builder.Services.AddControllers()
