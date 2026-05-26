@@ -20,6 +20,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IUserRepository _userRepo;
         private readonly INotificationRepository _notifRepo;
         private readonly IAppealPdfRepository _pdfService;
+        private readonly IAdjudicationRepository _adjRepo;
         private readonly ILogger<AppealsController> _logger;
 
         public AppealsController(
@@ -28,6 +29,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             IUserRepository userRepo,
             INotificationRepository notifRepo,
             IAppealPdfRepository pdfService,
+            IAdjudicationRepository adjRepo,
             ILogger<AppealsController> logger)
         {
             _appealRepo = appealRepo;
@@ -35,6 +37,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepo = userRepo;
             _notifRepo = notifRepo;
             _pdfService = pdfService;
+            _adjRepo = adjRepo;
             _logger = logger;
         }
 
@@ -142,11 +145,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             // ── Claim must be Rejected or Adjudicated ──
             if (!Enum.TryParse<ClaimStatus>(claim.Status, true, out var claimStatus)
-                || (claimStatus != ClaimStatus.Rejected && claimStatus != ClaimStatus.Adjudicated))
+                || (claimStatus != ClaimStatus.Rejected))
             {
                 return BadRequest(new
                 {
-                    message = $"Claim {claimID} has status '{claim.Status}'. Only Rejected or Adjudicated claims can be appealed."
+                    message = $"Claim {claimID} has status '{claim.Status}'. Only Rejected claims can be appealed."
                 });
             }
 
@@ -218,7 +221,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 {
                     UserID = assignee.UserID,
                     ClaimID = claimID,
-                    Message = $"New appeal filed for Claim {claimID}. Review within 7 days.",
+                    Message = $"New appeal filed for CLM-{claimID} by a policyholder. " +
+                                     $"Please review within 7 days.",
                     Category = NotificationCategory.Appeal,
                     Severity = NotificationSeverity.Warning,
                     CreatedAt = DateTime.UtcNow,
@@ -226,6 +230,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     OrganizationID = userOrgId,
                 });
             }
+
+            // ── Confirm to the policyholder that their appeal was received ──
+            await _notifRepo.CreateAsync(new Notification
+            {
+                UserID = userId,
+                ClaimID = claimID,
+                Message = $"Your appeal for CLM-{claimID} has been received and is under review. " +
+                                 $"You will be notified within 7 days once a decision is made.",
+                Category = NotificationCategory.Appeal,
+                Severity = NotificationSeverity.Info,
+                CreatedAt = DateTime.UtcNow,
+                Status = NotificationStatus.Unread,
+                OrganizationID = userOrgId,
+            });
 
             var filedByUser = await _userRepo.GetUserByIdAsync(userId);
 
@@ -304,32 +322,81 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             int deciderId = GetCurrentUserId();
             var decided = await _appealRepo.DecideAppealAsync(id, dto.Outcome, deciderId);
 
-            // If Overturned → reset the linked claim back to Submitted
+            var orgId = GetLoggedInUserOrgId();
+
             if (parsedOutcome == AppealOutcome.Overturned)
             {
-                var claim = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID, GetLoggedInUserOrgId());
-                if (claim != null)
+                // Step 1: Reset claim to Submitted so the adjudication engine can re-evaluate it
+                await _claimRepo.UpdateClaimAsync(
+                    appeal.ClaimID,
+                    new UpdateClaimDto { Status = ClaimStatus.Submitted.ToString() },
+                    deciderId,
+                    orgId);
+
+                // Step 2: Notify the policyholder immediately that appeal was successful
+                await _notifRepo.CreateAsync(new Notification
                 {
-                    var updateDto = new UpdateClaimDto
+                    UserID = appeal.FiledBy,
+                    ClaimID = appeal.ClaimID,
+                    Message = $"Great news! Your appeal for CLM-{appeal.ClaimID} was successful " +
+                                     $"(Overturned). Your claim is being re-processed and payment will " +
+                                     $"be created shortly. You will receive another notification when ready.",
+                    Category = NotificationCategory.Appeal,
+                    Severity = NotificationSeverity.Info,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = orgId,
+                });
+
+                // Step 3: Auto-adjudicate immediately — this creates the payment and
+                // sends payment-ready notifications to both policyholder and staff
+                try
+                {
+                    await _adjRepo.AutoAdjudicateAsync(appeal.ClaimID, orgId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Auto-adjudication after appeal overturn failed for Claim {ClaimID}. " +
+                        "Staff will need to manually adjudicate.", appeal.ClaimID);
+
+                    // Fallback: notify staff to manually process
+                    var staffUsers = await _userRepo.GetUsersByRoleAsync(UserRole.InsuranceStaff, orgId);
+                    foreach (var staff in staffUsers)
                     {
-                        Status = ClaimStatus.Submitted.ToString()
-                    };
-                    await _claimRepo.UpdateClaimAsync(appeal.ClaimID, updateDto, deciderId, GetLoggedInUserOrgId());
+                        await _notifRepo.CreateAsync(new Notification
+                        {
+                            UserID = staff.UserID,
+                            ClaimID = appeal.ClaimID,
+                            Message = $"Appeal for CLM-{appeal.ClaimID} was Overturned. " +
+                                             $"Auto-adjudication failed — please manually adjudicate " +
+                                             $"this claim to create the payment.",
+                            Category = NotificationCategory.Exception,
+                            Severity = NotificationSeverity.Warning,
+                            Status = NotificationStatus.Unread,
+                            CreatedAt = DateTime.UtcNow,
+                            OrganizationID = orgId,
+                        });
+                    }
                 }
             }
-
-            // Notify the appeal filer about the decision
-            await _notifRepo.CreateAsync(new Notification
+            else // Upheld — rejection stands
             {
-                UserID = appeal.FiledBy,
-                ClaimID = appeal.ClaimID,
-                Message = $"Your appeal for Claim {appeal.ClaimID} has been decided: {dto.Outcome}.",
-                Category = NotificationCategory.Appeal,
-                Severity = NotificationSeverity.Info,
-                CreatedAt = DateTime.UtcNow,
-                Status = NotificationStatus.Unread,
-                OrganizationID = GetLoggedInUserOrgId(),
-            });
+                await _notifRepo.CreateAsync(new Notification
+                {
+                    UserID = appeal.FiledBy,
+                    ClaimID = appeal.ClaimID,
+                    Message = $"Your appeal for CLM-{appeal.ClaimID} has been reviewed. " +
+                                     $"Decision: Upheld — the original rejection stands. " +
+                                     $"The claim remains Rejected. If you have new evidence, " +
+                                     $"please contact your insurance provider.",
+                    Category = NotificationCategory.Appeal,
+                    Severity = NotificationSeverity.Warning,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = orgId,
+                });
+            }
 
             return Ok(new { message = $"Appeal {id} decided as '{dto.Outcome}'.", appealId = id });
         }
@@ -414,24 +481,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // ═══════════════════════════════════════════════════════════════
         //  Helpers
         // ═══════════════════════════════════════════════════════════════
-        private int GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("UserID")?.Value;
-            return int.Parse(userIdClaim ?? "0");
-        }
-
-        private string GetCurrentUserRole()
-        {
-            return User.FindFirst(ClaimTypes.Role)?.Value
-                ?? User.FindFirst("Role")?.Value
-                ?? "Unknown";
-        }
-
-        private bool IsStaffRole(string role)
-        {
-            var staffRoles = new[] { "Admin", "InsuranceStaff" };
-            return staffRoles.Contains(role);
-        }
+        private int GetCurrentUserId() => GetLoggedInUserId() ?? 0;
+        private string GetCurrentUserRole() => GetLoggedInUserRole() ?? "Unknown";
+        private bool IsStaffRole(string role) => role == "Admin" || role == "InsuranceStaff";
     }
 }

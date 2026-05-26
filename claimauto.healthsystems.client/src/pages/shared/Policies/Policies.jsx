@@ -84,7 +84,7 @@ export default function Policies() {
     } finally {
       setLoading(false);
     }
-  }, [isHospital]);
+  }, [isHospital, isPolicyholder]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 

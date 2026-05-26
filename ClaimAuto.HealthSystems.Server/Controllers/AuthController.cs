@@ -431,6 +431,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 OrganizationLogoUrl = user.Organization?.LogoUrl,
                 OrganizationSupportEmail = user.Organization?.SupportEmail,
                 OrganizationSupportPhone = user.Organization?.SupportPhone,
+                IsInNetwork = user.IsInNetwork,
             };
         }
     }

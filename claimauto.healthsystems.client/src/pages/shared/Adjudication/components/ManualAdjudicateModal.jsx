@@ -11,42 +11,46 @@ export default function ManualAdjudicateModal({
   onHide,
   onSubmit,
 }) {
-  const [decision,          setDecision]          = useState('');
-  const [notes,             setNotes]             = useState('');
-  const [calculationsJSON,  setCalculationsJSON]  = useState('');
+    const [decision,      setDecision]      = useState('');
+  const [notes,         setNotes]         = useState('');
+  const [payableAmount, setPayableAmount] = useState('');
 
   // Reset on open
   useEffect(() => {
     if (show) {
       setDecision('');
       setNotes('');
-      setCalculationsJSON('');
+      setPayableAmount('');
     }
   }, [show]);
 
-  // Auto-fill calculations JSON when decision + claim changes
+  // Auto-fill payable when decision changes
   useEffect(() => {
     if (!claim || !decision) return;
-    const payable = decision === 'Denied' ? 0 : claim.totalBilledAmount;
-    setCalculationsJSON(JSON.stringify({
-      billed:  claim.totalBilledAmount,
-      allowed: claim.totalBilledAmount,
-      payable,
-      note:    'Manual adjudication',
-    }, null, 2));
+    setPayableAmount(decision === 'Denied' ? '' : String(claim.totalBilledAmount));
   }, [decision, claim]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const payable = decision !== 'Denied' ? parseFloat(payableAmount) || 0 : 0;
     onSubmit({
-      claimID:          claim.claimID,
+      claimID:       claim.claimID,
       decision,
-      notes:            notes.trim(),
-      calculationsJSON: calculationsJSON || null,
+      payableAmount: decision !== 'Denied' ? payable : null,
+      notes:         notes.trim(),
+      calculationsJSON: JSON.stringify({
+        billed:            claim.totalBilledAmount,
+        allowed:           claim.totalBilledAmount,
+        deductibleApplied: Math.max(0, claim.totalBilledAmount - payable),
+        copay:             0,
+        payable,
+        note:              'Manual adjudication',
+      }),
     });
   };
 
-  const isValid = decision && notes.trim().length >= 10;
+  const isValid = decision && notes.trim().length >= 10 &&
+    (decision === 'Denied' || (payableAmount !== '' && !isNaN(parseFloat(payableAmount))));
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered backdrop="static">
@@ -156,27 +160,63 @@ export default function ManualAdjudicateModal({
               </Form.Group>
             </Col>
 
-            {/* Calculations JSON — auto-filled, editable */}
-            <Col md={12}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">
-                  Calculations (JSON)
-                  <span className="text-muted ms-2" style={{ fontSize: 11, fontWeight: 400 }}>
-                    Auto-filled — edit if needed
-                  </span>
-                </Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={4}
-                  value={calculationsJSON}
-                  onChange={(e) => setCalculationsJSON(e.target.value)}
-                  className="font-monospace"
-                  style={{ fontSize: 12 }}
-                  placeholder="Will be auto-filled when you select a decision"
-                />
-              </Form.Group>
-            </Col>
+            {/* Payable Amount — shown for Paid / Partial so staff can apply deductible */}
+            {decision && decision !== 'Denied' && (
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="small fw-semibold">
+                    Payable Amount <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={payableAmount}
+                    onChange={(e) => setPayableAmount(e.target.value)}
+                    placeholder="Amount after deductible"
+                  />
+                  <Form.Text className="text-muted">
+                    Adjust for deductible or partial coverage.
+                  </Form.Text>
+                </Form.Group>
+              </Col>
+            )}
 
+                        {/* Calculations breakdown — computed from billed vs payable */}
+            {decision && claim && (
+              <Col md={12}>
+                <div className="rounded-3 p-3" style={{ background: '#f8f9fa', border: '1px solid #e9ecef', fontSize: 13 }}>
+                  <div className="small fw-semibold text-muted mb-2">
+                    <i className="bi bi-calculator me-1"></i>Calculation Breakdown
+                  </div>
+                  {[
+                    { label: 'Total Billed',       value: formatCurrency(claim.totalBilledAmount) },
+                    { label: 'Deductible Applied', value: formatCurrency(
+                        decision === 'Denied' ? 0
+                        : Math.max(0, claim.totalBilledAmount - (parseFloat(payableAmount) || 0))
+                      )
+                    },
+                    { label: 'Payable Amount',     value: formatCurrency(
+                        decision === 'Denied' ? 0 : (parseFloat(payableAmount) || 0)
+                      ), highlight: true
+                    },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="d-flex justify-content-between py-1"
+                      style={{
+                        borderTop: '1px solid #e9ecef',
+                        fontWeight: row.highlight ? 700 : 400,
+                        color:     row.highlight ? '#764ba2' : undefined,
+                      }}
+                    >
+                      <span className={row.highlight ? '' : 'text-muted'}>{row.label}</span>
+                      <span>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </Col>
+            )}
           </Row>
         </Modal.Body>
 

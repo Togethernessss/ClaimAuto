@@ -20,8 +20,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<FraudCase?> GetFraudCaseByIdAsync(int id, int? userOrgId = null);
         Task<FraudCase?> GetFraudCaseByClaimIdAsync(int claimId, int? userOrgId = null);
         Task<FraudCase> CreateFraudCaseAsync(FraudCase fraudCase);
-        Task<FraudCase> CreateFraudCaseWithNotificationAsync(
-            FraudCase fraudCase, Notification notification);
-        Task<FraudCase?> ResolveFraudCaseAsync(int id, ResolveFraudCaseDto dto);
+        Task<FraudCase> CreateFraudCaseWithNotificationAsync(FraudCase fraudCase, Notification notification);
+        Task<FraudCase?> ResolveFraudCaseAsync(int id, ResolveFraudCaseDto dto, int? userOrgId = null);
     }
 }

@@ -49,10 +49,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // Factor 1: duplicate service code
             var hasDuplicateServiceCode = await _context.ClaimLines
-                .Where(cl => cl.Claim.MemberID == claim.MemberID
-                    && cl.ClaimID != claimId
-                    && thisClaimServiceCodes.Contains(cl.ServiceCode))
-                .AnyAsync();
+            .Where(cl => cl.Claim.MemberID == claim.MemberID
+                && cl.Claim.OrganizationID == claim.OrganizationID
+                && cl.ClaimID != claimId
+                && thisClaimServiceCodes.Contains(cl.ServiceCode))
+            .AnyAsync();
 
             if (hasDuplicateServiceCode)
             {
@@ -64,9 +65,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
 
             var providerClaimCount = await _context.Claims
-                .Where(c => c.ProviderID == claim.ProviderID
-                    && c.SubmittedAt >= thirtyDaysAgo)
-                .CountAsync();
+            .Where(c => c.ProviderID == claim.ProviderID
+                && c.OrganizationID == claim.OrganizationID
+                && c.SubmittedAt >= thirtyDaysAgo)
+            .CountAsync();
 
             if (providerClaimCount > 10)
             {
@@ -77,6 +79,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Factor 3: amount spike (≥300% of provider's average)
             var providerAvg = await _context.Claims
                 .Where(c => c.ProviderID == claim.ProviderID
+                    && c.OrganizationID == claim.OrganizationID
                     && c.ClaimID != claimId)
                 .AverageAsync(c => (decimal?)c.TotalBilledAmount);
 
@@ -92,8 +95,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // Factor 4 & 5: first-time provider OR repeated procedure pattern
             var providerTotalClaims = await _context.Claims
-                .Where(c => c.ProviderID == claim.ProviderID)
-                .CountAsync();
+            .Where(c => c.ProviderID == claim.ProviderID
+                && c.OrganizationID == claim.OrganizationID)
+            .CountAsync();
 
             if (providerTotalClaims <= 1)
             {
@@ -102,11 +106,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             else
             {
                 var hasRepeatedProcedure = await _context.ClaimLines
-                    .Where(cl => cl.Claim.ProviderID == claim.ProviderID
-                        && cl.ClaimID != claimId
-                        && thisClaimServiceCodes.Contains(cl.ServiceCode))
-                    .GroupBy(cl => cl.ServiceCode)
-                    .AnyAsync(g => g.Count() >= 3);
+                .Where(cl => cl.Claim.ProviderID == claim.ProviderID
+                    && cl.Claim.OrganizationID == claim.OrganizationID
+                    && cl.ClaimID != claimId
+                    && thisClaimServiceCodes.Contains(cl.ServiceCode))
+                .GroupBy(cl => cl.ServiceCode)
+                .AnyAsync(g => g.Count() >= 3);
 
                 if (hasRepeatedProcedure)
                 {
@@ -202,10 +207,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         public async Task<FraudCase?> ResolveFraudCaseAsync(
-            int id, ResolveFraudCaseDto dto)
+            int id, ResolveFraudCaseDto dto, int? userOrgId = null)
         {
-            var fraudCase = await _context.FraudCases
-                .FirstOrDefaultAsync(fc => fc.CaseID == id);
+            var query = _context.FraudCases.Where(fc => fc.CaseID == id);
+            if (userOrgId.HasValue)
+                query = query.Where(fc => fc.OrganizationID == userOrgId.Value);
+            var fraudCase = await query.FirstOrDefaultAsync();
 
             if (fraudCase == null) return null;
 

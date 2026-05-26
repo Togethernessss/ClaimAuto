@@ -24,8 +24,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // ── Multi-tenant filter ──────────────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(r => r.OrganizationID == userOrgId.Value
-                                       || r.OrganizationID == null);
+                query = query.Where(r => r.OrganizationID == userOrgId.Value);
 
             if (!string.IsNullOrEmpty(status))
             {

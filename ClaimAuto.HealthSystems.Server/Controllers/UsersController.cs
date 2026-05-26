@@ -50,7 +50,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Department = u.Department,
                 MFAEnabled = u.MFAEnabled,
                 Status = u.Status.ToString(),
-                CreatedAt = u.CreatedAt
+                CreatedAt = u.CreatedAt,
+                IsInNetwork = u.IsInNetwork
             });
 
             return Ok(response);
@@ -77,7 +78,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Department = user.Department,
                 MFAEnabled = user.MFAEnabled,
                 Status = user.Status.ToString(),
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                IsInNetwork = user.IsInNetwork
             });
         }
 
@@ -99,7 +101,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Department = u.Department,
                 MFAEnabled = u.MFAEnabled,
                 Status = u.Status.ToString(),
-                CreatedAt = u.CreatedAt
+                CreatedAt = u.CreatedAt,
+                IsInNetwork = u.IsInNetwork
             });
 
             return Ok(response);
@@ -131,7 +134,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Status = AccountStatus.Active,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                OrganizationID = GetLoggedInUserOrgId(),                          // ← SaaS FIX
+                OrganizationID = GetLoggedInUserOrgId(),
+                IsInNetwork = dto.IsInNetwork,
             };
 
             var createdUser = await _userRepository.CreateUserAsync(user);
@@ -146,7 +150,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Department = createdUser.Department,
                 MFAEnabled = createdUser.MFAEnabled,
                 Status = createdUser.Status.ToString(),
-                CreatedAt = createdUser.CreatedAt
+                CreatedAt = createdUser.CreatedAt,
+                IsInNetwork = createdUser.IsInNetwork
             };
 
             return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);
@@ -191,7 +196,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 Role = role,
                 Phone = dto.Phone,
                 Department = dto.Department,
-                OrganizationID = admin.OrganizationID
+                OrganizationID = admin.OrganizationID,
+                IsInNetwork = dto.IsInNetwork,
             };
 
             var created = await _authRepository.RegisterInvitedUserAsync(user, tempPassword);
@@ -220,7 +226,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = created.MFAEnabled,
                 MustChangePassword = created.MustChangePassword,
                 Status = created.Status.ToString(),
-                CreatedAt = created.CreatedAt
+                CreatedAt = created.CreatedAt,
+                IsInNetwork = created.IsInNetwork
             };
 
             return CreatedAtAction(nameof(GetUser), new { id = created.UserID }, response);
@@ -263,6 +270,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (isAdmin)
             {
                 if (dto.MFAEnabled.HasValue) user.MFAEnabled = dto.MFAEnabled.Value;
+                if (dto.IsInNetwork.HasValue) user.IsInNetwork = dto.IsInNetwork.Value;
                 if (dto.Status != null && Enum.TryParse<AccountStatus>(dto.Status, out var status))
                     user.Status = status;
             }

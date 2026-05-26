@@ -72,3 +72,14 @@ export async function getMyMember() {
   const response = await api.get('/api/members/my');
   return response.data;
 }
+
+// ── LOOKUP MEMBER BY NUMBER (Hospital claim submission) ───────────────────
+// Backend:  GET /api/members/lookup?memberNumber=MEM-000042
+// Returns:  Single member with policyID + policyName included
+// Who uses: Hospital — finds a patient before submitting a claim
+export async function lookupMemberByNumber(memberNumber) {
+  const response = await api.get('/api/members/lookup', {
+    params: { memberNumber },
+  });
+  return response.data;
+}

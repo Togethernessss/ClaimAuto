@@ -12,6 +12,7 @@
         public string? Department { get; set; }              // only for InsuranceStaff and Admin
         public bool MFAEnabled { get; set; } = false;
         public int? OrganizationID { get; set; }             // ← which insurance company they're registering under
+        public bool IsInNetwork { get; set; } = true;
     }
 
     // ── InviteUserDto — admin invites a user; no password (system generates one)
@@ -22,6 +23,7 @@
         public string Role { get; set; } = string.Empty;   // "Admin","InsuranceStaff","Policyholder","Hospital"
         public string? Phone { get; set; }
         public string? Department { get; set; }
+        public bool IsInNetwork { get; set; } = true;
     }
 
     // ── LoginDto 
@@ -55,6 +57,7 @@
         public string? OrganizationLogoUrl { get; set; }
         public string? OrganizationSupportEmail { get; set; }   // ← NEW
         public string? OrganizationSupportPhone { get; set; }   // ← NEW
+        public bool IsInNetwork { get; set; }
     }
 }
 
@@ -66,7 +69,8 @@
         public string? Department { get; set; }
         public bool? MFAEnabled { get; set; }
         public string? Status { get; set; }                  // "Active" or "Inactive"
-    }
+        public bool? IsInNetwork { get; set; }
+}
 
     // ── AuthResponseDto 
     public class AuthResponseDto

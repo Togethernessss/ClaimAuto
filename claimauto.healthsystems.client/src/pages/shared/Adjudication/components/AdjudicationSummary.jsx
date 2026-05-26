@@ -4,7 +4,6 @@ import { formatCurrency } from '../utils/adjudicationHelpers';
 
 const STAT_CARDS = [
   { key: 'pending',     label: 'Pending Review', icon: 'bi-hourglass-split',   bg: '#fff3e0', color: '#e65100' },
-  { key: 'adjudicated', label: 'Adjudicated',    icon: 'bi-check2-square',     bg: '#d1f2eb', color: '#085041' },
   { key: 'approved',    label: 'Approved',       icon: 'bi-check-circle-fill', bg: '#e8f5e9', color: '#2e7d32' },
   { key: 'rejected',    label: 'Rejected',       icon: 'bi-x-circle-fill',     bg: '#fdecea', color: '#b71c1c' },
   { key: 'totalBilled', label: 'Total Billed',   icon: 'bi-currency-rupee',    bg: '#f3e5f5', color: '#6a1b9a' },
@@ -15,7 +14,6 @@ export default function AdjudicationSummary({ claims }) {
 
   const values = {
     pending:     claims.filter(c => ['Submitted', 'UnderReview'].includes(c.status)).length,
-    adjudicated: claims.filter(c => c.status === 'Adjudicated').length,
     approved:    claims.filter(c => c.status === 'Approved').length,
     rejected:    claims.filter(c => c.status === 'Rejected').length,
     totalBilled: formatCurrency(totalBilled),

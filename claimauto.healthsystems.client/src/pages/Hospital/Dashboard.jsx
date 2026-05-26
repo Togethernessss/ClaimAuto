@@ -34,6 +34,7 @@ export default function HospitalDashboard() {
   const [pendingClaims,   setPendingClaims]   = useState(null);
   const [deniedClaims,    setDeniedClaims]    = useState(null);
   const [statsLoading,    setStatsLoading]    = useState(true);
+  const [statsError,      setStatsError]      = useState(false);
 
   useEffect(() => {
     async function loadPolicies() {
@@ -83,9 +84,7 @@ export default function HospitalDashboard() {
         setPendingClaims(
           claims.filter(c =>
             c.status === 'Submitted' ||
-            c.status === 'UnderReview' ||
-            c.status === 'Validated' ||
-            c.status === 'Adjudicated'
+            c.status === 'UnderReview'
           ).length
         );
 
@@ -94,7 +93,7 @@ export default function HospitalDashboard() {
           claims.filter(c => c.status === 'Rejected').length
         );
       } catch {
-        setClaimsThisMonth(null);
+        setStatsError(true);
       } finally {
         setStatsLoading(false);
       }
@@ -133,6 +132,13 @@ export default function HospitalDashboard() {
 
   return (
     <Container fluid className="p-0">
+
+      {statsError && (
+        <div className="alert alert-warning py-2 mb-3 small">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          Could not load claim statistics. Please refresh the page.
+        </div>
+      )}
 
       <WelcomeBanner emoji="🏥" />
 

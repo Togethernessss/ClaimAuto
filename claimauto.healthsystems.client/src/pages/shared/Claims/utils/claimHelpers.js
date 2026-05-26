@@ -26,8 +26,6 @@ export function statusVariant(status) {
   switch (status) {
     case 'Submitted':   return 'secondary';
     case 'UnderReview': return 'warning';
-    case 'Validated':   return 'primary';
-    case 'Adjudicated': return 'info';
     case 'Approved':    return 'primary';
     case 'Paid':        return 'success';
     case 'Rejected':    return 'danger';
@@ -39,8 +37,6 @@ export function statusLabel(status) {
   switch (status) {
     case 'Submitted':   return 'Submitted';
     case 'UnderReview': return 'Under Review';
-    case 'Validated':   return 'Validated';
-    case 'Adjudicated': return 'Adjudicated';
     case 'Approved':    return 'Approved';
     case 'Paid':        return 'Paid';
     case 'Rejected':    return 'Rejected';

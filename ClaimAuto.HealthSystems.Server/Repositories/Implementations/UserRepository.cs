@@ -93,7 +93,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _context.SaveChangesAsync();
         }
 
-        // Soft delete — just mark as Inactive, never remove from DB
+        public async Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<int> ids)
+        {
+            return await _context.Users
+                .Where(u => ids.Contains(u.UserID))
+                .ToListAsync();
+        }
+
+        // Soft delete — mark as Inactive, never remove from DB
         public async Task<bool> SoftDeleteUserAsync(int id)
         {
             var user = await _context.Users.FindAsync(id);

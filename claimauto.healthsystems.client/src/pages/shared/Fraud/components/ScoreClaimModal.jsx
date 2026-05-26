@@ -76,7 +76,7 @@ export default function ScoreClaimModal({ show, onHide, onScored }) {
                 const meta = FACTOR_META[f] || { label: f, points: 0 };
                 return { factor: meta.label, points: meta.points };
             });
-        } catch { factors = []; }
+        } catch { factors = [{ factor: 'Could not parse risk factors — raw data may be malformed.', points: 0 }]; }
     }
 
     return (

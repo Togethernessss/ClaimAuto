@@ -60,5 +60,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Used by: GET /api/claims/{id}/documents
         // userOrgId (Phase 4): when supplied, returns only documents whose org matches the caller.
         Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId, int? userOrgId = null);
+
+        // Used by: GET /api/claims/{id} — role-based access control for Policyholder
+        // Returns all MemberIDs whose PolicyholderUserID matches the given user.
+        // Used to verify a Policyholder is allowed to view a specific claim.
+        Task<List<int>> GetMemberIdsByPolicyholderAsync(int policyholderUserId, int? userOrgId);
     }
 }
