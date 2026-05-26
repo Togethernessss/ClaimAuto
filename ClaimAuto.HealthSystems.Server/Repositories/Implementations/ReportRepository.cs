@@ -252,6 +252,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             var query = _context.KPIs.AsQueryable();
 
+            if (userOrgId.HasValue)
+                query = query.Where(
+                    k => k.OrganizationID == userOrgId.Value);
+
             var kpis = await query.ToListAsync();
             var totalClaims = await _context.Claims
                 .Where(c => !userOrgId.HasValue || c.OrganizationID == userOrgId.Value)
@@ -624,10 +628,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .GetValueOrDefault(ClaimStatus.Submitted),
                 ClaimsUnderReview = claimsByStatus
                     .GetValueOrDefault(ClaimStatus.UnderReview),
-                ClaimsValidated = claimsByStatus
-                    .GetValueOrDefault(ClaimStatus.Validated),
-                ClaimsAdjudicated = claimsByStatus
-                    .GetValueOrDefault(ClaimStatus.Adjudicated),
+                ClaimsValidated = 0,    // status removed from enum
+                ClaimsAdjudicated = 0,  // status removed from enum
                 ClaimsApproved = claimsByStatus
                     .GetValueOrDefault(ClaimStatus.Approved),
                 ClaimsPaid = claimsByStatus
