@@ -584,6 +584,65 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Status = doc.Status.ToString()
             };
         }
+        // ── APPEAL RESET — direct, audit-logged, tenant-scoped, atomic ────────
+        // Used ONLY by the appeal-overturn flow. Bypasses any state-machine
+        // validation in UpdateClaimAsync so a Rejected/Adjudicated claim can
+        // be returned to Submitted state for re-processing.
+        public async Task<bool> ResetClaimToSubmittedAsync(
+            int claimId,
+            int? userOrgId,
+            int resetByUserId,
+            string reason)
+        {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                // Tenant-scoped lookup
+                var query = _db.Claims.Where(c => c.ClaimID == claimId);
+                if (userOrgId.HasValue)
+                    query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+                var claim = await query.FirstOrDefaultAsync();
+                if (claim == null)
+                {
+                    await transaction.RollbackAsync();
+                    return false;
+                }
+
+                // Capture previous state for audit
+                var previousStatus = claim.Status.ToString() ?? "Unknown";
+
+                // FORCE reset (no state-machine check)
+                claim.Status = ClaimStatus.Submitted;
+
+                // Audit log
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    UserID = resetByUserId,
+                    Action = "ResetClaimAfterAppealOverturn",
+                    ResourceType = "Claim",
+                    ResourceID = claimId.ToString(),
+                    DetailsJSON = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        claimID = claimId,
+                        previousStatus = previousStatus,
+                        newStatus = "Submitted",
+                        reason = reason
+                    }),
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
+                });
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
 
         // ══════════════════════════════════════════════════════════════════
         //  GET CLAIM DOCUMENTS — tenant-scoped read (Phase 4)
