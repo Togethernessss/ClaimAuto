@@ -31,7 +31,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // ── Multi-tenant filter (Phase 3) ────────────────────────────
             if (userOrgId.HasValue)
-                query = query.Where(a => a.OrganizationID == userOrgId.Value);
+                query = query.Where(a =>
+                    a.OrganizationID == userOrgId.Value ||
+                    (a.OrganizationID == null && a.User.OrganizationID == userOrgId.Value));
             // FILTER 1 — If caller passes ?userId=3, show only logs for that user
             // Example: Admin wants to see everything "Staff John" has done
             if (userId.HasValue)
@@ -75,8 +77,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Where(a => a.AuditID == auditId);
 
             if (userOrgId.HasValue)
-                query = query.Where(a => a.OrganizationID == userOrgId.Value);
-
+                query = query.Where(a =>
+                    a.OrganizationID == userOrgId.Value ||
+                    (a.OrganizationID == null && a.User.OrganizationID == userOrgId.Value));
             return await query
                 .Select(a => new AuditLogResponseDto
                 {
