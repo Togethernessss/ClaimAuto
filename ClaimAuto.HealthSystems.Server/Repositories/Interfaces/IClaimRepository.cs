@@ -57,6 +57,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<ClaimDocumentResponseDto?> UploadDocumentAsync(int claimId, UploadDocumentDto dto,
             int uploadedByUserId);
 
+        // ── APPEAL RESET — used when an appeal is Overturned ──────────────────
+        // Bypasses any state-machine validation in UpdateClaimAsync and FORCE
+        // resets the claim's status back to Submitted so it can be re-adjudicated.
+        // Tenant-scoped via userOrgId.
+        // Returns: true if reset succeeded, false if claim not found.
+        Task<bool> ResetClaimToSubmittedAsync(
+            int claimId,
+            int? userOrgId,
+            int resetByUserId,
+            string reason);
         // Used by: GET /api/claims/{id}/documents
         // userOrgId (Phase 4): when supplied, returns only documents whose org matches the caller.
         Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId, int? userOrgId = null);
