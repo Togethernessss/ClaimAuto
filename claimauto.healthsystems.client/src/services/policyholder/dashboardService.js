@@ -85,7 +85,7 @@ function mapClaim(c) {
     }
   }
 
-  const isApprovedOrPaid = ['Approved', 'Paid'].includes(c.status);
+  const isApprovedOrPaid = ['Approved', 'Paid', 'Partial'].includes(c.status);
 
   return {
     claimID:         c.claimID,
@@ -94,7 +94,7 @@ function mapClaim(c) {
     hospitalName,
     procedureName,
     amount:          c.totalBilledAmount,
-    approvedAmount:  isApprovedOrPaid ? c.totalBilledAmount : null,
+    approvedAmount:  isApprovedOrPaid ? (c.approvedAmount ?? c.totalBilledAmount) : null,
     status:          c.status,
   };
 }

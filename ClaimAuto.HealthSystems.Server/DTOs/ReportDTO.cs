@@ -47,6 +47,7 @@
         public DateTime PeriodEnd { get; set; }
         public string? ContentsJSON { get; set; }
         public DateTime GeneratedAt { get; set; }
-        public string? PackageURI { get; set; }
+        public string GeneratedByName { get; set; } = string.Empty;
+        public bool HasPDF { get; set; }
     }
 }

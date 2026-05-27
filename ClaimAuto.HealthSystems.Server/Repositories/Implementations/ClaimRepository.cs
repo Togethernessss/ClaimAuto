@@ -110,6 +110,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 ClaimID = claim.ClaimID,
                 ExternalClaimRef = claim.ExternalClaimRef,
+                ProviderID = claim.ProviderID,
+                MemberID = claim.MemberID,
                 ProviderName = claim.Provider.Name,
                 MemberName = claim.Member.Name,
                 PolicyName = claim.Policy.PlanName,
@@ -656,17 +658,33 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(d => d.OrganizationID == userOrgId.Value);
 
             return await query
-                .Select(d => new ClaimDocumentResponseDto
-                {
-                    DocID = d.DocID,
-                    ClaimID = d.ClaimID,
-                    UploadedByName = d.Uploader.Name,
-                    DocType = d.DocType.ToString(),
-                    FileURI = d.FileURI,
-                    SHA256 = d.SHA256,
-                    UploadedAt = d.UploadedAt,
-                    Status = d.Status.ToString()
-                })
+            .Select(d => new ClaimDocumentResponseDto
+            {
+                DocID = d.DocID,
+                ClaimID = d.ClaimID,
+                UploadedByName = d.Uploader.Name,
+                DocType = d.DocType.ToString(),
+                FileURI = d.FileURI,
+                SHA256 = d.SHA256,
+                UploadedAt = d.UploadedAt,
+                Status = d.Status.ToString()
+            })
+            .ToListAsync();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  GET MEMBER IDS BY POLICYHOLDER — for GetClaimById access check
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<List<int>> GetMemberIdsByPolicyholderAsync(int policyholderUserId, int? userOrgId)
+        {
+            var query = _db.Members
+                .Where(m => m.PolicyholderUserID == policyholderUserId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            return await query
+                .Select(m => m.MemberID)
                 .ToListAsync();
         }
     }

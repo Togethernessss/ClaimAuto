@@ -149,8 +149,9 @@ export default function Payments() {
         `Payment #PAY-${executePaymentId} executed successfully.`
       );
       loadPayments();
-    } catch {
-      setExecuteError('Failed to execute payment.');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data || 'Failed to execute payment.';
+      setExecuteError(typeof msg === 'string' ? msg : 'Failed to execute payment.');
     } finally {
       setExecuteLoading(false);
     }

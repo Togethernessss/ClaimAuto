@@ -24,5 +24,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         // Soft delete — sets Status to Inactive instead of removing from DB
         Task<bool> SoftDeleteUserAsync(int id);
+
+        // Batch lookup by IDs — used to avoid N+1 queries
+        Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<int> ids);
     }
 }

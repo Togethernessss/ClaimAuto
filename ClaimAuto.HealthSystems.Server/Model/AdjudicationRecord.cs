@@ -34,6 +34,7 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public string? AppliedRulesJSON { get; set; }
 
         public string? Notes { get; set; }
+        public decimal DeductibleApplied { get; set; } = 0;
 
         // Null when auto-adjudicated
         public int? PerformedByID { get; set; }

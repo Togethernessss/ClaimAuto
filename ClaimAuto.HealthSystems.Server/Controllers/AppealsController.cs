@@ -24,6 +24,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IUserRepository _userRepo;
         private readonly INotificationRepository _notifRepo;
         private readonly IAppealPdfRepository _pdfService;
+        private readonly IAdjudicationRepository _adjRepo;
         private readonly ILogger<AppealsController> _logger;
 
         public AppealsController(
@@ -32,6 +33,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             IUserRepository userRepo,
             INotificationRepository notifRepo,
             IAppealPdfRepository pdfService,
+            IAdjudicationRepository adjRepo,
             ILogger<AppealsController> logger)
         {
             _appealRepo = appealRepo;
@@ -39,6 +41,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _userRepo = userRepo;
             _notifRepo = notifRepo;
             _pdfService = pdfService;
+            _adjRepo = adjRepo;
             _logger = logger;
         }
 
@@ -150,11 +153,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             // ── Claim must be Rejected or Adjudicated ──
             if (!Enum.TryParse<ClaimStatus>(claim.Status, true, out var claimStatus)
-                || (claimStatus != ClaimStatus.Rejected && claimStatus != ClaimStatus.Adjudicated))
+                || (claimStatus != ClaimStatus.Rejected))
             {
                 return BadRequest(new
                 {
-                    message = $"Claim {claimID} has status '{claim.Status}'. Only Rejected or Adjudicated claims can be appealed."
+                    message = $"Claim {claimID} has status '{claim.Status}'. Only Rejected claims can be appealed."
                 });
             }
 
@@ -296,7 +299,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 {
                     UserID = assignee.UserID,
                     ClaimID = claimID,
-                    Message = $"New appeal filed for Claim {claimID}. Review within 7 days.",
+                    Message = $"New appeal filed for CLM-{claimID} by a policyholder. " +
+                                     $"Please review within 7 days.",
                     Category = NotificationCategory.Appeal,
                     Severity = NotificationSeverity.Warning,
                     CreatedAt = DateTime.UtcNow,
@@ -304,6 +308,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     OrganizationID = userOrgId,
                 });
             }
+
+            // ── Confirm to the policyholder that their appeal was received ──
+            await _notifRepo.CreateAsync(new Notification
+            {
+                UserID = userId,
+                ClaimID = claimID,
+                Message = $"Your appeal for CLM-{claimID} has been received and is under review. " +
+                                 $"You will be notified within 7 days once a decision is made.",
+                Category = NotificationCategory.Appeal,
+                Severity = NotificationSeverity.Info,
+                CreatedAt = DateTime.UtcNow,
+                Status = NotificationStatus.Unread,
+                OrganizationID = userOrgId,
+            });
 
             var filedByUser = await _userRepo.GetUserByIdAsync(userId);
 
@@ -700,24 +718,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
-        private int GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("UserID")?.Value;
-            return int.Parse(userIdClaim ?? "0");
-        }
-
-        private string GetCurrentUserRole()
-        {
-            return User.FindFirst(ClaimTypes.Role)?.Value
-                ?? User.FindFirst("Role")?.Value
-                ?? "Unknown";
-        }
-
-        private bool IsStaffRole(string role)
-        {
-            var staffRoles = new[] { "Admin", "InsuranceStaff" };
-            return staffRoles.Contains(role);
-        }
+        private int GetCurrentUserId() => GetLoggedInUserId() ?? 0;
+        private string GetCurrentUserRole() => GetLoggedInUserRole() ?? "Unknown";
+        private bool IsStaffRole(string role) => role == "Admin" || role == "InsuranceStaff";
     }
 }

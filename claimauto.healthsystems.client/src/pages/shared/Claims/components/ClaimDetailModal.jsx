@@ -424,8 +424,29 @@ export default function ClaimDetailModal({
 
                       {/* Applied rules — human-readable, NOT raw JSON */}
                       {claim.adjudication.appliedRulesJSON && (() => {
+                        // Manual adjudication has no automated rules — show a clear notice instead
+                        if (claim.adjudication.engineVersion === 'manual') {
+                          return (
+                            <div className="mt-3">
+                              <div className="small fw-semibold mb-2 text-muted">
+                                <i className="bi bi-gear me-1"></i>Applied Rules
+                              </div>
+                              <div
+                                className="d-flex align-items-center gap-2 px-3 py-2 rounded"
+                                style={{ background: '#f8f9fa', border: '1px solid #e9ecef', fontSize: '0.8rem' }}
+                              >
+                                <i className="bi bi-person-check text-secondary"></i>
+                                <span className="text-muted">
+                                  Manually adjudicated by staff — no automated rules were applied.
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
                         let rules = [];
                         try { rules = JSON.parse(claim.adjudication.appliedRulesJSON); } catch { rules = []; }
+                        // Filter out empty placeholder entries (null name + null result)
+                        rules = rules.filter((r) => (r.ruleName ?? r.RuleName) || (r.result ?? r.Result));
                         if (!Array.isArray(rules) || rules.length === 0) return null;
                         return (
                           <div className="mt-3">

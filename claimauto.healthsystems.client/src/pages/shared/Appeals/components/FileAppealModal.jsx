@@ -161,7 +161,7 @@ export default function FileAppealModal({ show, onHide, onFiled }) {
 
                 <Alert variant="info" className="py-2 small">
                     <i className="bi bi-info-circle me-1"></i>
-                    You can only appeal claims with <strong>Rejected</strong> or <strong>Adjudicated</strong> status.
+                    You can only appeal claims with <strong>Rejected</strong> status.
                 </Alert>
 
                 {/* ─── Claim ID ─── */}

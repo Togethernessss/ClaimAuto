@@ -198,6 +198,10 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasOne(r => r.Organization).WithMany().HasForeignKey(r => r.OrganizationID)
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<AuditPackage>()
+                .HasOne(p => p.GeneratedByUser).WithMany().HasForeignKey(p => p.GeneratedByID)
+                .IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
             mb.Entity<KPI>()
                 .HasOne(k => k.Organization).WithMany().HasForeignKey(k => k.OrganizationID)
                 .IsRequired(false).OnDelete(DeleteBehavior.Restrict);

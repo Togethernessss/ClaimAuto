@@ -54,9 +54,34 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         break;
 
                     case "In-Network Check":
+                        // Reimbursement claims are submitted by the Policyholder directly —
+                        // the ProviderID is the policyholder's own UserID, not a hospital.
+                        // In-Network Check is not applicable; pass through automatically.
+                        if (claim.ClaimType == ClaimType.Reimbursement)
+                        {
+                            trace.Result = "PASS";
+                            trace.Reason = "Reimbursement claim — In-Network Check not applicable. " +
+                                           "Member paid out-of-pocket and is requesting reimbursement.";
+                            break;
+                        }
 
-                        trace.Result = "PASS";
-                        trace.Reason = "Provider is in-network (MVP: all providers accepted).";
+                        var provider = await _db.Users
+                            .AsNoTracking()
+                            .Where(u => u.UserID == claim.ProviderID)
+                            .Select(u => new { u.Name, u.IsInNetwork })
+                            .FirstOrDefaultAsync();
+
+                        if (provider?.IsInNetwork == true)
+                        {
+                            trace.Result = "PASS";
+                            trace.Reason = $"Provider '{provider.Name}' is in the approved network.";
+                        }
+                        else
+                        {
+                            trace.Result = "FAIL";
+                            trace.Reason = $"Provider '{provider?.Name ?? "Unknown"}' is not in the approved network.";
+                            shouldDeny = true;
+                        }
                         break;
 
                     case "Amount Threshold":
@@ -104,13 +129,31 @@ namespace ClaimAuto.HealthSystems.Server.Services
 
                         if (policyForDeductible?.DeductibleAmount > 0)
                         {
-                            var remainingDeductible = policyForDeductible.DeductibleAmount.Value;
-                            deductibleApplied = remainingDeductible;
-                            payableAmount = Math.Max(0, payableAmount - remainingDeductible);
+                            var deductibleLimit = policyForDeductible.DeductibleAmount.Value;
+                            var alreadyConsumed = await (
+                                from ar in _db.AdjudicationRecords
+                                join c in _db.Claims on ar.ClaimID equals c.ClaimID
+                                where c.PolicyID == claim.PolicyID && c.ClaimID != claim.ClaimID
+                                select ar.DeductibleApplied
+                            ).SumAsync(d => (decimal?)d) ?? 0m;
 
-                            trace.Result = "APPLIED";
-                            trace.Reason = $"Deductible of ₹{remainingDeductible} applied. " +
-                                           $"Payable reduced to ₹{payableAmount}.";
+                            var remainingDeductible = Math.Max(0, deductibleLimit - alreadyConsumed);
+
+                            if (remainingDeductible > 0)
+                            {
+                                deductibleApplied = remainingDeductible;
+                                payableAmount = Math.Max(0, payableAmount - remainingDeductible);
+                                trace.Result = "APPLIED";
+                                trace.Reason = $"Deductible of ₹{remainingDeductible} applied " +
+                                               $"(₹{alreadyConsumed} already consumed of ₹{deductibleLimit} limit). " +
+                                               $"Payable reduced to ₹{payableAmount}.";
+                            }
+                            else
+                            {
+                                trace.Result = "PASS";
+                                trace.Reason = $"Deductible of ₹{deductibleLimit} fully consumed by prior claims. " +
+                                               $"No deductible applied to this claim.";
+                            }
                         }
                         else
                         {
@@ -252,6 +295,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
                 })
             );
 
+            result.DeductibleApplied = deductibleApplied;
             result.RuleTraces = ruleTraces;
             return result;
         }
@@ -261,6 +305,8 @@ namespace ClaimAuto.HealthSystems.Server.Services
     {
         public AdjDecision Decision { get; set; }
         public decimal PayableAmount { get; set; }
+        public decimal DeductibleApplied { get; set; }
+
         public string CalculationsJSON { get; set; } = string.Empty;
         public string AppliedRulesJSON { get; set; } = string.Empty;
         public List<RuleTraceDto> RuleTraces { get; set; } = new();

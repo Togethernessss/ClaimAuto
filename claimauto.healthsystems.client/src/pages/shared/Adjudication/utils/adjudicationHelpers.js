@@ -64,14 +64,12 @@ export function traceResultStyle(result) {
 
 // ── CLAIM STATUS HELPERS (for adjudication queue) ─────────────────────────────
 // Which statuses are eligible for adjudication
-export const ADJUDICABLE_STATUSES = ['Submitted', 'UnderReview', 'Validated'];
+export const ADJUDICABLE_STATUSES = ['Submitted', 'UnderReview'];
 
 export function claimStatusStyle(status) {
   switch (status) {
     case 'Submitted':    return { bg: '#f3f0ff', color: '#764ba2' };
     case 'UnderReview':  return { bg: '#fff3e0', color: '#e65100' };
-    case 'Validated':    return { bg: '#e3f2fd', color: '#0C447C' };
-    case 'Adjudicated':  return { bg: '#d1f2eb', color: '#085041' };
     case 'Approved':     return { bg: '#d1f2eb', color: '#085041' };
     case 'Rejected':     return { bg: '#fdecea', color: '#b71c1c' };
     case 'Paid':         return { bg: '#e8f5e9', color: '#1b5e20' };

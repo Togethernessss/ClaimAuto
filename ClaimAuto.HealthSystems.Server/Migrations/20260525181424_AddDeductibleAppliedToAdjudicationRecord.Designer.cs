@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260525181424_AddDeductibleAppliedToAdjudicationRecord")]
+    partial class AddDeductibleAppliedToAdjudicationRecord
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -129,49 +132,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("Appeals");
                 });
 
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AppealDocument", b =>
-                {
-                    b.Property<int>("DocumentID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DocumentID"));
-
-                    b.Property<int>("AppealID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<byte[]>("FileData")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("OrganizationID")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("DocumentID");
-
-                    b.HasIndex("AppealID");
-
-                    b.HasIndex("OrganizationID");
-
-                    b.ToTable("AppealDocuments");
-                });
-
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditLog", b =>
                 {
                     b.Property<int>("AuditID")
@@ -228,14 +188,11 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("GeneratedByID")
-                        .HasColumnType("int");
-
                     b.Property<int?>("OrganizationID")
                         .HasColumnType("int");
 
-                    b.Property<byte[]>("PackageFilePDF")
-                        .HasColumnType("varbinary(max)");
+                    b.Property<string>("PackageURI")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("PeriodEnd")
                         .HasColumnType("datetime2");
@@ -244,8 +201,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("PackageID");
-
-                    b.HasIndex("GeneratedByID");
 
                     b.HasIndex("OrganizationID");
 
@@ -1326,24 +1281,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Navigation("Organization");
                 });
 
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AppealDocument", b =>
-                {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Appeal", "Appeal")
-                        .WithMany()
-                        .HasForeignKey("AppealID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Appeal");
-
-                    b.Navigation("Organization");
-                });
-
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditLog", b =>
                 {
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
@@ -1364,17 +1301,10 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditPackage", b =>
                 {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "GeneratedByUser")
-                        .WithMany()
-                        .HasForeignKey("GeneratedByID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationID")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("GeneratedByUser");
 
                     b.Navigation("Organization");
                 });

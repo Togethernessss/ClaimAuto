@@ -29,14 +29,19 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var userRole = GetLoggedInUserRole();
             var userOrgId = GetLoggedInUserOrgId();
 
+            // Hospital: only their own patients (members with prior claims from this provider)
+            if (userRole == "Hospital" && userId.HasValue)
+            {
+                var patients = await _memberRepo.GetAllMembersAsync(policyId, status, userOrgId, providerUserId: userId.Value);
+                return Ok(patients);
+            }
+
             var members = await _memberRepo.GetAllMembersAsync(policyId, status, userOrgId);
 
+            // Policyholder: only their own enrollment(s)
             if (userRole == "Policyholder" && userId.HasValue)
             {
-                var own = members
-                    .Where(m => m.PolicyholderUserID == userId.Value)
-                    .ToList();
-                return Ok(own);
+                return Ok(members.Where(m => m.PolicyholderUserID == userId.Value).ToList());
             }
 
             return Ok(members);
@@ -129,6 +134,30 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
+
+        /// <summary>
+        /// Looks up a member by member number.
+        /// Used by Hospital during claim submission — avoids the circular dependency
+        /// where hospitals can only see patients they've already submitted claims for.
+        /// </summary>
+        [HttpGet("lookup")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> LookupMemberByNumber([FromQuery] string memberNumber)
+        {
+            if (string.IsNullOrWhiteSpace(memberNumber))
+                return BadRequest("memberNumber query parameter is required.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+            var member = await _memberRepo.GetMemberByNumberAsync(memberNumber.Trim(), userOrgId);
+
+            if (member == null)
+                return NotFound($"No member found with member number '{memberNumber}'.");
+
+            return Ok(member);
+        }
 
         /// <summary>
         /// Returns the current Policyholder's own member record.

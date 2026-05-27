@@ -7,7 +7,7 @@ import {
   Modal, Form, Button, Alert, Spinner, Row, Col, Table, Badge,
 } from 'react-bootstrap';
 import { HOSPITAL_CLAIM_TYPES, CLAIM_PRIORITIES, formatCurrency } from '../utils/claimHelpers';
-
+import { lookupMemberByNumber } from '../../../../services/members/memberService';
 const EMPTY_LINE = {
   serviceCode:   '',
   serviceDate:   '',
@@ -40,6 +40,11 @@ export default function SubmitClaimModal({
   const [lineError,    setLineError]    = useState(null);
   const [showLineForm, setShowLineForm] = useState(false);
 
+  const [lookupQuery,   setLookupQuery]   = useState('');
+  const [lookupResult,  setLookupResult]  = useState(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError,   setLookupError]   = useState(null);
+
   // Reset on open
   useEffect(() => {
     if (show) {
@@ -55,6 +60,10 @@ export default function SubmitClaimModal({
       setLineForm(EMPTY_LINE);
       setLineError(null);
       setShowLineForm(false);
+      setLookupQuery('');
+      setLookupResult(null);
+      setLookupLoading(false);
+      setLookupError(null);
     }
   }, [show]);
 
@@ -63,17 +72,31 @@ export default function SubmitClaimModal({
   const handleField = (field) => (e) =>
     setForm({ ...form, [field]: e.target.value });
 
-  // ── When member/enrollment is selected, auto-fill the policy ──────────────
-  // Each member record = one enrollment under one specific policy.
-  // policyID is derived from the enrollment — no separate selection needed.
-  const handleMemberChange = (e) => {
-    const selectedMemberID = Number(e.target.value);
-    const enrollment = members.find((m) => m.memberID === selectedMemberID);
-    setForm({
-      ...form,
-      memberID: e.target.value,
-      policyID: enrollment ? String(enrollment.policyID) : '',
-    });
+  // ── Member lookup — Hospital types member number and clicks Find ──────────
+  const handleLookup = async () => {
+    if (!lookupQuery.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    setLookupResult(null);
+    setForm((prev) => ({ ...prev, memberID: '', policyID: '' }));
+    try {
+      const member = await lookupMemberByNumber(lookupQuery.trim());
+      if (member.status !== 'Active') {
+        setLookupError(`Member found but status is "${member.status}" — cannot submit claims for inactive members.`);
+      } else {
+        setLookupResult(member);
+        setForm((prev) => ({
+          ...prev,
+          memberID: String(member.memberID),
+          policyID: String(member.policyID),
+        }));
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data || 'Member not found.';
+      setLookupError(typeof msg === 'string' ? msg : 'Member not found.');
+    } finally {
+      setLookupLoading(false);
+    }
   };
 
   const handleLineField = (field) => (e) =>
@@ -125,6 +148,10 @@ export default function SubmitClaimModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!form.memberID) {
+      setLookupError('Please find a patient first by entering their member number above.');
+      return;
+    }
     onSubmit(
       {
         externalClaimRef:  form.externalClaimRef || null,
@@ -142,10 +169,8 @@ export default function SubmitClaimModal({
     );
   };
 
-  // Derive selected enrollment for read-only policy display
-  const selectedEnrollment = form.memberID
-    ? members.find((m) => m.memberID === Number(form.memberID))
-    : null;
+ // lookupResult is the found member — drives the policy auto-fill display
+  const selectedEnrollment = lookupResult;
 
   return (
     <Modal show={show} onHide={onHide} size="lg" backdrop="static">
@@ -204,32 +229,54 @@ export default function SubmitClaimModal({
               </Form.Group>
             </Col>
 
-            {/* ── Patient Enrollment ──────────────────────────────────────
-                PRODUCTION DESIGN:
-                Each option shows: "Name (MemberNumber) · PolicyName"
-                One person enrolled under 2 policies = 2 options.
-                Selecting an enrollment automatically determines the policy.
-                This prevents wrong-policy errors entirely.              */}
+            {/* ── Patient Lookup by Member Number ─────────────────────────
+              Hospital types the member number from the patient's card
+              (e.g. MEM-000042) and clicks Find. Name, policy, memberID
+              and policyID all auto-fill — no dropdown needed.         */}
             <Col md={12}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
-                  Patient Enrollment <span className="text-danger">*</span>
+                  Patient Member Number <span className="text-danger">*</span>
                 </Form.Label>
-                <Form.Select
-                  value={form.memberID}
-                  onChange={handleMemberChange}
-                  required
-                >
-                  <option value="">— Select patient enrollment —</option>
-                  {members.map((m) => (
-                    <option key={m.memberID} value={m.memberID}>
-                      {m.name} ({m.memberNumber}) · {m.policyName}
-                    </option>
-                  ))}
-                </Form.Select>
+                <div className="d-flex gap-2 align-items-center">
+                  <Form.Control
+                    placeholder="e.g. MEM-000042"
+                    value={lookupQuery}
+                    onChange={(e) => setLookupQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleLookup(); }
+                    }}
+                    style={{ maxWidth: 220 }}
+                  />
+                  <Button
+                    variant="outline-primary"
+                    onClick={handleLookup}
+                    disabled={lookupLoading || !lookupQuery.trim()}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {lookupLoading
+                      ? <><Spinner size="sm" animation="border" className="me-1" />Finding…</>
+                      : <><i className="bi bi-search me-1"></i>Find Patient</>
+                    }
+                  </Button>
+                </div>
+                {lookupError && (
+                  <div className="text-danger small mt-1">
+                    <i className="bi bi-exclamation-circle me-1"></i>{lookupError}
+                  </div>
+                )}
+                {lookupResult && (
+                  <div className="mt-2 p-2 rounded border border-success-subtle bg-success-subtle d-flex align-items-center gap-2">
+                    <i className="bi bi-person-check-fill text-success fs-5"></i>
+                    <div>
+                      <span className="fw-semibold">{lookupResult.name}</span>
+                      <span className="text-muted small ms-2">({lookupResult.memberNumber})</span>
+                      <span className="text-muted small ms-2">· {lookupResult.policyName}</span>
+                    </div>
+                  </div>
+                )}
                 <Form.Text className="text-muted">
-                  Each enrollment is linked to one specific policy.
-                  If a patient has multiple enrollments, select the correct one for this treatment.
+                  Enter the member number from the patient's insurance card, then click Find.
                 </Form.Text>
               </Form.Group>
             </Col>

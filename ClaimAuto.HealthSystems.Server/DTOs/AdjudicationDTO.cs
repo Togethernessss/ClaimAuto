@@ -12,6 +12,7 @@
     {
         public int ClaimID { get; set; }
         public string Decision { get; set; } = string.Empty;     // "Paid","Denied","Partial"
+        public decimal? PayableAmount { get; set; }              // staff-entered after deductible
         public string? CalculationsJSON { get; set; }            // the math breakdown
         public string? Notes { get; set; }                       // Sneha's reason/comment
     }

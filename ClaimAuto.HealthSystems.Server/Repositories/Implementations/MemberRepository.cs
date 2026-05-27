@@ -18,14 +18,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  GET ALL MEMBERS — with optional filters for PolicyID and Status
         // ══════════════════════════════════════════════════════════════════
-        public async Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status, int? userOrgId = null)
+        public async Task<List<MemberResponseDto>> GetAllMembersAsync(int? policyId, string? status, int? userOrgId = null, int? providerUserId = null)
         {
             // Start with all members
             var query = _db.Members.AsQueryable();
 
-            // ── Multi-tenant filter (Phase 3) ────────────────────────────
+            // ── Multi-tenant filter ──────────────────────────────────────
             if (userOrgId.HasValue)
                 query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            // ── Hospital filter: only members they have submitted claims for ──
+            if (providerUserId.HasValue)
+            {
+                var patientMemberIds = await _db.Claims
+                    .Where(c => c.ProviderID == providerUserId.Value)
+                    .Select(c => c.MemberID)
+                    .Distinct()
+                    .ToListAsync();
+                query = query.Where(m => patientMemberIds.Contains(m.MemberID));
+            }
 
             // Apply PolicyID filter if provided
             if (policyId.HasValue)
@@ -524,6 +535,36 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync();
         }
 
+
+        // ══════════════════════════════════════════════════════════════════
+        //  GET MEMBER BY NUMBER — Hospital patient lookup for claim submission
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<MemberResponseDto?> GetMemberByNumberAsync(string memberNumber, int? userOrgId = null)
+        {
+            var query = _db.Members
+                .Where(m => m.MemberNumber == memberNumber);
+
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            return await query
+                .Select(m => new MemberResponseDto
+                {
+                    MemberID = m.MemberID,
+                    PolicyID = m.PolicyID,
+                    PolicyName = m.Policy.PlanName,
+                    Name = m.Name,
+                    DOB = m.DOB,
+                    Gender = m.Gender.ToString(),
+                    MemberNumber = m.MemberNumber,
+                    ContactInfoJSON = m.ContactInfoJSON,
+                    CoverageStart = m.CoverageStart,
+                    CoverageEnd = m.CoverageEnd,
+                    Status = m.Status.ToString(),
+                    PolicyholderUserID = m.PolicyholderUserID,
+                })
+                .FirstOrDefaultAsync();
+        }
 
         private string ExtractReasonFromCache(string? resultJson)
         {

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
-using System.Security.Claims;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -17,15 +16,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IFraudRepository _fraudRepo;
         private readonly IClaimRepository _claimRepo;
         private readonly IUserRepository _userRepo;
+        private readonly IAdjudicationRepository _adjRepo;
 
         public FraudController(
             IFraudRepository fraudRepo,
             IClaimRepository claimRepo,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            IAdjudicationRepository adjRepo)
         {
             _fraudRepo = fraudRepo;
             _claimRepo = claimRepo;
             _userRepo = userRepo;
+            _adjRepo = adjRepo;
         }
 
 
@@ -82,7 +84,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 {
                     ClaimID = claimId,
                     OpenedAt = DateTime.UtcNow,
-                    OpenedBy = GetCurrentUserId(),
+                    OpenedBy = GetLoggedInUserId() ?? 0,
                     Priority = FraudCasePriority.High,
                     Status = FraudCaseStatus.Open,
                     InvestigationNotes = $"Auto-opened: fraud score {fraudScore.ScoreValue}. Factors: {fraudScore.FactorsJSON}",
@@ -100,13 +102,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                 var notification = new Notification
                 {
-                    UserID = GetCurrentUserId(),
+                    UserID = GetLoggedInUserId() ?? 0,
                     ClaimID = claimId,
                     Message = $"High fraud score ({fraudScore.ScoreValue}) on Claim #{claimId}",
                     Category = cat,
                     Severity = sev,
                     CreatedAt = DateTime.UtcNow,
-                    Status = stat
+                    Status = stat,
+                    OrganizationID = userOrgId
                 };
 
                 var createdCase = await _fraudRepo.CreateFraudCaseWithNotificationAsync(
@@ -138,25 +141,23 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var userOrgId = GetLoggedInUserOrgId();
             var cases = await _fraudRepo.GetAllFraudCasesAsync(status, priority, userOrgId);
 
-            var response = new List<FraudCaseResponseDto>();
-            foreach (var fc in cases)
-            {
-                var openedByUser = await _userRepo.GetUserByIdAsync(fc.OpenedBy);
+            var userIds = cases.Select(fc => fc.OpenedBy).Distinct();
+            var usersById = (await _userRepo.GetUsersByIdsAsync(userIds))
+                .ToDictionary(u => u.UserID);
 
-                response.Add(new FraudCaseResponseDto
-                {
-                    CaseID = fc.CaseID,
-                    ClaimID = fc.ClaimID,
-                    OpenedAt = fc.OpenedAt,
-                    OpenedByName = openedByUser?.Name ?? "Unknown",
-                    Priority = fc.Priority.ToString(),
-                    Status = fc.Status.ToString(),
-                    InvestigationNotes = fc.InvestigationNotes,
-                    EvidenceURIsJSON = fc.EvidenceURIsJSON,
-                    ResolvedAt = fc.ResolvedAt,
-                    Outcome = fc.Outcome?.ToString()
-                });
-            }
+            var response = cases.Select(fc => new FraudCaseResponseDto
+            {
+                CaseID = fc.CaseID,
+                ClaimID = fc.ClaimID,
+                OpenedAt = fc.OpenedAt,
+                OpenedByName = usersById.TryGetValue(fc.OpenedBy, out var u) ? u.Name : "Unknown",
+                Priority = fc.Priority.ToString(),
+                Status = fc.Status.ToString(),
+                InvestigationNotes = fc.InvestigationNotes,
+                EvidenceURIsJSON = fc.EvidenceURIsJSON,
+                ResolvedAt = fc.ResolvedAt,
+                Outcome = fc.Outcome?.ToString()
+            }).ToList();
 
             return Ok(response);
         }
@@ -217,7 +218,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             {
                 ClaimID = dto.ClaimID,
                 OpenedAt = DateTime.UtcNow,
-                OpenedBy = GetCurrentUserId(),
+                OpenedBy = GetLoggedInUserId() ?? 0,
                 Priority = parsedPriority,
                 Status = FraudCaseStatus.Open,
                 InvestigationNotes = dto.InvestigationNotes,
@@ -225,7 +226,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
 
             var created = await _fraudRepo.CreateFraudCaseAsync(fraudCase);
-            var user = await _userRepo.GetUserByIdAsync(GetCurrentUserId());
+            var user = await _userRepo.GetUserByIdAsync(GetLoggedInUserId() ?? 0);
 
             var response = new FraudCaseResponseDto
             {
@@ -260,27 +261,25 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!Enum.TryParse<FraudOutcome>(dto.Outcome, true, out var parsedOutcome))
                 return BadRequest(new { message = $"Invalid Outcome '{dto.Outcome}'. Must be one of: {string.Join(", ", Enum.GetNames<FraudOutcome>())}" });
 
-            var resolved = await _fraudRepo.ResolveFraudCaseAsync(id, dto);
+            var userOrgId = GetLoggedInUserOrgId();
+            var resolved = await _fraudRepo.ResolveFraudCaseAsync(id, dto, userOrgId);
 
             if (parsedOutcome == FraudOutcome.Confirmed)
             {
-                var claim = await _claimRepo.GetClaimByIdAsync(fc.ClaimID, GetLoggedInUserOrgId());
+                var claim = await _claimRepo.GetClaimByIdAsync(fc.ClaimID, userOrgId);
                 if (claim != null)
                 {
                     var updateDto = new UpdateClaimDto { Status = "Rejected" };
-                    await _claimRepo.UpdateClaimAsync(fc.ClaimID, updateDto, GetCurrentUserId());
+                    await _claimRepo.UpdateClaimAsync(fc.ClaimID, updateDto, GetLoggedInUserId() ?? 0, userOrgId);
                 }
+            }
+            else if (parsedOutcome == FraudOutcome.Cleared)
+            {
+                try { await _adjRepo.AutoAdjudicateAsync(fc.ClaimID, userOrgId); }
+                catch { /* adjudication failure does not block fraud resolution */ }
             }
 
             return Ok(new { message = $"Fraud case {id} resolved as '{dto.Outcome}'.", caseId = id });
-        }
-
-        // ── Helper ──
-        private int GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("UserID")?.Value;
-            return int.Parse(userIdClaim ?? "0");
         }
     }
 }
