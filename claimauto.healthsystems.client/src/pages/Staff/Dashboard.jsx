@@ -18,11 +18,12 @@ import { getAllFraudCases } from '../../services/fraud/fraudService';
 import { getAllAppeals } from '../../services/appeals/appealService';
 
 export default function StaffDashboard() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const { user }  = useAuth();
+  const navigate  = useNavigate();
 
+  // ── fix: filter by correct key ────────────────────────────
   const myMenu = getMenuForRole(user.role)
-    .filter((m) => m.key !== 'dashboard');
+    .filter((m) => m.key !== 'dashboard-staff');
 
   const [kpis,        setKpis]        = useState([]);
   const [kpisLoading, setKpisLoading] = useState(true);
@@ -105,7 +106,6 @@ export default function StaffDashboard() {
 
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar — only when fraud alerts exist ── */}
         {!statsLoading && fraudAlerts > 0 && (
           <PriorityActionBar
             accentColor="danger"
@@ -114,11 +114,10 @@ export default function StaffDashboard() {
             description="High-risk claims have been flagged and require your review."
             buttonLabel="View Fraud Cases"
             buttonIcon="bi-shield-exclamation"
-            onButtonClick={() => navigate('/fraud')}
+            onButtonClick={() => navigate('/staff/fraud')}
           />
         )}
 
-        {/* ── Stat Cards ─────────────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -174,7 +173,6 @@ export default function StaffDashboard() {
           </Col>
         </Row>
 
-        {/* ── KPI Section ────────────────────────────────────── */}
         <SectionHeader title="My Performance Metrics" live />
 
         <Row className="g-3 mb-4">
@@ -185,8 +183,10 @@ export default function StaffDashboard() {
               unit="%"
               label="Auto-Adjudication"
               target="Target: ≥ 80%"
-              status={kpisLoading ? 'Loading…' : getStatus(adjKPI)}
-              color={kpisLoading ? '#9e9e9e' : getColor(adjKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(adjKPI)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(adjKPI)}
               percent={kpisLoading ? 0 : getPercent(adjKPI)}
             />
           </Col>
@@ -197,8 +197,10 @@ export default function StaffDashboard() {
               unit="hrs"
               label="Average TAT"
               target="Target: ≤ 4 hrs"
-              status={kpisLoading ? 'Loading…' : getStatus(tatKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(tatKPI, true)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(tatKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(tatKPI, true)}
               percent={kpisLoading ? 0 : getPercent(tatKPI)}
             />
           </Col>
@@ -209,9 +211,12 @@ export default function StaffDashboard() {
               unit="%"
               label="Denial Rate"
               target="Target: < 10%"
-              status={kpisLoading ? 'Loading…' : getStatus(denialKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(denialKPI, true)}
-              percent={kpisLoading ? 0 : getPercent(denialKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(denialKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(denialKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(denialKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -221,14 +226,16 @@ export default function StaffDashboard() {
               unit="%"
               label="Fraud Flag Rate"
               target="Target: < 5%"
-              status={kpisLoading ? 'Loading…' : getStatus(fraudKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(fraudKPI, true)}
-              percent={kpisLoading ? 0 : getPercent(fraudKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(fraudKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(fraudKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(fraudKPI)}
             />
           </Col>
         </Row>
 
-        {/* ── Claims Queue + Tasks ────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col lg={7}>
             <DashboardPanel
