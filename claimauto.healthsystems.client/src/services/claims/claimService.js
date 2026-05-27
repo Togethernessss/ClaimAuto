@@ -87,3 +87,28 @@ export async function getClaimDocuments(claimId) {
   const response = await api.get(`/api/claims/${claimId}/documents`);
   return response.data;
 }
+
+export async function deleteDocument(claimId, docId) {
+  const response = await api.delete(`/api/claims/${claimId}/documents/${docId}`);
+  return response.data;
+}
+
+export async function verifyDocument(claimId, docId, status) {
+  const response = await api.put(
+    `/api/claims/${claimId}/documents/${docId}/verify`,
+    { status }
+  );
+  return response.data;
+}
+
+// ── PROCEED TO ADJUDICATION ───────────────────────────────────────────────────
+// Backend:  POST /api/claims/{id}/proceed-to-adjudication
+// Who:      Admin + InsuranceStaff only (enforced by backend)
+// Pre-condition: claim is DocsVerificationPending AND all docs are Verified or Rejected
+// Effect:   runs fraud scoring → if clean, runs auto-adjudication
+// Returns:  { claimID, fraudDetected, autoAdjudicated, adjudication?, message }
+// Future:   AI verification service calls this endpoint automatically — no frontend change needed
+export async function proceedToAdjudication(claimId) {
+  const response = await api.post(`/api/claims/${claimId}/proceed-to-adjudication`);
+  return response.data;
+}

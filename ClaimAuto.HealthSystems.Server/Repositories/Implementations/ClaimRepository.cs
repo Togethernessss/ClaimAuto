@@ -91,6 +91,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Include(c => c.ClaimLines)
                 .Include(c => c.ClaimDocuments)
                     .ThenInclude(d => d.Uploader)
+                .Include(c => c.ClaimDocuments)
+                    .ThenInclude(d => d.VerifiedBy)
                 .Include(c => c.AdjudicationRecords)
                     .ThenInclude(a => a.PerformedBy)
                 .AsQueryable();
@@ -143,7 +145,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 {
                     DocID = d.DocID,
                     ClaimID = d.ClaimID,
+                    UploadedByID = d.UploadedBy,
                     UploadedByName = d.Uploader.Name,
+                    VerifiedByName = d.VerifiedBy != null ? d.VerifiedBy.Name : null,
                     DocType = d.DocType.ToString(),
                     FileURI = d.FileURI,
                     SHA256 = d.SHA256,
@@ -230,7 +234,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ReceivedAt = now,
                 TotalBilledAmount = dto.TotalBilledAmount,
                 Currency = dto.Currency,
-                Status = ClaimStatus.Submitted,
+                Status = ClaimStatus.DocsVerificationPending,
                 Priority = priority,
                 SourceChannel = sourceChannel,
                 Notes = dto.Notes,
@@ -282,8 +286,32 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 }
             }
 
+            // ── Persist documents submitted with the claim ────────────────
+            // Documents are saved here so they exist BEFORE adjudication runs.
+            // DocStatus starts as Pending — staff verifies after submission.
+            if (dto.Documents != null && dto.Documents.Count > 0)
+            {
+                foreach (var docDto in dto.Documents)
+                {
+                    if (!Enum.TryParse<DocType>(docDto.DocType, out var docType))
+                        docType = DocType.Invoice;
+
+                    _db.ClaimDocuments.Add(new ClaimDocument
+                    {
+                        ClaimID = claim.ClaimID,
+                        UploadedBy = submittedByUserId,
+                        DocType = docType,
+                        FileURI = docDto.FileURI,
+                        SHA256 = docDto.SHA256,
+                        UploadedAt = now,
+                        Status = DocStatus.Pending,
+                        OrganizationID = userOrgId,
+                    });
+                }
+            }
+
             audit.ResourceID = claim.ClaimID.ToString();
-            await _db.SaveChangesAsync();   // ← Saves the lines above + updates audit ResourceID
+            await _db.SaveChangesAsync();   // ← Saves lines + documents + updates audit ResourceID
 
             return new ClaimResponseDto
             {
@@ -578,7 +606,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 DocID = doc.DocID,
                 ClaimID = doc.ClaimID,
+                UploadedByID = doc.UploadedBy,
                 UploadedByName = uploader.Name,
+                VerifiedByName = null,
                 DocType = doc.DocType.ToString(),
                 FileURI = doc.FileURI,
                 SHA256 = doc.SHA256,
@@ -603,7 +633,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 DocID = d.DocID,
                 ClaimID = d.ClaimID,
+                UploadedByID = d.UploadedBy,
                 UploadedByName = d.Uploader.Name,
+                VerifiedByName = d.VerifiedBy != null ? d.VerifiedBy.Name : null,
                 DocType = d.DocType.ToString(),
                 FileURI = d.FileURI,
                 SHA256 = d.SHA256,
@@ -611,6 +643,94 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Status = d.Status.ToString()
             })
             .ToListAsync();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  DELETE DOCUMENT
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<string> DeleteDocumentAsync(
+            int claimId, int docId, int requestingUserId, int? userOrgId = null)
+        {
+            var query = _db.ClaimDocuments
+                .Where(d => d.DocID == docId && d.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            var doc = await query.FirstOrDefaultAsync();
+            if (doc == null) return "notfound";
+
+            _db.ClaimDocuments.Remove(doc);
+            _db.AuditLogs.Add(new AuditLog
+            {
+                UserID = requestingUserId,
+                Action = "DeleteDocument",
+                ResourceType = "ClaimDocument",
+                ResourceID = docId.ToString(),
+                DetailsJSON = $"{{\"claimID\":{claimId}," +
+                              $"\"docID\":{docId}," +
+                              $"\"docType\":\"{doc.DocType}\"}}",
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = userOrgId,
+            });
+
+            await _db.SaveChangesAsync();
+            return "ok";
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  VERIFY / REJECT DOCUMENT
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<ClaimDocumentResponseDto?> VerifyDocumentAsync(
+            int claimId, int docId, VerifyDocumentDto dto,
+            int verifiedByUserId, int? userOrgId = null)
+        {
+            if (!Enum.TryParse<DocStatus>(dto.Status, out var newStatus))
+                return null;
+
+            var query = _db.ClaimDocuments
+                .Where(d => d.DocID == docId && d.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            var doc = await query.FirstOrDefaultAsync();
+            if (doc == null) return null;
+
+            doc.Status = newStatus;
+            doc.VerifiedByID = verifiedByUserId;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                UserID = verifiedByUserId,
+                Action = $"{dto.Status}Document",
+                ResourceType = "ClaimDocument",
+                ResourceID = docId.ToString(),
+                DetailsJSON = $"{{\"claimID\":{claimId}," +
+                              $"\"docID\":{docId}," +
+                              $"\"newStatus\":\"{dto.Status}\"}}",
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = userOrgId,
+            });
+
+            await _db.SaveChangesAsync();
+
+            var uploader = await _db.Users.FindAsync(doc.UploadedBy);
+            var verifier = await _db.Users.FindAsync(verifiedByUserId);
+
+            return new ClaimDocumentResponseDto
+            {
+                DocID = doc.DocID,
+                ClaimID = doc.ClaimID,
+                UploadedByID = doc.UploadedBy,
+                UploadedByName = uploader?.Name ?? "Unknown",
+                VerifiedByName = verifier?.Name,
+                DocType = doc.DocType.ToString(),
+                FileURI = doc.FileURI,
+                SHA256 = doc.SHA256,
+                UploadedAt = doc.UploadedAt,
+                Status = doc.Status.ToString()
+            };
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -627,6 +747,39 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return await query
                 .Select(m => m.MemberID)
                 .ToListAsync();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  VALIDATE PROCEED TO ADJUDICATION
+        //  Pre-flight check before staff triggers fraud scoring + adjudication.
+        //  Rules:
+        //    1. Claim must exist and belong to the caller's org (tenant safety)
+        //    2. Claim must be in DocsVerificationPending status
+        //    3. Every attached document must be Verified or Rejected — none can be Pending
+        //       (forces staff to actively review every document, not silently skip them)
+        //  Returns: "ok" | "notfound" | "wrongstatus" | "pendingdocs"
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<string> ValidateProceedToAdjudicationAsync(int claimId, int? userOrgId = null)
+        {
+            var query = _db.Claims
+                .Include(c => c.ClaimDocuments)
+                .Where(c => c.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
+            if (claim == null) return "notfound";
+
+            if (claim.Status != ClaimStatus.DocsVerificationPending)
+                return "wrongstatus";
+
+            // Every document must have been actively reviewed — no unreviewed (Pending) docs allowed.
+            // Staff can still proceed with zero documents — the judgment call belongs to them.
+            var hasPendingDocs = claim.ClaimDocuments.Any(d => d.Status == DocStatus.Pending);
+            if (hasPendingDocs) return "pendingdocs";
+
+            return "ok";
         }
     }
 }

@@ -4,7 +4,7 @@
     public enum UserRole { Admin, InsuranceStaff, Policyholder, Hospital }
     public enum AccountStatus { Active, Inactive }
     public enum ClaimType { Inpatient, Outpatient, Pharmacy, Emergency, Reimbursement }
-    public enum ClaimStatus { Submitted, UnderReview, Approved, Rejected, Paid }
+    public enum ClaimStatus { Submitted, UnderReview, Approved, Rejected, Paid, DocsVerificationPending }
     public enum ClaimPriority { Normal, High, Urgent }
     public enum SourceChannel { Portal, EDI, API, BatchCSV }
     public enum LineStatus { Pending, Approved, Denied }

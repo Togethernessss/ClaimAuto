@@ -15,6 +15,7 @@
         public string SourceChannel { get; set; } = string.Empty; // "Portal","EDI","API","BatchCSV"
         public string? Notes { get; set; }   // ← ADD: Policyholder describes treatment
         public List<AddClaimLineDto>? Lines { get; set; }
+        public List<UploadDocumentDto>? Documents { get; set; }
     }
 
     // ── ClaimResponseDto 
@@ -102,12 +103,19 @@
     {
         public int DocID { get; set; }
         public int ClaimID { get; set; }
-        public string UploadedByName { get; set; } = string.Empty; // resolved
+        public int UploadedByID { get; set; }
+        public string UploadedByName { get; set; } = string.Empty;
+        public string? VerifiedByName { get; set; }
         public string DocType { get; set; } = string.Empty;
         public string FileURI { get; set; } = string.Empty;
         public string SHA256 { get; set; } = string.Empty;
         public DateTime UploadedAt { get; set; }
-        public string Status { get; set; } = string.Empty;        // "Pending","Verified","Rejected"
+        public string Status { get; set; } = string.Empty;
+    }
+
+    public class VerifyDocumentDto
+    {
+        public string Status { get; set; } = string.Empty;   // "Verified" | "Rejected"
     }
 
     // ── UpdateClaimDto 

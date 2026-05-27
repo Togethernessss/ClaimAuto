@@ -1,4 +1,4 @@
-import { useState }                         from 'react';
+import { useState, useEffect, useRef }     from 'react';
 import { Modal, Form, Button, Alert, Spinner, Row, Col, ListGroup } from 'react-bootstrap';
 
 export default function CreateModal({
@@ -6,22 +6,36 @@ export default function CreateModal({
   loading,
   error,
   form,
-  policies,           // array of active policies for dropdown
-  policyholderUsers,  // array of registered Policyholder users for dropdown
+  policies,
+  policyholderUsers,
   onHide,
   onFieldChange,
   onSubmit,
 }) {
-  // Local state for searching within the Policyholder user dropdown
   const [userSearch, setUserSearch] = useState('');
+  const [isOpen, setIsOpen]         = useState(false);
+  const dropdownRef                  = useRef(null);
 
-  // Filter users based on search input
+  // Reset dropdown when modal closes
+  useEffect(() => {
+    if (!show) { setIsOpen(false); setUserSearch(''); }
+  }, [show]);
+
+  // Close when clicking outside the dropdown
+  useEffect(() => {
+    const close = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setIsOpen(false);
+    };
+    if (isOpen) document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [isOpen]);
+
   const filteredUsers = (policyholderUsers || []).filter((u) =>
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  // Find selected user for display confirmation
   const selectedUser = (policyholderUsers || []).find(
     (u) => String(u.userID) === String(form.policyholderUserID)
   );
@@ -47,72 +61,109 @@ export default function CreateModal({
 
           <Row className="g-3">
 
-            {/* ── Policyholder User Selection (searchable) ── */}
+            {/* ── Policyholder User Selection (click-to-open) ── */}
             <Col md={12}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
                   Link to Registered User <span className="text-danger">*</span>
                 </Form.Label>
 
-                {/* Search box */}
-                <Form.Control
-                  type="text"
-                  placeholder="Search by name or email..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="mb-1"
-                />
+                <div ref={dropdownRef} style={{ position: 'relative' }}>
+                  {/* Trigger */}
+                  <div
+                    onClick={() => setIsOpen((o) => !o)}
+                    className="form-control d-flex align-items-center justify-content-between"
+                    style={{ cursor: 'pointer', minHeight: 38 }}
+                  >
+                    {selectedUser ? (
+                      <div className="d-flex align-items-center gap-2">
+                        <i className="bi bi-person-circle text-primary"></i>
+                        <span className="fw-semibold small">{selectedUser.name}</span>
+                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          {selectedUser.email}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted small">— Select a Policyholder user —</span>
+                    )}
+                    <i
+                      className={`bi bi-chevron-${isOpen ? 'up' : 'down'} text-muted ms-2`}
+                      style={{ fontSize: '0.75rem' }}
+                    />
+                  </div>
 
-                {/* Scrollable user list */}
-                <div
-                  style={{
-                    border: '1px solid #dee2e6',
-                    borderRadius: 6,
-                    maxHeight: 160,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {filteredUsers.length === 0 ? (
-                    <div className="text-muted small p-3 text-center">
-                      {userSearch
-                        ? 'No registered users match your search'
-                        : 'No registered Policyholder users found'}
+                  {/* Dropdown panel */}
+                  {isOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%', left: 0, right: 0,
+                        zIndex: 1050,
+                        background: '#fff',
+                        border: '1px solid #dee2e6',
+                        borderRadius: 6,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                        marginTop: 4,
+                      }}
+                    >
+                      <div className="p-2 border-bottom">
+                        <Form.Control
+                          autoFocus
+                          size="sm"
+                          type="text"
+                          placeholder="Search by name or email..."
+                          value={userSearch}
+                          onChange={(e) => setUserSearch(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {filteredUsers.length === 0 ? (
+                          <div className="text-muted small p-3 text-center">
+                            {userSearch
+                              ? 'No users match your search'
+                              : 'No registered Policyholder users found'}
+                          </div>
+                        ) : (
+                          <ListGroup variant="flush">
+                            {filteredUsers.map((u) => {
+                              const isSelected =
+                                String(form.policyholderUserID) === String(u.userID);
+                              return (
+                                <ListGroup.Item
+                                  key={u.userID}
+                                  action
+                                  active={isSelected}
+                                  onClick={() => {
+                                    onFieldChange('policyholderUserID')({
+                                      target: { value: String(u.userID) },
+                                    });
+                                    setIsOpen(false);
+                                    setUserSearch('');
+                                  }}
+                                  className="d-flex align-items-center gap-2 py-2"
+                                  style={{ cursor: 'pointer', fontSize: '0.85rem' }}
+                                >
+                                  <i className="bi bi-person-circle text-primary"></i>
+                                  <div>
+                                    <div className="fw-semibold">{u.name}</div>
+                                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                      {u.email}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <i className="bi bi-check-circle-fill text-white ms-auto"></i>
+                                  )}
+                                </ListGroup.Item>
+                              );
+                            })}
+                          </ListGroup>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <ListGroup variant="flush">
-                      {filteredUsers.map((u) => {
-                        const isSelected = String(form.policyholderUserID) === String(u.userID);
-                        return (
-                          <ListGroup.Item
-                            key={u.userID}
-                            action
-                            active={isSelected}
-                            onClick={() =>
-                              onFieldChange('policyholderUserID')({
-                                target: { value: String(u.userID) },
-                              })
-                            }
-                            className="d-flex align-items-center gap-2 py-2"
-                            style={{ cursor: 'pointer', fontSize: '0.85rem' }}
-                          >
-                            <i className="bi bi-person-circle text-primary"></i>
-                            <div>
-                              <div className="fw-semibold">{u.name}</div>
-                              <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                {u.email}
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <i className="bi bi-check-circle-fill text-white ms-auto"></i>
-                            )}
-                          </ListGroup.Item>
-                        );
-                      })}
-                    </ListGroup>
                   )}
                 </div>
 
-                {/* Hidden native select for form validation */}
+                {/* Hidden native select keeps browser required-field validation */}
                 <Form.Select
                   value={form.policyholderUserID}
                   onChange={onFieldChange('policyholderUserID')}
@@ -125,22 +176,6 @@ export default function CreateModal({
                     <option key={u.userID} value={u.userID}>{u.name}</option>
                   ))}
                 </Form.Select>
-
-                {/* Confirmation chip when a user is selected */}
-                {selectedUser && (
-                  <div
-                    className="mt-2 d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill"
-                    style={{
-                      background: '#e8f5e9',
-                      border: '1px solid #a5d6a7',
-                      fontSize: '0.78rem',
-                      color: '#2e7d32',
-                    }}
-                  >
-                    <i className="bi bi-check-circle-fill"></i>
-                    Selected: <strong>{selectedUser.name}</strong>
-                  </div>
-                )}
 
                 <Form.Text className="text-muted">
                   The member record will be linked to this user's account.
@@ -183,6 +218,7 @@ export default function CreateModal({
                   value={form.name}
                   onChange={onFieldChange('name')}
                   required
+                  minLength={2}
                 />
               </Form.Group>
             </Col>
@@ -197,6 +233,7 @@ export default function CreateModal({
                   type="date"
                   value={form.dob}
                   onChange={onFieldChange('dob')}
+                  min="1900-01-01"
                   max={new Date().toISOString().split('T')[0]}
                   required
                 />
@@ -269,7 +306,11 @@ export default function CreateModal({
                   type="tel"
                   placeholder="e.g. 9000000000"
                   value={form.contactPhone}
-                  onChange={onFieldChange('contactPhone')}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    onFieldChange('contactPhone')({ target: { value: digits } });
+                  }}
+                  maxLength={10}
                 />
               </Form.Group>
             </Col>
