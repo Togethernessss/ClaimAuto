@@ -20,12 +20,13 @@ import { getAllPayments } from '../../services/payments/paymentService';
 import { getAllFraudCases } from '../../services/fraud/fraudService';
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const { user }   = useAuth();
+  const navigate   = useNavigate();
   const [showInvite, setShowInvite] = useState(false);
 
+  // ── fix: filter by correct key ────────────────────────────
   const myMenu = getMenuForRole(user.role)
-    .filter((m) => m.key !== 'dashboard');
+    .filter((m) => m.key !== 'dashboard-admin');
 
   const [kpis,        setKpis]        = useState([]);
   const [kpisLoading, setKpisLoading] = useState(true);
@@ -141,29 +142,29 @@ export default function AdminDashboard() {
         emoji="👑"
         actions={[
           {
-            label: 'Invite User',
-            icon: 'bi-envelope-plus',
+            label:   'Invite User',
+            icon:    'bi-envelope-plus',
             variant: 'light',
             onClick: () => setShowInvite(true),
           },
           {
-            label: 'Manage Users',
-            icon: 'bi-people',
+            label:   'Manage Users',
+            icon:    'bi-people',
             variant: 'outline-light',
-            onClick: () => navigate('/members'),
+            onClick: () => navigate('/admin/members'),
           },
           {
-            label: 'Audit Logs',
-            icon: 'bi-journal-text',
+            label:   'Audit Logs',
+            icon:    'bi-journal-text',
             variant: 'outline-light',
-            onClick: () => navigate('/audit-logs'),
+            // ── fix: use new path ─────────────────────
+            onClick: () => navigate('/admin/audit-logs'),
           },
         ]}
       />
 
       <div className="px-4 pb-4">
 
-        {/* ── Priority Action Bar — only when fraud cases exist ── */}
         {!statsLoading && fraudCases > 0 && (
           <PriorityActionBar
             accentColor="danger"
@@ -172,11 +173,10 @@ export default function AdminDashboard() {
             description="Review and investigate open fraud cases immediately."
             buttonLabel="View Fraud Cases"
             buttonIcon="bi-shield-exclamation"
-            onButtonClick={() => navigate('/fraud')}
+            onButtonClick={() => navigate('/admin/fraud')}
           />
         )}
 
-        {/* ── Stat Cards ─────────────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col md={6} lg={3}>
             <StatCard
@@ -229,7 +229,6 @@ export default function AdminDashboard() {
           </Col>
         </Row>
 
-        {/* ── KPI Section ────────────────────────────────────── */}
         <SectionHeader title="System Performance Metrics" live />
 
         <Row className="g-3 mb-4">
@@ -240,8 +239,10 @@ export default function AdminDashboard() {
               unit="%"
               label="Auto-Adjudication"
               target="Target: ≥ 80%"
-              status={kpisLoading ? 'Loading…' : getStatus(adjKPI)}
-              color={kpisLoading ? '#9e9e9e' : getColor(adjKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(adjKPI)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(adjKPI)}
               percent={kpisLoading ? 0 : getPercent(adjKPI)}
             />
           </Col>
@@ -252,8 +253,10 @@ export default function AdminDashboard() {
               unit="hrs"
               label="Average TAT"
               target="Target: ≤ 4 hrs"
-              status={kpisLoading ? 'Loading…' : getStatus(tatKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(tatKPI, true)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(tatKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(tatKPI, true)}
               percent={kpisLoading ? 0 : getPercent(tatKPI)}
             />
           </Col>
@@ -264,9 +267,12 @@ export default function AdminDashboard() {
               unit="%"
               label="Denial Rate"
               target="Target: < 10%"
-              status={kpisLoading ? 'Loading…' : getStatus(denialKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(denialKPI, true)}
-              percent={kpisLoading ? 0 : getPercent(denialKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(denialKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(denialKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(denialKPI)}
             />
           </Col>
           <Col md={6} lg={3}>
@@ -276,14 +282,16 @@ export default function AdminDashboard() {
               unit="%"
               label="Fraud Flag Rate"
               target="Target: < 5%"
-              status={kpisLoading ? 'Loading…' : getStatus(fraudKPI, true)}
-              color={kpisLoading ? '#9e9e9e' : getColor(fraudKPI, true)}
-              percent={kpisLoading ? 0 : getPercent(fraudKPI)}
+              status={kpisLoading ? 'Loading…' :
+                getStatus(fraudKPI, true)}
+              color={kpisLoading ? '#9e9e9e' :
+                getColor(fraudKPI, true)}
+              percent={kpisLoading ? 0 :
+                getPercent(fraudKPI)}
             />
           </Col>
         </Row>
 
-        {/* ── Activity + Approvals ────────────────────────────── */}
         <Row className="g-3 mb-4">
           <Col lg={7}>
             <DashboardPanel

@@ -130,6 +130,7 @@ export default function CreateModal({
                   type="date"
                   value={form.effectiveTo}
                   onChange={onFieldChange('effectiveTo')}
+                  min={form.effectiveFrom || undefined}
                 />
                 <Form.Text className="text-muted">
                   Leave blank for auto-renewing plans.

@@ -2,11 +2,14 @@
 // Hospital submits a new claim with claim lines.
 // Production design: selecting a member enrollment auto-determines the policy.
 // One member can have multiple enrollments (one per policy) — each is a separate MemberID.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Modal, Form, Button, Alert, Spinner, Row, Col, Table, Badge,
 } from 'react-bootstrap';
-import { HOSPITAL_CLAIM_TYPES, CLAIM_PRIORITIES, formatCurrency } from '../utils/claimHelpers';
+import {
+  HOSPITAL_CLAIM_TYPES, CLAIM_PRIORITIES, formatCurrency,
+  DOC_TYPES, computeSHA256, simulateFileURI,
+} from '../utils/claimHelpers';
 import { lookupMemberByNumber } from '../../../../services/members/memberService';
 const EMPTY_LINE = {
   serviceCode:   '',
@@ -45,6 +48,16 @@ export default function SubmitClaimModal({
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError,   setLookupError]   = useState(null);
 
+  const [editLineIdx, setEditLineIdx] = useState(null); // null = adding new, number = editing existing
+
+  // ── Document attachments ──────────────────────────────────────────────────
+  const [docs,          setDocs]          = useState([]);   // { docType, file, fileName }
+  const [docType,       setDocType]       = useState('Invoice');
+  const [docFileName,   setDocFileName]   = useState('');
+  const [docError,      setDocError]      = useState(null);
+  const [showDocForm,   setShowDocForm]   = useState(false);
+  const docFileRef = useRef(null);
+
   // Reset on open
   useEffect(() => {
     if (show) {
@@ -64,6 +77,13 @@ export default function SubmitClaimModal({
       setLookupResult(null);
       setLookupLoading(false);
       setLookupError(null);
+      setEditLineIdx(null);
+      setDocs([]);
+      setDocType('Invoice');
+      setDocFileName('');
+      setDocError(null);
+      setShowDocForm(false);
+      if (docFileRef.current) docFileRef.current.value = '';
     }
   }, [show]);
 
@@ -102,6 +122,10 @@ export default function SubmitClaimModal({
   const handleLineField = (field) => (e) =>
     setLineForm({ ...lineForm, [field]: e.target.value });
 
+  // Uppercase + strip whitespace for medical codes
+  const handleCodeField = (field) => (e) =>
+    setLineForm({ ...lineForm, [field]: e.target.value.toUpperCase().replace(/\s/g, '') });
+
   const handleLineQtyOrPrice = (field) => (e) => {
     const updated = { ...lineForm, [field]: e.target.value };
     const qty   = Number(updated.quantity)  || 0;
@@ -110,48 +134,124 @@ export default function SubmitClaimModal({
     setLineForm(updated);
   };
 
-  const addLine = () => {
+  // Handles both adding a new line and saving edits to an existing line
+  const saveLine = () => {
     setLineError(null);
-    if (!lineForm.serviceCode.trim()) {
+
+    const serviceCodeClean  = lineForm.serviceCode.trim().toUpperCase();
+    const diagCodeClean     = lineForm.diagnosisCode.trim().toUpperCase();
+    const procCodeClean     = lineForm.procedureCode.trim().toUpperCase();
+
+    if (!serviceCodeClean) {
       setLineError('Service code is required.');
+      return;
+    }
+    if (!/^[A-Z0-9][A-Z0-9\-\.]{0,19}$/.test(serviceCodeClean)) {
+      setLineError('Service code must be alphanumeric — e.g. 99223, A0427, HCPC-001.');
       return;
     }
     if (!lineForm.serviceDate) {
       setLineError('Service date is required.');
       return;
     }
+    if (new Date(lineForm.serviceDate) > new Date()) {
+      setLineError('Service date cannot be in the future — claims must be for services already rendered.');
+      return;
+    }
+    if (Number(lineForm.quantity) < 1 || !Number.isInteger(Number(lineForm.quantity))) {
+      setLineError('Quantity must be a whole number of at least 1.');
+      return;
+    }
     if (!lineForm.unitPrice || Number(lineForm.unitPrice) <= 0) {
       setLineError('Unit price must be greater than 0.');
       return;
     }
+    if (diagCodeClean && !/^[A-Z]\d{2}[\w\.]{0,5}$/.test(diagCodeClean)) {
+      setLineError('Diagnosis code must be a valid ICD-10 code — e.g. J18.9, M79.3, I10.');
+      return;
+    }
+    if (procCodeClean && !/^[A-Z0-9][A-Z0-9\-\.]{0,19}$/.test(procCodeClean)) {
+      setLineError('Procedure code must be alphanumeric — e.g. 27447, G0104.');
+      return;
+    }
+
     const qty   = Number(lineForm.quantity)  || 1;
     const price = Number(lineForm.unitPrice) || 0;
-    setLines([...lines, {
-      serviceCode:        lineForm.serviceCode.trim(),
+    const lineData = {
+      serviceCode:        serviceCodeClean,
       serviceDate:        lineForm.serviceDate,
       quantity:           qty,
       unitPrice:          price,
       lineBilledAmount:   qty * price,
-      diagnosisCodesJSON: lineForm.diagnosisCode
-                            ? JSON.stringify([lineForm.diagnosisCode.trim()])
-                            : null,
-      procedureCodesJSON: lineForm.procedureCode
-                            ? JSON.stringify([lineForm.procedureCode.trim()])
-                            : null,
-    }]);
+      diagnosisCodesJSON: diagCodeClean ? JSON.stringify([diagCodeClean]) : null,
+      procedureCodesJSON: procCodeClean ? JSON.stringify([procCodeClean]) : null,
+    };
+
+    if (editLineIdx !== null) {
+      // Editing an existing line
+      const updated = [...lines];
+      updated[editLineIdx] = lineData;
+      setLines(updated);
+      setEditLineIdx(null);
+    } else {
+      // Adding a new line
+      setLines([...lines, lineData]);
+    }
     setLineForm(EMPTY_LINE);
     setShowLineForm(false);
+  };
+
+  const startEditLine = (idx) => {
+    const line = lines[idx];
+    let diagCode = '';
+    let procCode = '';
+    try { diagCode = line.diagnosisCodesJSON ? JSON.parse(line.diagnosisCodesJSON)[0] || '' : ''; } catch {}
+    try { procCode = line.procedureCodesJSON ? JSON.parse(line.procedureCodesJSON)[0] || '' : ''; } catch {}
+    setLineForm({
+      serviceCode:   line.serviceCode,
+      serviceDate:   line.serviceDate,
+      quantity:      String(line.quantity),
+      unitPrice:     String(line.unitPrice),
+      diagnosisCode: diagCode,
+      procedureCode: procCode,
+    });
+    setEditLineIdx(idx);
+    setShowLineForm(true);
+    setLineError(null);
   };
 
   const removeLine = (idx) =>
     setLines(lines.filter((_, i) => i !== idx));
 
-  const handleSubmit = (e) => {
+  const addDoc = () => {
+    const file = docFileRef.current?.files?.[0];
+    if (!file) { setDocError('Please select a file.'); return; }
+    setDocs([...docs, { docType, file, fileName: file.name }]);
+    setDocType('Invoice');
+    setDocFileName('');
+    setDocError(null);
+    setShowDocForm(false);
+    if (docFileRef.current) docFileRef.current.value = '';
+  };
+
+  const removeDoc = (idx) => setDocs(docs.filter((_, i) => i !== idx));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.memberID) {
       setLookupError('Please find a patient first by entering their member number above.');
       return;
     }
+    // Compute SHA-256 and build fileURIs for each queued document.
+    // This runs before the API call so documents are embedded in the claim
+    // creation payload and saved before adjudication runs.
+    const processedDocs = await Promise.all(
+      docs.map(async (d) => ({
+        docType:  d.docType,
+        fileURI:  simulateFileURI(0, d.docType, d.fileName),  // claimID=0 placeholder; backend stores as-is
+        sha256:   await computeSHA256(d.file),
+      }))
+    );
     onSubmit(
       {
         externalClaimRef:  form.externalClaimRef || null,
@@ -166,6 +266,7 @@ export default function SubmitClaimModal({
         notes:             form.notes || null,
       },
       lines,
+      processedDocs,
     );
   };
 
@@ -374,7 +475,8 @@ export default function SubmitClaimModal({
                         size="sm"
                         placeholder="e.g. 99223"
                         value={lineForm.serviceCode}
-                        onChange={handleLineField('serviceCode')}
+                        onChange={handleCodeField('serviceCode')}
+                        title="CPT or HCPCS code — alphanumeric, no spaces"
                       />
                     </Col>
                     <Col md={3}>
@@ -383,6 +485,7 @@ export default function SubmitClaimModal({
                         size="sm"
                         type="date"
                         value={lineForm.serviceDate}
+                        max={new Date().toISOString().split('T')[0]}
                         onChange={handleLineField('serviceDate')}
                       />
                     </Col>
@@ -420,21 +523,27 @@ export default function SubmitClaimModal({
                       />
                     </Col>
                     <Col md={3}>
-                      <Form.Label className="small fw-semibold">Diagnosis Code</Form.Label>
+                      <Form.Label className="small fw-semibold">
+                        Diagnosis Code <span className="text-muted fw-normal">(ICD-10)</span>
+                      </Form.Label>
                       <Form.Control
                         size="sm"
                         placeholder="e.g. J18.9"
                         value={lineForm.diagnosisCode}
-                        onChange={handleLineField('diagnosisCode')}
+                        onChange={handleCodeField('diagnosisCode')}
+                        title="ICD-10 code — letter + 2 digits + optional decimal, e.g. J18.9"
                       />
                     </Col>
                     <Col md={3}>
-                      <Form.Label className="small fw-semibold">Procedure Code</Form.Label>
+                      <Form.Label className="small fw-semibold">
+                        Procedure Code <span className="text-muted fw-normal">(CPT)</span>
+                      </Form.Label>
                       <Form.Control
                         size="sm"
                         placeholder="e.g. 27447"
                         value={lineForm.procedureCode}
-                        onChange={handleLineField('procedureCode')}
+                        onChange={handleCodeField('procedureCode')}
+                        title="CPT procedure code — alphanumeric, no spaces"
                       />
                     </Col>
                     <Col md={12} className="d-flex justify-content-end gap-2 mt-1">
@@ -442,12 +551,20 @@ export default function SubmitClaimModal({
                         variant="light"
                         size="sm"
                         type="button"
-                        onClick={() => { setShowLineForm(false); setLineError(null); }}
+                        onClick={() => {
+                          setShowLineForm(false);
+                          setLineError(null);
+                          setEditLineIdx(null);
+                          setLineForm(EMPTY_LINE);
+                        }}
                       >
                         Cancel
                       </Button>
-                      <Button variant="primary" size="sm" type="button" onClick={addLine}>
-                        <i className="bi bi-plus me-1"></i> Add Line
+                      <Button variant="primary" size="sm" type="button" onClick={saveLine}>
+                        {editLineIdx !== null
+                          ? <><i className="bi bi-check2 me-1"></i>Update Line</>
+                          : <><i className="bi bi-plus me-1"></i>Add Line</>
+                        }
                       </Button>
                     </Col>
                   </Row>
@@ -485,15 +602,28 @@ export default function SubmitClaimModal({
                             {formatCurrency(line.lineBilledAmount)}
                           </td>
                           <td className="py-2 pe-3 text-end">
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="text-danger p-0"
-                              type="button"
-                              onClick={() => removeLine(idx)}
-                            >
-                              <i className="bi bi-trash3"></i>
-                            </Button>
+                            <div className="d-flex align-items-center justify-content-end gap-2">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="text-primary p-0"
+                                type="button"
+                                title="Edit this line"
+                                onClick={() => startEditLine(idx)}
+                              >
+                                <i className="bi bi-pencil" style={{ fontSize: '0.8rem' }}></i>
+                              </Button>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="text-danger p-0"
+                                type="button"
+                                title="Remove this line"
+                                onClick={() => removeLine(idx)}
+                              >
+                                <i className="bi bi-trash3" style={{ fontSize: '0.8rem' }}></i>
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -520,6 +650,126 @@ export default function SubmitClaimModal({
                 >
                   <i className="bi bi-list-ul me-2"></i>
                   No service lines added yet. Click "Add Line" to add.
+                </div>
+              )}
+            </Col>
+
+            {/* ── Supporting Documents ───────────────────────────────── */}
+            <Col md={12}>
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <div className="small fw-semibold">
+                  Supporting Documents
+                  {docs.length > 0 && (
+                    <Badge bg="secondary" className="ms-2">{docs.length}</Badge>
+                  )}
+                </div>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  className="rounded-pill px-3"
+                  style={{ fontSize: '0.78rem' }}
+                  onClick={() => { setShowDocForm(!showDocForm); setDocError(null); }}
+                  type="button"
+                >
+                  <i className="bi bi-paperclip me-1"></i>Attach File
+                </Button>
+              </div>
+
+              {/* Add doc form */}
+              {showDocForm && (
+                <div
+                  className="rounded-3 p-3 mb-2"
+                  style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
+                >
+                  {docError && (
+                    <Alert variant="danger" className="py-2 small mb-2">
+                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                      {docError}
+                    </Alert>
+                  )}
+                  <Row className="g-2 align-items-end">
+                    <Col md={4}>
+                      <Form.Label className="small fw-semibold">Document Type</Form.Label>
+                      <Form.Select
+                        size="sm"
+                        value={docType}
+                        onChange={(e) => setDocType(e.target.value)}
+                      >
+                        {DOC_TYPES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Label className="small fw-semibold">File</Form.Label>
+                      <input
+                        ref={docFileRef}
+                        type="file"
+                        className="form-control form-control-sm"
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        onChange={(e) => setDocFileName(e.target.files?.[0]?.name || '')}
+                      />
+                    </Col>
+                    <Col md={2} className="d-flex gap-1">
+                      <Button
+                        variant="light"
+                        size="sm"
+                        type="button"
+                        onClick={() => { setShowDocForm(false); setDocError(null); }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        type="button"
+                        onClick={addDoc}
+                        disabled={!docFileName}
+                      >
+                        Add
+                      </Button>
+                    </Col>
+                  </Row>
+                </div>
+              )}
+
+              {/* Queued docs list */}
+              {docs.length > 0 && (
+                <div className="d-flex flex-column gap-1">
+                  {docs.map((d, idx) => (
+                    <div
+                      key={idx}
+                      className="d-flex align-items-center justify-content-between rounded px-3 py-2"
+                      style={{ background: '#f0f4ff', border: '1px solid #c7d7f9', fontSize: '0.82rem' }}
+                    >
+                      <div className="d-flex align-items-center gap-2">
+                        <i className="bi bi-file-earmark-text text-primary"></i>
+                        <span className="fw-semibold">{d.fileName}</span>
+                        <Badge bg="light" text="dark" className="border" style={{ fontSize: '0.68rem' }}>
+                          {d.docType}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="text-danger p-0"
+                        type="button"
+                        onClick={() => removeDoc(idx)}
+                      >
+                        <i className="bi bi-x-lg" style={{ fontSize: '0.75rem' }}></i>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {docs.length === 0 && !showDocForm && (
+                <div
+                  className="text-center py-2 rounded-3 text-muted small"
+                  style={{ background: '#f8f9fa', border: '1px dashed #dee2e6' }}
+                >
+                  <i className="bi bi-paperclip me-1"></i>
+                  Optional — attach invoices, lab reports, or prescriptions.
                 </div>
               )}
             </Col>

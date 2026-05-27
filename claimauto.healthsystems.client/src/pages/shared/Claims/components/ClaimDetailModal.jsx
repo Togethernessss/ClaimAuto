@@ -17,21 +17,30 @@ import {
 
 export default function ClaimDetailModal({
   show,
-  claim,           // ClaimDetailResponseDto | null
-  loadingDetail,   // boolean — fetching detail
-  uploadingDoc,    // boolean — upload in progress
-  uploadError,     // string | null
-  uploadSuccess,   // string | null
+  claim,
+  loadingDetail,
+  uploadingDoc,
+  uploadError,
+  uploadSuccess,
+  proceedLoading,
+  proceedError,
   isAdmin,
   isStaff,
   isHospital,
   isPolicyholder,
+  currentUserId,
   onHide,
-  onUploadDocument, // (claimId, dto) => void
+  onUploadDocument,
+  onDeleteDocument,
+  onVerifyDocument,
+  onProceedToAdjudication,
 }) {
-  const [activeTab, setActiveTab] = useState('info');
-  const [docType, setDocType] = useState('Invoice');
-  const [fileName, setFileName] = useState('');
+  const [activeTab,      setActiveTab]      = useState('info');
+  const [docType,        setDocType]        = useState('Invoice');
+  const [fileName,       setFileName]       = useState('');
+  const [deletingDocId,  setDeletingDocId]  = useState(null);
+  const [verifyingDocId, setVerifyingDocId] = useState(null);
+  const [previewDocId,   setPreviewDocId]   = useState(null);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -39,11 +48,41 @@ export default function ClaimDetailModal({
       setActiveTab('info');
       setDocType('Invoice');
       setFileName('');
+      setDeletingDocId(null);
+      setVerifyingDocId(null);
+      setPreviewDocId(null);
       if (fileRef.current) fileRef.current.value = '';
     }
   }, [show]);
 
-  const canUpload = isAdmin || isStaff || isHospital || isPolicyholder;
+  // ── Document permission helpers ─────────────────────────────────────────
+  const finalStatuses  = ['Approved', 'Rejected', 'Paid'];
+  const claimFinalized = finalStatuses.includes(claim?.status);
+
+  // Who can upload:
+  //   Staff/Admin — any non-finalized claim
+  //   Hospital/Policyholder — only while in the document review window (Submitted legacy or DocsVerificationPending)
+  const docReviewWindow = claim?.status === 'Submitted' || claim?.status === 'DocsVerificationPending';
+  const canUpload = !claimFinalized && (
+    (isAdmin || isStaff) || ((isHospital || isPolicyholder) && docReviewWindow)
+  );
+
+  // Who can delete a specific document
+  const canDeleteDoc = (doc) => {
+    if (doc.status === 'Verified') return false;   // audit trail — never deletable once verified
+    if (claimFinalized) return false;
+    if (isAdmin) return true;
+    if (isStaff) return true;
+    return doc.uploadedByID === currentUserId && docReviewWindow;
+  };
+
+  // Who can verify/reject a document
+  const canVerifyDoc = (doc) =>
+    (isAdmin || isStaff) && doc.status === 'Pending' && !claimFinalized;
+
+  // Hospital/Policyholder cannot view the document list once a claim is finalized.
+  // Staff/Admin always have full access for audit purposes.
+  const canViewDocs = (isAdmin || isStaff) || !claimFinalized;
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -313,38 +352,260 @@ export default function ClaimDetailModal({
                     </div>
                   )}
 
-                  {/* Document list */}
-                  {!claim.claimDocuments || claim.claimDocuments.length === 0 ? (
+                  {/* Lock notice for finalized claims */}
+                  {claimFinalized && (
+                    <div
+                      className="rounded-3 p-2 mb-3 d-flex align-items-center gap-2"
+                      style={{ background: '#fff8e1', border: '1px solid #ffe082' }}
+                    >
+                      <i className="bi bi-lock-fill text-warning"></i>
+                      <span className="small text-muted">
+                        This claim is <strong>{claim?.status}</strong> — its document set is locked and cannot be modified.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* ── Proceed to Adjudication panel — Staff/Admin only ─────────────────── */}
+                  {/* Shown only while the claim is awaiting document verification.          */}
+                  {/* The button is disabled until every document is Verified or Rejected,   */}
+                  {/* enforcing that staff cannot silently skip document review.              */}
+                  {(isAdmin || isStaff) && claim?.status === 'DocsVerificationPending' && (
+                    <div
+                      className="rounded-3 p-3 mb-3"
+                      style={{ background: '#e8f5e9', border: '1px solid #a5d6a7' }}
+                    >
+                      <div className="small fw-semibold mb-1" style={{ color: '#2e7d32' }}>
+                        <i className="bi bi-cpu me-2"></i>
+                        Ready to Adjudicate?
+                      </div>
+                      {(() => {
+                        const pendingCount = (claim.claimDocuments ?? [])
+                          .filter((d) => d.status === 'Pending').length;
+                        return (
+                          <>
+                            {pendingCount > 0 ? (
+                              <div className="small text-muted mb-2">
+                                <i className="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                                {pendingCount} document{pendingCount !== 1 ? 's are' : ' is'} still
+                                unreviewed. Verify or reject all documents before proceeding.
+                              </div>
+                            ) : (
+                              <div className="small text-muted mb-2">
+                                All documents have been reviewed. You can now proceed to fraud
+                                scoring and auto-adjudication.
+                              </div>
+                            )}
+                            {proceedError && (
+                              <div
+                                className="small text-danger mb-2 d-flex align-items-center gap-1"
+                              >
+                                <i className="bi bi-exclamation-triangle-fill"></i>
+                                {proceedError}
+                              </div>
+                            )}
+                            <Button
+                              variant="success"
+                              size="sm"
+                              className="fw-semibold px-3"
+                              disabled={pendingCount > 0 || proceedLoading}
+                              onClick={() => onProceedToAdjudication(claim.claimID)}
+                            >
+                              {proceedLoading ? (
+                                <>
+                                  <Spinner animation="border" size="sm" className="me-2" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="bi bi-play-circle-fill me-2"></i>
+                                  Proceed to Adjudication
+                                </>
+                              )}
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Document list — hidden for Hospital/Policyholder on finalized claims */}
+                  {!canViewDocs ? (
+                    <div className="text-center py-4 text-muted small">
+                      <i className="bi bi-shield-lock" style={{ fontSize: 36, color: '#ffc107' }}></i>
+                      <div className="mt-2 fw-semibold">Documents Restricted</div>
+                      <div>Document access is not available after a claim is finalized.</div>
+                      <div className="mt-1">Contact your insurance provider for document queries.</div>
+                    </div>
+                  ) : !claim.claimDocuments || claim.claimDocuments.length === 0 ? (
                     <div className="text-center py-4 text-muted small">
                       <i className="bi bi-file-earmark-x" style={{ fontSize: 32, color: '#dfe4ea' }}></i>
                       <div className="mt-2">No documents attached yet.</div>
                     </div>
                   ) : (
                     <div className="d-flex flex-column gap-2">
-                      {claim.claimDocuments.map((doc) => (
-                        <div
-                          key={doc.docID}
-                          className="d-flex align-items-center justify-content-between rounded-3 px-3 py-2"
-                          style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
-                        >
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="bi bi-file-earmark-pdf text-danger fs-5"></i>
-                            <div>
-                              <div className="small fw-semibold">{doc.docType}</div>
-                              <div className="text-muted" style={{ fontSize: '0.72rem' }}>
-                                Uploaded by {doc.uploadedByName} · {formatDate(doc.uploadedAt)}
+                      {claim.claimDocuments.map((doc) => {
+                        const docFileName = doc.fileURI?.split('/').pop() ?? doc.docType;
+                        const isRealUrl   = doc.fileURI?.startsWith('http://') || doc.fileURI?.startsWith('https://');
+                        const isExpanded  = previewDocId === doc.docID;
+                        return (
+                          <div
+                            key={doc.docID}
+                            className="rounded-3"
+                            style={{ background: '#f8f9fa', border: `1px solid ${isExpanded ? '#c7d7f9' : '#e9ecef'}` }}
+                          >
+                            <div className="d-flex align-items-center justify-content-between px-3 py-2">
+                              <div className="d-flex align-items-center gap-2 flex-grow-1 me-2" style={{ minWidth: 0 }}>
+                                <i className="bi bi-file-earmark-pdf text-danger fs-5 flex-shrink-0"></i>
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="small fw-semibold text-truncate" title={docFileName}>
+                                    {docFileName}
+                                  </div>
+                                  <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                    {doc.docType} · by {doc.uploadedByName} · {formatDate(doc.uploadedAt)}
+                                    {doc.verifiedByName && (
+                                      <span
+                                        className={`ms-2 fw-semibold ${doc.status === 'Verified' ? 'text-success' : 'text-danger'}`}
+                                      >
+                                        · {doc.status} by {doc.verifiedByName}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="d-flex align-items-center gap-1 flex-shrink-0">
+                                <Badge
+                                  bg={docStatusVariant(doc.status)}
+                                  className="px-2 py-1 me-1"
+                                  style={{ fontSize: '0.7rem' }}
+                                >
+                                  {doc.status}
+                                </Badge>
+                                {/* View */}
+                                <Button
+                                  variant={isExpanded ? 'secondary' : 'outline-secondary'}
+                                  size="sm"
+                                  className="p-1"
+                                  style={{ lineHeight: 1 }}
+                                  title={isRealUrl ? 'Open file' : 'View document details'}
+                                  onClick={() => {
+                                    if (isRealUrl) {
+                                      window.open(doc.fileURI, '_blank');
+                                    } else {
+                                      setPreviewDocId(isExpanded ? null : doc.docID);
+                                    }
+                                  }}
+                                >
+                                  <i className="bi bi-eye" style={{ fontSize: '0.75rem' }}></i>
+                                </Button>
+                                {/* Verify / Reject — Staff + Admin only */}
+                                {canVerifyDoc(doc) && (
+                                  <>
+                                    <Button
+                                      variant="outline-success"
+                                      size="sm"
+                                      className="p-1"
+                                      style={{ lineHeight: 1 }}
+                                      title="Mark as Verified"
+                                      disabled={verifyingDocId === doc.docID}
+                                      onClick={async () => {
+                                        setVerifyingDocId(doc.docID);
+                                        await onVerifyDocument(claim.claimID, doc.docID, 'Verified');
+                                        setVerifyingDocId(null);
+                                      }}
+                                    >
+                                      {verifyingDocId === doc.docID
+                                        ? <Spinner animation="border" size="sm" style={{ width: '0.75rem', height: '0.75rem' }} />
+                                        : <i className="bi bi-check-lg" style={{ fontSize: '0.75rem' }}></i>
+                                      }
+                                    </Button>
+                                    <Button
+                                      variant="outline-warning"
+                                      size="sm"
+                                      className="p-1"
+                                      style={{ lineHeight: 1 }}
+                                      title="Reject document"
+                                      disabled={verifyingDocId === doc.docID}
+                                      onClick={async () => {
+                                        setVerifyingDocId(doc.docID);
+                                        await onVerifyDocument(claim.claimID, doc.docID, 'Rejected');
+                                        setVerifyingDocId(null);
+                                      }}
+                                    >
+                                      {verifyingDocId === doc.docID
+                                        ? <Spinner animation="border" size="sm" style={{ width: '0.75rem', height: '0.75rem' }} />
+                                        : <i className="bi bi-x-lg" style={{ fontSize: '0.75rem' }}></i>
+                                      }
+                                    </Button>
+                                  </>
+                                )}
+                                {/* Delete */}
+                                {canDeleteDoc(doc) && (
+                                  <Button
+                                    variant="outline-danger"
+                                    size="sm"
+                                    className="p-1"
+                                    style={{ lineHeight: 1 }}
+                                    title="Delete document"
+                                    disabled={deletingDocId === doc.docID}
+                                    onClick={async () => {
+                                      setDeletingDocId(doc.docID);
+                                      await onDeleteDocument(claim.claimID, doc.docID);
+                                      setDeletingDocId(null);
+                                    }}
+                                  >
+                                    {deletingDocId === doc.docID
+                                      ? <Spinner animation="border" size="sm" style={{ width: '0.75rem', height: '0.75rem' }} />
+                                      : <i className="bi bi-trash3" style={{ fontSize: '0.75rem' }}></i>
+                                    }
+                                  </Button>
+                                )}
                               </div>
                             </div>
+
+                            {/* Inline document preview (shown when no real URL) */}
+                            {isExpanded && (
+                              <div
+                                className="px-3 pb-3 pt-2"
+                                style={{ borderTop: '1px dashed #c7d7f9' }}
+                              >
+                                <div className="d-flex flex-column gap-1" style={{ fontSize: '0.8rem' }}>
+                                  <div>
+                                    <span className="text-muted me-2">File name:</span>
+                                    <span className="fw-semibold font-monospace">{docFileName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted me-2">Type:</span>
+                                    <span className="fw-semibold">{doc.docType}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted me-2">Uploaded by:</span>
+                                    <span>{doc.uploadedByName} on {formatDate(doc.uploadedAt)}</span>
+                                  </div>
+                                  {doc.sha256 && (
+                                    <div>
+                                      <span className="text-muted me-2">SHA-256:</span>
+                                      <span
+                                        className="font-monospace text-muted"
+                                        style={{ fontSize: '0.7rem', wordBreak: 'break-all' }}
+                                        title="Cryptographic hash — used to verify the file has not been tampered with"
+                                      >
+                                        {doc.sha256}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div
+                                    className="mt-1 d-flex align-items-center gap-1"
+                                    style={{ color: '#0d6efd', fontSize: '0.75rem' }}
+                                  >
+                                    <i className="bi bi-info-circle"></i>
+                                    In production, this button opens the file directly from cloud storage.
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <Badge
-                            bg={docStatusVariant(doc.status)}
-                            className="px-2 py-1"
-                            style={{ fontSize: '0.7rem' }}
-                          >
-                            {doc.status}
-                          </Badge>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

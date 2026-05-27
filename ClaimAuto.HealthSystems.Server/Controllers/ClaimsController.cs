@@ -102,73 +102,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                                   "MemberID, and PolicyID (must be Active) all exist and are valid.");
 
 
-            // ── AUTO FRAUD SCORING + AUTO ADJUDICATION on submission ─────────────────
-            var fraudScore = await _fraudRepo.ScoreClaimAsync(created.ClaimID, userOrgId);
-
-            if (fraudScore.ScoreValue >= 70)
-            {
-                var fraudCase = new FraudCase
-                {
-                    ClaimID = created.ClaimID,
-                    OpenedAt = DateTime.UtcNow,
-                    OpenedBy = userId.Value,
-                    Priority = FraudCasePriority.High,
-                    Status = FraudCaseStatus.Open,
-                    InvestigationNotes = $"Auto-opened on submission. Fraud score: {fraudScore.ScoreValue}/100. Factors: {fraudScore.FactorsJSON}",
-                    OrganizationID = userOrgId,
-                };
-
-                var notification = new Notification
-                {
-                    UserID = userId.Value,
-                    ClaimID = created.ClaimID,
-                    Message = $"Fraud alert on CLM-{created.ClaimID}: score {fraudScore.ScoreValue}/100. Claim is blocked pending fraud investigation.",
-                    Category = NotificationCategory.Exception,
-                    Severity = NotificationSeverity.Critical,
-                    CreatedAt = DateTime.UtcNow,
-                    Status = NotificationStatus.Unread,
-                    OrganizationID = userOrgId,
-                };
-
-                await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
-
-                await _claimRepo.UpdateClaimAsync(
-                    created.ClaimID,
-                    new UpdateClaimDto { Status = "UnderReview" },
-                    userId.Value,
-                    userOrgId
-                );
-            }
-            else
-            {
-                var adjResult = await _adjRepo.AutoAdjudicateAsync(created.ClaimID, userOrgId);
-
-                var adjMessage = adjResult?.Decision switch
-                {
-                    "Denied" => $"CLM-{created.ClaimID} submitted and auto-denied by adjudication engine.",
-                    "PendingReview" => $"CLM-{created.ClaimID} submitted and routed to manual review queue.",
-                    "Paid" => $"CLM-{created.ClaimID} submitted and approved. Payment created automatically.",
-                    "Partial" => $"CLM-{created.ClaimID} submitted and partially approved. Payment created automatically.",
-                    _ => $"CLM-{created.ClaimID} submitted successfully."
-                };
-
-                return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
-                {
-                    claim = created,
-                    fraudDetected = false,
-                    autoAdjudicated = true,
-                    adjudication = adjResult,
-                    message = adjMessage
-                });
-            }
-
+            // ── Document verification gate ────────────────────────────────────────────
+            // Fraud scoring and adjudication no longer run on submission.
+            // The claim is now in DocsVerificationPending — staff must verify all attached
+            // documents before triggering adjudication via POST /proceed-to-adjudication.
+            // Future: AI document verification service calls this endpoint automatically.
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
             {
                 claim = created,
-                fraudDetected = true,
-                autoAdjudicated = false,
-                fraudScore = fraudScore.ScoreValue,
-                message = $"CLM-{created.ClaimID} submitted but BLOCKED — fraud score {fraudScore.ScoreValue}/100. Claim set to UnderReview pending investigation."
+                message = $"CLM-{created.ClaimID} submitted and is awaiting document verification by insurance staff."
             });
         }
 
@@ -251,6 +193,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// <summary>Uploads a supporting document to a claim.</summary>
         [HttpPost("{id}/documents")]
         [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UploadDocument(int id, [FromBody] UploadDocumentDto dto)
@@ -259,11 +202,125 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
+            var userRole = GetLoggedInUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
+            if (claim == null)
+                return NotFound($"Claim with ID {id} was not found.");
+
+            // Finalized claims are immutable — their document set is part of the audit trail
+            if (claim.Status is "Approved" or "Rejected" or "Paid")
+                return BadRequest(
+                    $"Cannot upload documents to a {claim.Status} claim. " +
+                    "The claim is finalized and its document set is locked.");
+
+            // Hospital/Policyholder: documents can be added while the claim is Submitted
+            // or awaiting document verification (DocsVerificationPending).
+            // Once staff begins adjudication the document window is closed for non-staff.
+            if ((userRole == "Hospital" || userRole == "Policyholder")
+                && claim.Status != "Submitted"
+                && claim.Status != "DocsVerificationPending")
+                return BadRequest(
+                    "Documents can only be attached while the claim is awaiting document verification.");
+
             var created = await _claimRepo.UploadDocumentAsync(id, dto, userId.Value);
             if (created == null)
                 return NotFound($"Claim with ID {id} was not found or user is invalid.");
 
             return CreatedAtAction(nameof(GetClaimDocuments), new { id = id }, created);
+        }
+
+        /// <summary>Deletes a document. Enforces ownership and claim-status rules.</summary>
+        [HttpDelete("{id}/documents/{docId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteDocument(int id, int docId)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            var userRole = GetLoggedInUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
+            if (claim == null)
+                return NotFound($"Claim {id} not found.");
+
+            // Finalized claims — document set is sealed
+            if (claim.Status is "Approved" or "Rejected" or "Paid")
+                return BadRequest(
+                    $"Cannot delete documents on a {claim.Status} claim. " +
+                    "The claim is finalized.");
+
+            var docs = await _claimRepo.GetClaimDocumentsAsync(id, userOrgId);
+            var doc = docs.FirstOrDefault(d => d.DocID == docId);
+            if (doc == null)
+                return NotFound($"Document {docId} not found on Claim {id}.");
+
+            // Verified documents are part of the audit trail and cannot be removed
+            if (doc.Status == "Verified")
+                return BadRequest(
+                    "Cannot delete a verified document — " +
+                    "it has been reviewed and is part of the audit trail.");
+
+            // Hospital/Policyholder: only their own uploads, only while in the doc-review window
+            if (userRole == "Hospital" || userRole == "Policyholder")
+            {
+                if (claim.Status != "Submitted" && claim.Status != "DocsVerificationPending")
+                    return BadRequest(
+                        "Documents can only be removed while the claim is awaiting document verification.");
+                if (doc.UploadedByID != userId.Value)
+                    return Forbid();
+            }
+
+            var result = await _claimRepo.DeleteDocumentAsync(id, docId, userId.Value, userOrgId);
+            return result switch
+            {
+                "ok" => Ok($"Document {docId} deleted successfully."),
+                "notfound" => NotFound($"Document {docId} not found on Claim {id}."),
+                _ => StatusCode(500, "Unexpected error.")
+            };
+        }
+
+        /// <summary>Marks a document as Verified or Rejected. Admin and InsuranceStaff only.</summary>
+        [HttpPut("{id}/documents/{docId}/verify")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> VerifyDocument(
+            int id, int docId, [FromBody] VerifyDocumentDto dto)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            if (dto.Status != "Verified" && dto.Status != "Rejected")
+                return BadRequest("Status must be 'Verified' or 'Rejected'.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
+            if (claim == null)
+                return NotFound($"Claim {id} not found.");
+
+            if (claim.Status is "Approved" or "Rejected" or "Paid")
+                return BadRequest(
+                    $"Cannot update documents on a {claim.Status} claim.");
+
+            var result = await _claimRepo.VerifyDocumentAsync(
+                id, docId, dto, userId.Value, userOrgId);
+
+            if (result == null)
+                return NotFound($"Document {docId} not found on Claim {id}.");
+
+            return Ok(result);
         }
 
         /// <summary>Returns all documents attached to a specific claim.</summary>
@@ -275,6 +332,127 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var userOrgId = GetLoggedInUserOrgId();
             var docs = await _claimRepo.GetClaimDocumentsAsync(id, userOrgId);
             return Ok(docs);
+        }
+
+        /// <summary>
+        /// Triggers fraud scoring and auto-adjudication for a claim that has completed
+        /// document verification. Admin and InsuranceStaff only.
+        ///
+        /// Pre-conditions (enforced by the repository):
+        ///   1. Claim must be in DocsVerificationPending status.
+        ///   2. No documents on the claim can be in Pending (unreviewed) state.
+        ///      Staff must have explicitly Verified or Rejected every document.
+        ///
+        /// Future extension point: an AI document verification service calls this endpoint
+        /// automatically once it has reviewed all documents — no code change required here.
+        /// </summary>
+        [HttpPost("{id}/proceed-to-adjudication")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ProceedToAdjudication(int id)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+
+            // ── Pre-flight validation ────────────────────────────────────────────
+            var validation = await _claimRepo.ValidateProceedToAdjudicationAsync(id, userOrgId);
+            switch (validation)
+            {
+                case "notfound":
+                    return NotFound($"Claim with ID {id} was not found.");
+
+                case "wrongstatus":
+                    return BadRequest(
+                        $"Claim {id} is not awaiting document verification. " +
+                        "Only claims in 'DocsVerificationPending' status can proceed to adjudication.");
+
+                case "pendingdocs":
+                    return BadRequest(
+                        $"Claim {id} has one or more unreviewed documents. " +
+                        "All documents must be Verified or Rejected before adjudication can begin.");
+            }
+
+            // ── Fraud scoring ────────────────────────────────────────────────────
+            // Same engine that previously ran on submission — just runs here instead.
+            var fraudScore = await _fraudRepo.ScoreClaimAsync(id, userOrgId);
+
+            if (fraudScore.ScoreValue >= 70)
+            {
+                // High-risk claim — open a fraud case and block adjudication
+                var fraudCase = new FraudCase
+                {
+                    ClaimID = id,
+                    OpenedAt = DateTime.UtcNow,
+                    OpenedBy = userId.Value,
+                    Priority = FraudCasePriority.High,
+                    Status = FraudCaseStatus.Open,
+                    InvestigationNotes =
+                        $"Auto-opened after document verification. " +
+                        $"Fraud score: {fraudScore.ScoreValue}/100. Factors: {fraudScore.FactorsJSON}",
+                    OrganizationID = userOrgId,
+                };
+
+                var notification = new Notification
+                {
+                    UserID = userId.Value,
+                    ClaimID = id,
+                    Message =
+                        $"Fraud alert on CLM-{id}: score {fraudScore.ScoreValue}/100. " +
+                        "Claim is blocked pending fraud investigation.",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Critical,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = userOrgId,
+                };
+
+                await _fraudRepo.CreateFraudCaseWithNotificationAsync(fraudCase, notification);
+
+                await _claimRepo.UpdateClaimAsync(
+                    id,
+                    new UpdateClaimDto { Status = "UnderReview" },
+                    userId.Value,
+                    userOrgId
+                );
+
+                return Ok(new
+                {
+                    claimID = id,
+                    fraudDetected = true,
+                    autoAdjudicated = false,
+                    fraudScore = fraudScore.ScoreValue,
+                    message =
+                        $"CLM-{id} has a high fraud score ({fraudScore.ScoreValue}/100) " +
+                        "and has been moved to manual review."
+                });
+            }
+
+            // ── Auto-adjudication ────────────────────────────────────────────────
+            var adjResult = await _adjRepo.AutoAdjudicateAsync(id, userOrgId);
+
+            var adjMessage = adjResult?.Decision switch
+            {
+                "Denied" => $"CLM-{id} adjudicated and denied by the rules engine.",
+                "PendingReview" => $"CLM-{id} routed to the manual review queue.",
+                "Paid" => $"CLM-{id} approved and payment created automatically.",
+                "Partial" => $"CLM-{id} partially approved. Payment created automatically.",
+                _ => $"CLM-{id} adjudicated successfully."
+            };
+
+            return Ok(new
+            {
+                claimID = id,
+                fraudDetected = false,
+                autoAdjudicated = true,
+                adjudication = adjResult,
+                message = adjMessage
+            });
         }
     }
 }

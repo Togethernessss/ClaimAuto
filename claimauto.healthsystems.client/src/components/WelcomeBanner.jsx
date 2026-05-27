@@ -6,43 +6,43 @@ import { useState, useEffect } from 'react';
 const ROLE_SHORTCUTS = {
   Admin: [
     { label: 'New User',    icon: 'bi-person-plus',
-      path: '/members' },
+      path: '/admin/members' },
     { label: 'Fraud Cases', icon: 'bi-shield-exclamation',
-      path: '/fraud' },
+      path: '/admin/fraud' },
     { label: 'Reports',     icon: 'bi-graph-up',
-      path: '/reports' },
+      path: '/admin/reports' },
     { label: 'Audit Logs',  icon: 'bi-journal-text',
-      path: '/audit-logs' },
+      path: '/admin/audit-logs' },
   ],
   InsuranceStaff: [
     { label: 'Claims Queue', icon: 'bi-files',
-      path: '/claims' },
+      path: '/staff/claims' },
     { label: 'My Tasks',     icon: 'bi-list-check',
-      path: '/tasks' },
+      path: '/staff/tasks' },
     { label: 'Adjudication', icon: 'bi-check2-square',
-      path: '/adjudication' },
+      path: '/staff/adjudication' },
     { label: 'Payments',     icon: 'bi-credit-card',
-      path: '/payments' },
+      path: '/staff/payments' },
   ],
   Hospital: [
     { label: 'New Claim',   icon: 'bi-file-plus',
-      path: '/claims/submit' },
+      path: '/hospital/claims' },
     { label: 'My Policies', icon: 'bi-shield-check',
-      path: '/policies' },
-    { label: 'Bulk Upload', icon: 'bi-upload',
-      path: '/claims/bulk-upload' },
+      path: '/hospital/policies' },
+    { label: 'Members',     icon: 'bi-people',
+      path: '/hospital/members' },
     { label: 'Remittance',  icon: 'bi-receipt',
-      path: '/remittance' },
+      path: '/hospital/remittance' },
   ],
   Policyholder: [
     { label: 'File a Claim',  icon: 'bi-file-invoice',
-      path: '/claims/submit' },
+      path: '/policyholder/claims' },
     { label: 'My Policy',     icon: 'bi-heart-pulse',
-      path: '/policies' },
+      path: '/policyholder/policies' },
     { label: 'Claim History', icon: 'bi-clock-history',
-      path: '/claims' },
+      path: '/policyholder/claims' },
     { label: 'My Appeals',    icon: 'bi-megaphone',
-      path: '/appeals' },
+      path: '/policyholder/appeals' },
   ],
 };
 
@@ -50,7 +50,6 @@ export default function WelcomeBanner({ emoji = '', actions = [] }) {
   const { user }  = useAuth();
   const navigate  = useNavigate();
 
-  // ── Load profile photo from localStorage ─────────────────────
   const storageKey = user?.userID
     ? `profilePhoto_${user.userID}` : null;
 
@@ -200,7 +199,9 @@ export default function WelcomeBanner({ emoji = '', actions = [] }) {
             fontSize: 12,
           }}
         >
-          <i className={roleStyle.icon}></i> {user?.role}
+          <i className={roleStyle.icon}></i>{' '}
+          {user?.role === 'InsuranceStaff'
+            ? 'Staff' : user?.role}
         </span>
       </div>
 

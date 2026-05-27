@@ -71,9 +71,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // userOrgId (Phase 4): when supplied, returns only documents whose org matches the caller.
         Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId, int? userOrgId = null);
 
+        // Used by: DELETE /api/claims/{id}/documents/{docId}
+        // Authorization (ownership + status) enforced in controller before calling this.
+        // Returns: "ok", "notfound"
+        Task<string> DeleteDocumentAsync(int claimId, int docId, int requestingUserId, int? userOrgId = null);
+
+        // Used by: PUT /api/claims/{id}/documents/{docId}/verify
+        // InsuranceStaff/Admin only. Sets DocStatus to Verified or Rejected.
+        // Returns: updated DTO, or null if document not found.
+        Task<ClaimDocumentResponseDto?> VerifyDocumentAsync(int claimId, int docId, VerifyDocumentDto dto, int verifiedByUserId, int? userOrgId = null);
+
         // Used by: GET /api/claims/{id} — role-based access control for Policyholder
         // Returns all MemberIDs whose PolicyholderUserID matches the given user.
         // Used to verify a Policyholder is allowed to view a specific claim.
         Task<List<int>> GetMemberIdsByPolicyholderAsync(int policyholderUserId, int? userOrgId);
+
+        // Used by: POST /api/claims/{id}/proceed-to-adjudication
+        // Pre-flight validation before staff triggers fraud scoring + adjudication.
+        // Returns: "ok" | "notfound" | "wrongstatus" | "pendingdocs"
+        Task<string> ValidateProceedToAdjudicationAsync(int claimId, int? userOrgId = null);
     }
 }

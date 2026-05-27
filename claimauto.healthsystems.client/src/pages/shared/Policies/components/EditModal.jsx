@@ -157,6 +157,9 @@ export default function EditModal({
                         type="date"
                         value={form.effectiveTo}
                         onChange={onFieldChange('effectiveTo')}
+                        min={policy?.effectiveFrom
+                          ? policy.effectiveFrom.split('T')[0]
+                          : undefined}
                       />
                       <Form.Text className="text-muted">
                         Leave blank for auto-renewing.
