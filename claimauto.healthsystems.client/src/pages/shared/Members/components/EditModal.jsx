@@ -50,6 +50,8 @@ export default function EditModal({
                   <Form.Control
                     value={form.name}
                     onChange={onFieldChange('name')}
+                    required
+                    minLength={2}
                   />
                 </Form.Group>
               </Col>
@@ -78,6 +80,9 @@ export default function EditModal({
                     type="date"
                     value={form.coverageEnd}
                     onChange={onFieldChange('coverageEnd')}
+                    min={member?.coverageStart
+                      ? member.coverageStart.split('T')[0]
+                      : undefined}
                   />
                   <Form.Text className="text-muted">
                     Leave blank for open-ended coverage.
@@ -93,7 +98,11 @@ export default function EditModal({
                     type="tel"
                     placeholder="e.g. 9000000000"
                     value={form.contactPhone}
-                    onChange={onFieldChange('contactPhone')}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      onFieldChange('contactPhone')({ target: { value: digits } });
+                    }}
+                    maxLength={10}
                     />
                 </Form.Group>
               </Col>

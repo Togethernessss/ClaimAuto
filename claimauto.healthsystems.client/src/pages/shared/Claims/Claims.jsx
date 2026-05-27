@@ -10,6 +10,9 @@ import {
   updateClaim,
   deleteClaim,
   uploadDocument,
+  deleteDocument,
+  verifyDocument,
+  proceedToAdjudication,
 } from '../../../services/claims/claimService';
 import { getAllMembers } from '../../../services/members/memberService';
 import ClaimsHeader       from './components/ClaimsHeader';
@@ -65,6 +68,8 @@ export default function Claims() {
   const [uploadingDoc,  setUploadingDoc]  = useState(false);
   const [uploadError,   setUploadError]   = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(null);
+  const [proceedLoading, setProceedLoading] = useState(false);
+  const [proceedError,   setProceedError]   = useState(null);
 
   // ── UPDATE STATUS MODAL ───────────────────────────────────────────────────
   const [showUpdate,    setShowUpdate]    = useState(false);
@@ -143,23 +148,22 @@ export default function Claims() {
   const hasFilters = !!search || statusFilter !== 'All' || priorityFilter !== 'All';
 
   // ── HOSPITAL SUBMIT HANDLERS ──────────────────────────────────────────────
-  const handleSubmitClaim = async (formData, lines) => {
+  const handleSubmitClaim = async (formData, lines, documents) => {
     setSubmitError(null);
     setSubmitLoading(true);
     try {
-      // Send lines inside the payload so backend creates them BEFORE
-      // running fraud scoring + adjudication. This ensures line statuses
-      // (Approved/Denied) are set correctly by the adjudication engine.
-      const payload = { ...formData, lines: lines ?? [] };
+      // Lines and documents are sent inside the payload so the backend saves
+      // them BEFORE running fraud scoring + adjudication.
+      const payload = { ...formData, lines: lines ?? [], documents: documents ?? [] };
       const result = await submitClaim(payload);
-      const claimId = result?.claimID;
+      const claimId = result?.claim?.claimID ?? result?.claimID;
 
       setShowSubmit(false);
       await loadClaims();
 
       setSuccessMsg(
-        `Claim CLM-${claimId} submitted successfully ` +
-        `with ${lines.length} service line${lines.length !== 1 ? 's' : ''}.`
+        `Claim CLM-${claimId} submitted. ` +
+        `Insurance staff will verify your documents before processing.`
       );
     } catch (err) {
       const msg = err.response?.data?.message
@@ -227,6 +231,52 @@ export default function Claims() {
       setUploadError(typeof msg === 'string' ? msg : 'Failed to upload document.');
     } finally {
       setUploadingDoc(false);
+    }
+  };
+
+  // ── DOCUMENT DELETE HANDLER ───────────────────────────────────────────────
+  const handleDeleteDocument = async (claimId, docId) => {
+    try {
+      await deleteDocument(claimId, docId);
+      const refreshed = await getClaimById(claimId);
+      setDetailClaim(refreshed);
+    } catch {
+      /* deletion error — modal remains open */
+    }
+  };
+
+  // ── DOCUMENT VERIFY HANDLER ───────────────────────────────────────────────
+  const handleVerifyDocument = async (claimId, docId, status) => {
+    try {
+      await verifyDocument(claimId, docId, status);
+      const refreshed = await getClaimById(claimId);
+      setDetailClaim(refreshed);
+    } catch {
+      /* verify error — modal remains open */
+    }
+  };
+
+  // ── PROCEED TO ADJUDICATION HANDLER ──────────────────────────────────────
+  // Called by ClaimDetailModal when staff clicks "Proceed to Adjudication".
+  // Triggers fraud scoring → auto-adjudication on the backend.
+  // On success: refreshes the detail view AND the claims list (status has changed).
+  const handleProceedToAdjudication = async (claimId) => {
+    setProceedError(null);
+    setProceedLoading(true);
+    try {
+      await proceedToAdjudication(claimId);
+      // Refresh detail to show new status + adjudication result
+      const refreshed = await getClaimById(claimId);
+      setDetailClaim(refreshed);
+      // Refresh list so the status card/badge reflects the change immediately
+      await loadClaims();
+    } catch (err) {
+      const msg = err.response?.data?.message
+               || err.response?.data
+               || 'Failed to proceed to adjudication.';
+      setProceedError(typeof msg === 'string' ? msg : 'Failed to proceed to adjudication.');
+    } finally {
+      setProceedLoading(false);
     }
   };
 
@@ -377,15 +427,22 @@ export default function Claims() {
         uploadingDoc={uploadingDoc}
         uploadError={uploadError}
         uploadSuccess={uploadSuccess}
+        proceedLoading={proceedLoading}
+        proceedError={proceedError}
         isAdmin={isAdmin}
         isStaff={isStaff}
         isHospital={isHospital}
         isPolicyholder={isPolicyholder}
+        currentUserId={user?.userID}
         onHide={() => {
           setShowDetail(false);
           setDetailClaim(null);
+          setProceedError(null);
         }}
         onUploadDocument={handleUploadDocument}
+        onDeleteDocument={handleDeleteDocument}
+        onVerifyDocument={handleVerifyDocument}
+        onProceedToAdjudication={handleProceedToAdjudication}
       />
 
       {/* Staff/Admin — update status and priority */}

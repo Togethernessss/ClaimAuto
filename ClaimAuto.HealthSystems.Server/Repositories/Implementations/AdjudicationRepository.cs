@@ -40,8 +40,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (claim == null) return null;
 
-            // Accept Submitted or UnderReview (fraud-cleared path sends it back in UnderReview)
+            // Accept Submitted, DocsVerificationPending, or UnderReview.
+            // DocsVerificationPending is the new entry state — staff triggers adjudication
+            // manually via POST /proceed-to-adjudication after verifying documents.
             if (claim.Status != ClaimStatus.Submitted &&
+                claim.Status != ClaimStatus.DocsVerificationPending &&
                 claim.Status != ClaimStatus.UnderReview)
             {
                 return new AdjudicationResponseDto

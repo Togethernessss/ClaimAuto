@@ -3,25 +3,26 @@ import { Card } from 'react-bootstrap';
 import { formatCurrency } from '../utils/claimHelpers';
 
 const STAT_CARDS = [
-  { key: 'submitted',   label: 'Submitted',   icon: 'bi-clock',            bg: '#f3e5f5', color: '#6a1b9a' },
-  { key: 'underReview', label: 'Under Review', icon: 'bi-eye',              bg: '#fff3e0', color: '#e65100' },
-  { key: 'approved',    label: 'Approved',     icon: 'bi-check-circle',     bg: '#e3f2fd', color: '#1565c0' },
-  { key: 'paid',        label: 'Paid',         icon: 'bi-check-circle-fill', bg: '#d1f2eb', color: '#2e7d32' },
-  { key: 'rejected',    label: 'Rejected',     icon: 'bi-x-circle-fill',    bg: '#ffebee', color: '#c62828' },
+  { key: 'docsVerification', label: 'Docs Verification', icon: 'bi-file-earmark-check', bg: '#e0f7fa', color: '#00838f' },
+  { key: 'underReview',      label: 'Under Review',      icon: 'bi-eye',                bg: '#fff3e0', color: '#e65100' },
+  { key: 'approved',         label: 'Approved',           icon: 'bi-check-circle',       bg: '#e3f2fd', color: '#1565c0' },
+  { key: 'paid',             label: 'Paid',               icon: 'bi-check-circle-fill',  bg: '#d1f2eb', color: '#2e7d32' },
+  { key: 'rejected',         label: 'Rejected',           icon: 'bi-x-circle-fill',      bg: '#ffebee', color: '#c62828' },
 ];
 
 export default function ClaimsSummary({ claims }) {
   const totalAmount = claims.reduce((s, c) => s + (c.totalBilledAmount ?? 0), 0);
 
   const values = {
-    submitted:   claims.filter((c) => c.status === 'Submitted').length,
-    // UnderReview = fraud blocked OR manual adjudication queue
-    underReview: claims.filter((c) => c.status === 'UnderReview').length,
-    // Approved = adjudicated Paid/Partial, payment created but not yet executed
-    approved:    claims.filter((c) => c.status === 'Approved').length,
+    // DocsVerificationPending = awaiting staff document review (new entry state)
+    docsVerification: claims.filter((c) => c.status === 'DocsVerificationPending').length,
+    // UnderReview = fraud score ≥ 70 OR routed to manual adjudication queue
+    underReview:      claims.filter((c) => c.status === 'UnderReview').length,
+    // Approved = adjudication Paid/Partial, payment created but not yet executed
+    approved:         claims.filter((c) => c.status === 'Approved').length,
     // Paid = payment fully executed, claim settled
-    paid:        claims.filter((c) => c.status === 'Paid').length,
-    rejected:    claims.filter((c) => c.status === 'Rejected').length,
+    paid:             claims.filter((c) => c.status === 'Paid').length,
+    rejected:         claims.filter((c) => c.status === 'Rejected').length,
   };
 
   return (
