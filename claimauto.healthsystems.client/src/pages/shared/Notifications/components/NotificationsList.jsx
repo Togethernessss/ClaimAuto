@@ -1,12 +1,16 @@
 import { Card, Alert, Button, Spinner } from 'react-bootstrap';
 
+// ── UTC fix: add Z if missing so browser treats as UTC ────────
 function timeAgo(iso) {
-  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60)    return 'just now';
-  if (diff < 3600)  return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
+  const utcIso = iso && !iso.endsWith('Z') ? iso + 'Z' : iso;
+  const diff   = Math.floor((Date.now() - new Date(utcIso)) / 1000);
+  if (diff < 60)     return 'just now';
+  if (diff < 3600)   return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400)  return `${Math.floor(diff / 3600)} hr ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(utcIso).toLocaleDateString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
 }
 
 function categoryStyle(cat) {
@@ -29,10 +33,14 @@ function severityStyle(sev) {
 
 function statusStyle(status) {
   switch (status) {
-    case 'Unread':    return { bg: '#f3f0ff', dot: '#667eea', solid: true };
-    case 'Read':      return { bg: 'white',   dot: 'transparent', solid: false };
-    case 'Dismissed': return { bg: 'white',   dot: 'transparent', solid: false };
-    default:          return { bg: 'white',   dot: 'transparent', solid: false };
+    case 'Unread':
+      return { bg: '#f3f0ff', dot: '#667eea', solid: true };
+    case 'Read':
+      return { bg: 'white', dot: 'transparent', solid: false };
+    case 'Dismissed':
+      return { bg: 'white', dot: 'transparent', solid: false };
+    default:
+      return { bg: 'white', dot: 'transparent', solid: false };
   }
 }
 
@@ -53,17 +61,28 @@ export default function NotificationsList({
         {loading && (
           <div className="text-center py-5">
             <Spinner animation="border" variant="primary" />
-            <div className="mt-2 text-muted small">Loading notifications...</div>
+            <div className="mt-2 text-muted small">
+              Loading notifications...
+            </div>
           </div>
         )}
 
         {!loading && error && (
           <div className="p-4">
-            <Alert variant="danger" className="d-flex align-items-center mb-0">
-              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+            <Alert
+              variant="danger"
+              className="d-flex align-items-center mb-0"
+            >
+              <i className="bi bi-exclamation-triangle-fill me-2">
+              </i>
               {error}
-              <Button variant="link" size="sm" className="ms-auto p-0 text-danger" onClick={onRetry}>
-                <i className="bi bi-arrow-clockwise me-1"></i> Retry
+              <Button
+                variant="link" size="sm"
+                className="ms-auto p-0 text-danger"
+                onClick={onRetry}
+              >
+                <i className="bi bi-arrow-clockwise me-1"></i>
+                Retry
               </Button>
             </Alert>
           </div>
@@ -71,8 +90,11 @@ export default function NotificationsList({
 
         {!loading && !error && notifications.length === 0 && (
           <div className="text-center py-5">
-            <i className="bi bi-bell-slash" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-            <div className="fw-semibold text-muted mt-3">No notifications found</div>
+            <i className="bi bi-bell-slash"
+              style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+            <div className="fw-semibold text-muted mt-3">
+              No notifications found
+            </div>
             <div className="small text-muted mt-1">
               You're all caught up!
             </div>
@@ -85,16 +107,17 @@ export default function NotificationsList({
               const ss  = statusStyle(n.status);
               const cs  = categoryStyle(n.category);
               const svs = severityStyle(n.severity);
-              const isLoading = actionLoading === n.notificationID;
-              const isDismissed = n.status === 'Dismissed';
+              const isLoading    = actionLoading === n.notificationID;
+              const isDismissed  = n.status === 'Dismissed';
 
               return (
                 <div
                   key={n.notificationID}
                   style={{
                     padding: '14px 16px',
-                    borderBottom: index < notifications.length - 1
-                      ? '0.5px solid #f0f0f0' : 'none',
+                    borderBottom:
+                      index < notifications.length - 1
+                        ? '0.5px solid #f0f0f0' : 'none',
                     background: ss.bg,
                     display: 'flex',
                     gap: 12,
@@ -104,9 +127,12 @@ export default function NotificationsList({
                 >
                   {/* Status dot */}
                   <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: ss.solid ? ss.dot : 'transparent',
-                    border: ss.solid ? 'none' : '1.5px solid #9e9e9e',
+                    width: 8, height: 8,
+                    borderRadius: '50%',
+                    background: ss.solid
+                      ? ss.dot : 'transparent',
+                    border: ss.solid
+                      ? 'none' : '1.5px solid #9e9e9e',
                     flexShrink: 0, marginTop: 5,
                   }}></div>
 
@@ -114,21 +140,29 @@ export default function NotificationsList({
                   <div style={{ flex: 1 }}>
                     <div style={{
                       fontSize: 13,
-                      fontWeight: n.status === 'Unread' ? 500 : 400,
-                      color: isDismissed ? '#9e9e9e' : '#1e2a3a',
-                      textDecoration: isDismissed ? 'line-through' : 'none',
+                      fontWeight:
+                        n.status === 'Unread' ? 500 : 400,
+                      color: isDismissed
+                        ? '#9e9e9e' : '#1e2a3a',
+                      textDecoration: isDismissed
+                        ? 'line-through' : 'none',
                       lineHeight: 1.5,
                     }}>
                       {n.message}
                     </div>
                     {n.claimID && (
-                      <div style={{ fontSize: 11, color: '#6c757d', marginTop: 2 }}>
+                      <div style={{
+                        fontSize: 11,
+                        color: '#6c757d',
+                        marginTop: 2,
+                      }}>
                         Claim #{n.claimID}
                       </div>
                     )}
                     <div style={{
-                      display: 'flex', gap: 6, marginTop: 6,
-                      flexWrap: 'wrap', alignItems: 'center',
+                      display: 'flex', gap: 6,
+                      marginTop: 6, flexWrap: 'wrap',
+                      alignItems: 'center',
                     }}>
                       <span style={{
                         fontSize: 11, padding: '1px 7px',
@@ -144,7 +178,9 @@ export default function NotificationsList({
                       }}>
                         {n.severity}
                       </span>
-                      <span style={{ fontSize: 11, color: '#6c757d' }}>
+                      <span style={{
+                        fontSize: 11, color: '#6c757d',
+                      }}>
                         {timeAgo(n.createdAt)}
                       </span>
                     </div>
@@ -153,19 +189,27 @@ export default function NotificationsList({
                   {/* Actions */}
                   <div style={{
                     display: 'flex', gap: 6,
-                    flexShrink: 0, alignItems: 'flex-start',
+                    flexShrink: 0,
+                    alignItems: 'flex-start',
                     flexWrap: 'wrap',
                   }}>
                     {isLoading ? (
-                      <Spinner animation="border" size="sm" variant="primary" />
+                      <Spinner
+                        animation="border"
+                        size="sm"
+                        variant="primary"
+                      />
                     ) : (
                       <>
                         {n.status === 'Unread' && (
                           <button
-                            onClick={() => onMarkRead(n.notificationID)}
+                            onClick={() =>
+                              onMarkRead(n.notificationID)}
                             style={{
-                              fontSize: 11, padding: '3px 10px',
-                              borderRadius: 4, cursor: 'pointer',
+                              fontSize: 11,
+                              padding: '3px 10px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
                               background: '#e8f0fe',
                               border: '0.5px solid #4285f4',
                               color: '#1a56db',
@@ -174,12 +218,16 @@ export default function NotificationsList({
                             Mark read
                           </button>
                         )}
-                        {(n.status === 'Unread' || n.status === 'Read') && (
+                        {(n.status === 'Unread' ||
+                          n.status === 'Read') && (
                           <button
-                            onClick={() => onDismiss(n.notificationID)}
+                            onClick={() =>
+                              onDismiss(n.notificationID)}
                             style={{
-                              fontSize: 11, padding: '3px 10px',
-                              borderRadius: 4, cursor: 'pointer',
+                              fontSize: 11,
+                              padding: '3px 10px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
                               background: '#fff3e0',
                               border: '0.5px solid #e65100',
                               color: '#e65100',
@@ -189,10 +237,13 @@ export default function NotificationsList({
                           </button>
                         )}
                         <button
-                          onClick={() => onDelete(n.notificationID)}
+                          onClick={() =>
+                            onDelete(n.notificationID)}
                           style={{
-                            fontSize: 11, padding: '3px 10px',
-                            borderRadius: 4, cursor: 'pointer',
+                            fontSize: 11,
+                            padding: '3px 10px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
                             background: '#fdecea',
                             border: '0.5px solid #e53935',
                             color: '#b71c1c',

@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { markAllAsRead } from '../services/notifications/notificationService';
 import { useNotifications } from '../security/NotificationContext';
 
+// ── UTC fix: add Z if missing so browser treats as UTC ────────
 function timeAgo(iso) {
-  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60)     return 'just now';
-  if (diff < 3600)   return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400)  return `${Math.floor(diff / 3600)} hr ago`;
+  const utcIso = iso && !iso.endsWith('Z') ? iso + 'Z' : iso;
+  const diff   = Math.floor((Date.now() - new Date(utcIso)) / 1000);
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
@@ -22,18 +24,21 @@ function categoryStyle(cat) {
 
 export default function NotificationBell() {
   const navigate = useNavigate();
-  const { unreadCount, unreadList, loading, refresh } = useNotifications();
-  const [open, setOpen] = useState(false);
-  const dropdownRef     = useRef(null);
+  const { unreadCount, unreadList, loading, refresh } =
+    useNotifications();
+  const [open,    setOpen]    = useState(false);
+  const dropdownRef           = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current &&
+          !dropdownRef.current.contains(e.target)) {
         setOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () =>
+      document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   async function handleMarkAllRead() {
@@ -66,7 +71,8 @@ export default function NotificationBell() {
           display: 'flex', alignItems: 'center',
         }}
       >
-        <i className="bi bi-bell" style={{ fontSize: 22, color: 'white' }}></i>
+        <i className="bi bi-bell"
+          style={{ fontSize: 22, color: 'white' }}></i>
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute', top: -2, right: -2,
@@ -74,7 +80,9 @@ export default function NotificationBell() {
             fontSize: 10, fontWeight: 600,
             borderRadius: '50%',
             width: 18, height: 18,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             border: '2px solid #764ba2',
           }}>
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -97,15 +105,22 @@ export default function NotificationBell() {
           <div style={{
             padding: '12px 16px',
             borderBottom: '0.5px solid #dee2e6',
-            display: 'flex', justifyContent: 'space-between',
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
           }}>
             <div>
-              <span style={{ fontSize: 14, fontWeight: 500, color: '#1e2a3a' }}>
+              <span style={{
+                fontSize: 14, fontWeight: 500,
+                color: '#1e2a3a',
+              }}>
                 Notifications
               </span>
               {unreadCount > 0 && (
-                <span style={{ fontSize: 11, color: '#6c757d', marginLeft: 8 }}>
+                <span style={{
+                  fontSize: 11, color: '#6c757d',
+                  marginLeft: 8,
+                }}>
                   {unreadCount} unread
                 </span>
               )}
@@ -116,7 +131,8 @@ export default function NotificationBell() {
                 style={{
                   fontSize: 12, color: '#667eea',
                   background: 'none', border: 'none',
-                  cursor: 'pointer', fontWeight: 500, padding: 0,
+                  cursor: 'pointer', fontWeight: 500,
+                  padding: 0,
                 }}
               >
                 Mark all as read
@@ -131,9 +147,17 @@ export default function NotificationBell() {
                 Loading...
               </div>
             ) : unreadList.length === 0 ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-                <i className="bi bi-bell-slash" style={{ fontSize: 32, color: '#dfe4ea' }}></i>
-                <div style={{ fontSize: 13, color: '#6c757d', marginTop: 8 }}>
+              <div style={{
+                padding: '32px 16px',
+                textAlign: 'center',
+              }}>
+                <i className="bi bi-bell-slash"
+                  style={{ fontSize: 32, color: '#dfe4ea' }}>
+                </i>
+                <div style={{
+                  fontSize: 13, color: '#6c757d',
+                  marginTop: 8,
+                }}>
                   No unread notifications
                 </div>
               </div>
@@ -153,29 +177,47 @@ export default function NotificationBell() {
                       alignItems: 'flex-start',
                       transition: 'background 0.15s',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#ebe8ff'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = '#f3f0ff'}
+                    onMouseEnter={(e) =>
+                      e.currentTarget.style.background =
+                        '#ebe8ff'}
+                    onMouseLeave={(e) =>
+                      e.currentTarget.style.background =
+                        '#f3f0ff'}
                   >
                     <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: '#667eea', flexShrink: 0, marginTop: 4,
+                      width: 8, height: 8,
+                      borderRadius: '50%',
+                      background: '#667eea',
+                      flexShrink: 0, marginTop: 4,
                     }}></div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#1e2a3a', lineHeight: 1.4 }}>
+                      <div style={{
+                        fontSize: 13,
+                        color: '#1e2a3a',
+                        lineHeight: 1.4,
+                      }}>
                         {n.message}
                       </div>
                       <div style={{
-                        display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center', marginTop: 4,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 4,
                       }}>
                         <span style={{
-                          fontSize: 11, padding: '1px 7px',
-                          borderRadius: 20, fontWeight: 500,
-                          background: cs.bg, color: cs.color,
+                          fontSize: 11,
+                          padding: '1px 7px',
+                          borderRadius: 20,
+                          fontWeight: 500,
+                          background: cs.bg,
+                          color: cs.color,
                         }}>
                           {n.category}
                         </span>
-                        <span style={{ fontSize: 11, color: '#6c757d' }}>
+                        <span style={{
+                          fontSize: 11,
+                          color: '#6c757d',
+                        }}>
                           {timeAgo(n.createdAt)}
                         </span>
                       </div>
@@ -201,7 +243,8 @@ export default function NotificationBell() {
               }}
             >
               View all notifications
-              <i className="bi bi-arrow-right ms-1" style={{ fontSize: 12 }}></i>
+              <i className="bi bi-arrow-right ms-1"
+                style={{ fontSize: 12 }}></i>
             </button>
           </div>
 

@@ -20,11 +20,15 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
 
-        public string? PackageURI { get; set; }
+        // ── PDF stored on generation ──────────────────────────────
+        public byte[]? PackageFilePDF { get; set; }
 
-      
+        // ── Who generated this package ────────────────────────────
+        public int? GeneratedByID { get; set; }
+        [ForeignKey("GeneratedByID")]
+        public User? GeneratedByUser { get; set; }
 
-        // ─── Multi-Tenant (Phase 2) ───────────────────────────────────────
+        // ── Multi-Tenant (Phase 2) ────────────────────────────────
         [ForeignKey("Organization")]
         public int? OrganizationID { get; set; }
         public Organization? Organization { get; set; }
