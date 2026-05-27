@@ -1,3 +1,5 @@
+import RedirectIfAuthed from "./security/RedirectIfAuthed";
+// import RequireRole from "./security/RequireRole";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./security/AuthContext";
 import { getDashboardPath } from "./security/permissions";
@@ -40,47 +42,60 @@ export default function App() {
         <Routes>
 
           {/* ── Public routes ── */}
-          <Route path="/"                element={<HomePage />} />
-          <Route path="/login"           element={<Login />} />
-          <Route path="/verify-mfa"      element={<VerifyMfa />} />
-          <Route path="/register"        element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password"  element={<ResetPassword />} />
-
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
+          <Route path="/verify-mfa" element={<RedirectIfAuthed><VerifyMfa /></RedirectIfAuthed>} />
+          <Route path="/register" element={<RedirectIfAuthed><Register /></RedirectIfAuthed>} />
+          <Route path="/forgot-password" element={<RedirectIfAuthed><ForgotPassword /></RedirectIfAuthed>} />
+          <Route path="/reset-password" element={<RedirectIfAuthed><ResetPassword /></RedirectIfAuthed>} />
           {/* ── Protected routes ── */}
           <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
 
             {/* All dashboard paths */}
-            <Route path="/dashboard"              element={<Dashboard />} />
-            <Route path="/admin/dashboard"        element={<Dashboard />} />
-            <Route path="/staff/dashboard"        element={<Dashboard />} />
-            <Route path="/hospital/dashboard"     element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admin/dashboard" element={<Dashboard />} />
+            <Route path="/staff/dashboard" element={<Dashboard />} />
+            <Route path="/hospital/dashboard" element={<Dashboard />} />
             <Route path="/policyholder/dashboard" element={<Dashboard />} />
 
             {/* Identity */}
-            <Route path="/profile"               element={<Profile />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/force-change-password" element={<ForceChangePassword />} />
 
             {/* Admin only */}
-            <Route path="/audit-logs" element={<AuditLogs />} />
-            <Route path="/rules"      element={<Rules />} />
+            <Route
+              path="/audit-logs"
+              element={
+                <RequireRole roles={['Admin']}>
+                  <AuditLogs />
+                </RequireRole>
+              }
+            />
+            <Route path="/rules" element={<Rules />} />
 
             {/* Shared modules ✅ */}
-            <Route path="/policies"      element={<Policies />} />
-            <Route path="/members"       element={<RequireRole roles={['Admin', 'InsuranceStaff', 'Hospital']}><Members /></RequireRole> } />
-            <Route path="/claims"        element={<Claims />} />
-            <Route path="/adjudication"  element={<Adjudication />} />
-            <Route path="/payments"      element={<Payments />} />
-            <Route path="/remittance"    element={<Remittance />} />
+            <Route
+              path="/policies"
+              element={
+                <RequireRole roles={['Admin', 'InsuranceStaff', 'Hospital']}>
+                  <Policies />
+                </RequireRole>
+              }
+            />
+            <Route path="/members" element={<RequireRole roles={['Admin', 'InsuranceStaff', 'Hospital']}><Members /></RequireRole>} />
+            <Route path="/claims" element={<Claims />} />
+            <Route path="/adjudication" element={<Adjudication />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/remittance" element={<Remittance />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/reports" element={<Reports />} />
 
             {/* Coming soon */}
             <Route path="/fraud" element={<Fraud />} />
-            <Route path="/appeals"        element={<Appeals />} /> 
-            <Route path="/tasks"          element={<Tasks />} /> 
+            <Route path="/appeals" element={<Appeals />} />
+            <Route path="/tasks" element={<Tasks />} />
             {/* <Route path="/audit-packages" element={<AuditPackages />} /> */}
-            
+
           </Route>
 
           {/* Catch-all */}
