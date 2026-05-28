@@ -18,6 +18,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
         public DbSet<Claim> Claims { get; set; }
         public DbSet<ClaimLine> ClaimLines { get; set; }
         public DbSet<ClaimDocument> ClaimDocuments { get; set; }
+        public DbSet<ClaimDocumentContent> ClaimDocumentContents { get; set; }
 
         // Module 3
         public DbSet<Member> Members { get; set; }

@@ -14,8 +14,14 @@ namespace ClaimAuto.HealthSystems.Server.Model
 
         public string? Description { get; set; }
 
-        [Required]
-        public RuleType RuleType { get; set; }
+        // ─── Template key — must match a registered IRuleStrategy.TemplateKey ─
+        // Storing as a string lets the engine dispatch to the correct strategy
+        // and lets admins create new rule instances without DB schema changes.
+        // Values come from Model/RuleTemplate constants (e.g., "PolicyActive",
+        // "AmountAbove", "DuplicateCheck"). Legacy enum names (Coverage / Payment
+        // / Validation) are still accepted by the DB column for backward compat.
+        [Required, MaxLength(60)]
+        public string RuleType { get; set; } = string.Empty;
 
         [Required]
         public string ConditionExpressionJSON { get; set; } = string.Empty;

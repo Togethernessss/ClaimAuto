@@ -80,5 +80,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Pre-flight validation before staff triggers fraud scoring + adjudication.
         // Returns: "ok" | "notfound" | "wrongstatus" | "pendingdocs"
         Task<string> ValidateProceedToAdjudicationAsync(int claimId, int? userOrgId = null);
+
+        /// <summary>
+        /// Staff-initiated rejection of a claim. Sets status to Rejected,
+        /// records reason in audit log, and notifies the filer.
+        /// Available only on non-finalized claims (Submitted, DocsVerificationPending,
+        /// or UnderReview).
+        /// </summary>
+        Task<string> StaffRejectClaimAsync( int claimId, string reason, int rejectedByUserId, int? userOrgId = null);
+
+        /// <summary>
+        /// Replaces a REJECTED document with a corrected version.
+        /// Preserves DocID + audit history.
+        /// Resets Status to Pending and clears the VerifiedBy field
+        /// so staff can review the new version.
+        /// </summary>
+        Task<ClaimDocumentResponseDto?> ReplaceDocumentAsync( int claimId, int docId, ReplaceDocumentDto dto, int replacedByUserId, int? userOrgId = null);
     }
 }

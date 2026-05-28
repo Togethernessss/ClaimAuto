@@ -342,6 +342,34 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("ClaimDocuments");
                 });
 
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimDocumentContent", b =>
+                {
+                    b.Property<string>("FileGuid")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("FileBytes")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("FileGuid");
+
+                    b.ToTable("ClaimDocumentContents");
+                });
+
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimLine", b =>
                 {
                     b.Property<int>("LineID")
@@ -1083,7 +1111,8 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<string>("RuleType")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
 
                     b.Property<string>("Status")
                         .IsRequired()

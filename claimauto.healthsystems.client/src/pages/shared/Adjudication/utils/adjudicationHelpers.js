@@ -22,8 +22,11 @@ export function formatCurrency(val) {
 }
 
 // ── DECISION HELPERS ──────────────────────────────────────────────────────────
+// AdjDecision values: Approved (was Paid) | Denied | Partial | PendingReview.
+// "Paid" is accepted as a legacy synonym while old rows still exist in the DB.
 export function decisionVariant(decision) {
   switch (decision) {
+    case 'Approved':
     case 'Paid':          return { bg: '#d1f2eb', color: '#085041' };
     case 'Denied':        return { bg: '#fdecea', color: '#b71c1c' };
     case 'Partial':       return { bg: '#fff3e0', color: '#e65100' };
@@ -34,6 +37,7 @@ export function decisionVariant(decision) {
 
 export function decisionIcon(decision) {
   switch (decision) {
+    case 'Approved':
     case 'Paid':          return 'bi-check-circle-fill';
     case 'Denied':        return 'bi-x-circle-fill';
     case 'Partial':       return 'bi-dash-circle-fill';
@@ -45,6 +49,7 @@ export function decisionIcon(decision) {
 export function decisionLabel(decision) {
   switch (decision) {
     case 'PendingReview': return 'Pending Review';
+    case 'Paid':          return 'Approved';   // legacy data → display as Approved
     default:              return decision || '—';
   }
 }
@@ -91,7 +96,7 @@ export function claimTypeStyle(type) {
 
 // ── MANUAL DECISION OPTIONS ───────────────────────────────────────────────────
 export const MANUAL_DECISIONS = [
-  { value: 'Paid',    label: 'Paid — Approve full payment' },
-  { value: 'Denied',  label: 'Denied — Reject claim' },
-  { value: 'Partial', label: 'Partial — Approve partial payment' },
+  { value: 'Approved', label: 'Approved — Approve full payment' },
+  { value: 'Denied',   label: 'Denied — Reject claim' },
+  { value: 'Partial',  label: 'Partial — Approve partial payment' },
 ];

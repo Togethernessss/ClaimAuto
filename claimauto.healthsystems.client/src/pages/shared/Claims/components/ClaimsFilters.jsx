@@ -1,6 +1,6 @@
 // src/pages/shared/Claims/components/ClaimsFilters.jsx
 import { Row, Col, Form, Button, InputGroup } from 'react-bootstrap';
-import { CLAIM_STATUSES, CLAIM_PRIORITIES } from '../utils/claimHelpers';
+import { CLAIM_STATUSES, CLAIM_PRIORITIES, statusLabel } from '../utils/claimHelpers';
 
 export default function ClaimsFilters({
   search,
@@ -48,7 +48,7 @@ export default function ClaimsFilters({
         >
           <option value="All">All Statuses</option>
           {CLAIM_STATUSES.map((s) => (
-            <option key={s} value={s}>{s === 'UnderReview' ? 'Under Review' : s}</option>
+            <option key={s} value={s}>{statusLabel(s)}</option>
           ))}
         </Form.Select>
       </Col>

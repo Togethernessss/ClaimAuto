@@ -4,6 +4,8 @@ using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using ClaimAuto.HealthSystems.Server.Services;
 using Microsoft.EntityFrameworkCore;
+using ClaimAuto.HealthSystems.Server.Services.RuleEngine;
+using System.Text.Json;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
@@ -12,15 +14,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         private readonly ApplicationDbContext _db;
         private readonly AdjudicationService _engine;
         private readonly INotificationRepository _notificationRepo;
+        private readonly IEnumerable<IRuleStrategy> _strategies;
+        private readonly ILogger<AdjudicationRepository> _logger;
 
         public AdjudicationRepository(
             ApplicationDbContext db,
             AdjudicationService engine,
-            INotificationRepository notificationRepo)
+            INotificationRepository notificationRepo,
+            IEnumerable<IRuleStrategy> strategies,
+            ILogger<AdjudicationRepository> logger)
         {
             _db = db;
             _engine = engine;
             _notificationRepo = notificationRepo;
+            _strategies = strategies;
+            _logger = logger;
         }
 
         public async Task<AdjudicationResponseDto?> AutoAdjudicateAsync(int claimId, int? userOrgId = null)
@@ -55,28 +63,171 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
             }
 
-            var activeRules = await _db.Rules
-            .Where(r => r.Status == RuleStatus.Active &&
-                        (r.OrganizationID == null ||
-                            r.OrganizationID == claim.OrganizationID))
-            .OrderBy(r => r.Priority)
-            .ToListAsync();
+            // ── Pre-compute aggregates needed by strategies ───────────────
+            // PER-MEMBER scope: filter by both PolicyID AND MemberID so one member's
+            // claims don't consume another member's deductible / coverage. Current
+            // product is 1 policyholder = 1 member, but the filter is correct even
+            // when a future plan supports multiple members on a policy.
+            var previouslyPaid = await _db.Payments
+                .Where(p => p.Status == PaymentStatus.Executed
+                         && _db.Claims.Any(c => c.ClaimID == p.ClaimID
+                                             && c.PolicyID == claim.PolicyID
+                                             && c.MemberID == claim.MemberID))
+                .SumAsync(p => (decimal?)p.Amount) ?? 0m;
 
-            var engineResult = await _engine.EvaluateClaimAsync(claim, activeRules);
+            var previouslyDeducted = await _db.AdjudicationRecords
+                .Where(a => _db.Claims.Any(c => c.ClaimID == a.ClaimID
+                                             && c.PolicyID == claim.PolicyID
+                                             && c.MemberID == claim.MemberID)
+                         && a.DeductibleApplied > 0)
+                .SumAsync(a => (decimal?)a.DeductibleApplied) ?? 0m;
+
+            var weekAgo = DateTime.UtcNow.AddDays(-7);
+            var recentDuplicates = await _db.Claims
+                .Where(c => c.ClaimID != claimId
+                         && c.MemberID == claim.MemberID
+                         && c.ProviderID == claim.ProviderID
+                         && c.SubmittedAt >= weekAgo
+                         && c.Status != ClaimStatus.Rejected)
+                .CountAsync();
+
+            // Load documents separately (claim was already loaded; documents not always Included)
+            var claimDocuments = await _db.ClaimDocuments
+                .Where(d => d.ClaimID == claimId)
+                .ToListAsync();
+
+            var ctx = new RuleContext
+            {
+                Claim                = claim,
+                Policy               = claim.Policy!,
+                Member               = claim.Member!,
+                Provider             = claim.Provider!,
+                Lines                = claim.ClaimLines.ToList(),
+                Documents            = claimDocuments,
+                PreviouslyPaid       = previouslyPaid,
+                PreviouslyDeducted   = previouslyDeducted,
+                RecentDuplicateCount = recentDuplicates,
+            };
+
+            // ── Fetch active rules (org-scoped or global) ────────────────
+            var activeRules = await _db.Rules
+                .Where(r => r.Status == RuleStatus.Active &&
+                            (r.OrganizationID == null ||
+                                r.OrganizationID == claim.OrganizationID))
+                .OrderBy(r => r.Priority)
+                .ToListAsync();
+
+            // ── Evaluate each rule via its template-mapped strategy ──────
+            var trace          = new List<object>();
+            AdjDecision decision = AdjDecision.Approved;
+            decimal approved      = claim.TotalBilledAmount;
+            decimal totalDeducted = 0m;
+            bool hardFail        = false;
+
+            foreach (var rule in activeRules)
+            {
+                var strategy = _strategies.FirstOrDefault(s => s.TemplateKey == rule.RuleType);
+                if (strategy == null)
+                {
+                    trace.Add(new {
+                        ruleId   = rule.RuleID,
+                        ruleName = rule.Name,
+                        ruleType = rule.RuleType,
+                        result   = "SKIPPED",
+                        reason   = $"No strategy registered for template '{rule.RuleType}'"
+                    });
+                    _logger.LogWarning(
+                        "Rule {Name} (ID {Id}) has unknown template '{Tpl}' — skipped",
+                        rule.Name, rule.RuleID, rule.RuleType);
+                    continue;
+                }
+
+                RuleResult result;
+                try
+                {
+                    result = await strategy.EvaluateAsync(rule, ctx);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Strategy {Strategy} threw evaluating rule {Name}",
+                        strategy.GetType().Name, rule.Name);
+                    trace.Add(new {
+                        ruleId   = rule.RuleID,
+                        ruleName = rule.Name,
+                        result   = "SKIPPED",
+                        reason   = $"Strategy error: {ex.Message}"
+                    });
+                    continue;
+                }
+
+                trace.Add(new {
+                    ruleId   = rule.RuleID,
+                    ruleName = rule.Name,
+                    ruleType = rule.RuleType,
+                    result   = result.Outcome,
+                    reason   = result.Reason
+                });
+
+                switch (result.Outcome)
+                {
+                    case "FAIL":
+                        decision = AdjDecision.Denied;
+                        hardFail = true;
+                        break;
+                    case "ROUTE":
+                        if (decision != AdjDecision.Denied)
+                            decision = AdjDecision.PendingReview;
+                        break;
+                    case "APPLIED":
+                        if (result.DeductedAmount.HasValue)
+                        {
+                            totalDeducted += result.DeductedAmount.Value;
+                            approved      -= result.DeductedAmount.Value;
+                            if (approved < claim.TotalBilledAmount && decision == AdjDecision.Approved)
+                                decision = AdjDecision.Partial;
+                        }
+                        break;
+                    // PASS or SKIPPED — keep going
+                }
+
+                if (hardFail) break;
+            }
+
+            approved = Math.Max(0m, approved);
+
+            // ── Safety net: if no rules fired, don't auto-approve ────────
+            if (activeRules.Count == 0 || trace.All(t => ((dynamic)t).result == "SKIPPED"))
+            {
+                decision = AdjDecision.PendingReview;
+                trace.Add(new {
+                    ruleName = "ENGINE_DEFAULT",
+                    result   = "ROUTE",
+                    reason   = "No business rules evaluated this claim — manual review required"
+                });
+            }
+
+            var appliedRulesJson = JsonSerializer.Serialize(trace);
+            var calculationsJson = JsonSerializer.Serialize(new
+            {
+                originalAmount = claim.TotalBilledAmount,
+                approvedAmount = approved,
+                totalDeducted
+            });
 
             // ── Create adjudication record ────────────────────────────────
             var adjRecord = new AdjudicationRecord
             {
                 ClaimID = claimId,
                 ExecutedAt = DateTime.UtcNow,
-                EngineVersion = "v1.0.0",
-                Decision = engineResult.Decision,
-                CalculationsJSON = engineResult.CalculationsJSON,
-                AppliedRulesJSON = engineResult.AppliedRulesJSON,
-                Notes = $"Auto-adjudicated. Decision: {engineResult.Decision}. " +
-                    $"Payable: ₹{engineResult.PayableAmount}.",
+                EngineVersion = "v2-template",
+                Decision = decision,
+                CalculationsJSON = calculationsJson,
+                AppliedRulesJSON = appliedRulesJson,
+                Notes = $"Auto-adjudicated via v2 engine. {activeRules.Count} rule(s) considered. " +
+                        $"Decision: {decision}. Payable: ₹{approved}.",
                 PerformedByID = null,
-                DeductibleApplied = engineResult.DeductibleApplied,
+                DeductibleApplied = totalDeducted,
                 OrganizationID = claim.OrganizationID   // ← inherit from claim
             };
             _db.AdjudicationRecords.Add(adjRecord);
@@ -85,9 +236,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Paid/Partial → Approved (payment pending staff execution)
             // Denied       → Rejected (final)
             // PendingReview → UnderReview (staff manual review queue)
-            claim.Status = engineResult.Decision switch
+            claim.Status = decision switch
             {
-                AdjDecision.Paid => ClaimStatus.Approved,
+                AdjDecision.Approved => ClaimStatus.Approved,
                 AdjDecision.Denied => ClaimStatus.Rejected,
                 AdjDecision.Partial => ClaimStatus.Approved,
                 AdjDecision.PendingReview => ClaimStatus.UnderReview,
@@ -97,9 +248,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // ── Update claim line statuses ────────────────────────────────
             foreach (var line in claim.ClaimLines)
             {
-                line.LineStatus = engineResult.Decision switch
+                line.LineStatus = decision switch
                 {
-                    AdjDecision.Paid => LineStatus.Approved,
+                    AdjDecision.Approved => LineStatus.Approved,
                     AdjDecision.Denied => LineStatus.Denied,
                     AdjDecision.Partial => LineStatus.Approved,
                     _ => LineStatus.Pending
@@ -108,8 +259,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             // ── Auto-create Payment when claim is Approved ────────────────
             // Staff's only remaining step: Authorize → Execute on /payments
-            if (engineResult.Decision == AdjDecision.Paid ||
-                engineResult.Decision == AdjDecision.Partial)
+            if (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
             {
                 // For Reimbursement claims the payee is the Policyholder (ProviderID = their UserID)
                 // For all other claim types the payee is the Hospital provider
@@ -117,7 +267,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 {
                     ClaimID = claimId,
                     PayeeID = claim.ProviderID,
-                    Amount = engineResult.PayableAmount,
+                    Amount = approved,
                     Currency = claim.Currency,
                     PaymentMethod = PaymentMethod.EFT,
                     Status = PaymentStatus.Pending,
@@ -142,20 +292,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Action = "AutoAdjudicate",
                 ResourceType = "Claim",
                 ResourceID = claimId.ToString(),
-                DetailsJSON = $"{{\"decision\":\"{engineResult.Decision}\"," +
-                               $"\"payable\":{engineResult.PayableAmount}," +
-                               $"\"rulesEvaluated\":{activeRules.Count}}}",
+                DetailsJSON = $"{{\"decision\":\"{decision}\"," +
+                               $"\"payable\":{approved}," +
+                               $"\"rulesEvaluated\":{activeRules.Count}," +
+                               $"\"engineVersion\":\"v2-template\"}}",
                 Timestamp = DateTime.UtcNow,
                 OrganizationID = claim.OrganizationID,
             });
 
             await _db.SaveChangesAsync();
 
-            // ── Notifications ─────────────────────────────────────────────
+            // ── Notifications (preserved as-is) ───────────────────────────
             await SendAdjudicationNotificationsAsync(
                 claim,
-                engineResult.Decision,
-                engineResult.PayableAmount);
+                decision,
+                approved);
 
             return new AdjudicationResponseDto
             {
@@ -163,7 +314,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ClaimID = claimId,
                 ExecutedAt = adjRecord.ExecutedAt,
                 EngineVersion = adjRecord.EngineVersion,
-                Decision = adjRecord.Decision.ToString(),
+                Decision = decision.ToString(),
                 CalculationsJSON = adjRecord.CalculationsJSON,
                 AppliedRulesJSON = adjRecord.AppliedRulesJSON,
                 Notes = adjRecord.Notes,
@@ -229,7 +380,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Paid/Partial → Approved (not Adjudicated — Adjudicated is removed from flow)
             claim.Status = decision switch
             {
-                AdjDecision.Paid => ClaimStatus.Approved,
+                AdjDecision.Approved => ClaimStatus.Approved,
                 AdjDecision.Denied => ClaimStatus.Rejected,
                 AdjDecision.Partial => ClaimStatus.Approved,
                 _ => ClaimStatus.Rejected  // PendingReview from manual = Rejected
@@ -239,7 +390,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             {
                 line.LineStatus = decision switch
                 {
-                    AdjDecision.Paid => LineStatus.Approved,
+                    AdjDecision.Approved => LineStatus.Approved,
                     AdjDecision.Denied => LineStatus.Denied,
                     AdjDecision.Partial => LineStatus.Approved,
                     _ => LineStatus.Pending
@@ -247,11 +398,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
 
             // ── Auto-create Payment on Paid/Partial ───────────────────────
-            var payableAmount = decision == AdjDecision.Paid || decision == AdjDecision.Partial
+            var payableAmount = decision == AdjDecision.Approved || decision == AdjDecision.Partial
                 ? (dto.PayableAmount ?? claim.TotalBilledAmount)
                 : 0m;
 
-            if (decision == AdjDecision.Paid || decision == AdjDecision.Partial)
+            if (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
             {
                 _db.Payments.Add(new Payment
                 {
@@ -408,7 +559,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             switch (decision)
             {
-                case AdjDecision.Paid:
+                case AdjDecision.Approved:
                     providerMessage = $"Claim {claim.ExternalClaimRef} approved. " +
                                       $"Payment of ₹{payableAmount} created — pending staff authorization.";
                     memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) approved. " +
@@ -464,7 +615,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 // Send ONE clear reimbursement-specific notification — no duplicate.
                 var reimbMessage = decision switch
                 {
-                    AdjDecision.Paid => $"Your reimbursement request (CLM-{claim.ClaimID}) has been approved. " +
+                    AdjDecision.Approved => $"Your reimbursement request (CLM-{claim.ClaimID}) has been approved. " +
                                            $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
                     AdjDecision.Partial => $"Your reimbursement request (CLM-{claim.ClaimID}) has been partially approved. " +
                                            $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
@@ -517,7 +668,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
             // ── Notify InsuranceStaff to authorize the payment ────────────────────
             // (Only for Paid/Partial — staff must authorize before payment executes)
-            if (decision == AdjDecision.Paid || decision == AdjDecision.Partial)
+            if (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
             {
                 var staffUsers = await _db.Users
                     .Where(u => u.Role == UserRole.InsuranceStaff

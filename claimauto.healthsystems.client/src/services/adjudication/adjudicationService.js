@@ -12,7 +12,7 @@ export async function autoAdjudicate(claimId) {
 
 // ── MANUAL ADJUDICATE ─────────────────────────────────────────────────────────
 // Backend:  POST /api/adjudication/manual
-// Staff/Admin manually decides: Paid | Denied | Partial
+// Staff/Admin manually decides: Approved | Denied | Partial
 // Notes are required
 // Returns:  AdjudicationResponseDto
 export async function manualAdjudicate(dto) {

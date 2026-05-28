@@ -102,8 +102,14 @@ export default function Rules() {
 
   const hasFilters = !!search || typeFilter !== 'All';
 
-  const handleFormField = (field) => (e) =>
-    setForm({ ...form, [field]: e.target.value });
+  // Functional setState — critical when multiple fields are updated in a single
+  // synchronous block (e.g. handleTemplateSelect in RuleFormModal sets 5+ fields
+  // back-to-back). With the closure form, each call would overwrite the previous
+  // because they all spread the same stale `form` snapshot.
+  const handleFormField = (field) => (e) => {
+    const { value } = e.target;
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
 
   // Create
   const openCreate = () => {
