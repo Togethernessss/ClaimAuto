@@ -23,8 +23,9 @@ import HospitalDashboard     from '../pages/Hospital/Dashboard';
 import PolicyholderDashboard from '../pages/Policyholder/Dashboard';
 
 // ── Admin only ────────────────────────────────────────────────
-import AuditLogs from '../pages/Admin/AuditLogs';
-import Rules     from '../pages/Admin/Rules/Rules';
+import AuditLogs   from '../pages/Admin/AuditLogs';
+import Rules       from '../pages/Admin/Rules/Rules';
+import AdminUsers  from '../pages/Admin/Users';
 
 // ── Shared pages ──────────────────────────────────────────────
 import Claims        from '../pages/shared/Claims/Claims';
@@ -136,6 +137,10 @@ export default function AppRoutes() {
             <Route
               path="/admin/rules"
               element={<Rules />}
+            />
+            <Route
+              path="/admin/users"
+              element={<AdminUsers />}
             />
             <Route
               path="/admin/claims"

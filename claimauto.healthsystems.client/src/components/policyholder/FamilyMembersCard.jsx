@@ -16,7 +16,7 @@ export default function FamilyMembersCard({ members, claims }) {
           size="sm"
           variant="outline-primary"
           className="rounded-pill"
-          onClick={() => navigate('/members')}
+          onClick={() => navigate('/policyholder/claims')}
         >
           View All <i className="bi bi-arrow-right ms-1"></i>
         </Button>

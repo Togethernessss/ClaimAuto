@@ -9,10 +9,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class ClaimRepository : IClaimRepository
     {
         private readonly ApplicationDbContext _db;
+        private readonly INotificationRepository _notificationRepo;
 
-        public ClaimRepository(ApplicationDbContext db)
+        public ClaimRepository(ApplicationDbContext db, INotificationRepository notificationRepo)
         {
             _db = db;
+            _notificationRepo = notificationRepo;
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -202,8 +204,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 if (provider.Role != UserRole.Hospital) return null;
             }
 
+            // Prevent submitting a claim under another user's provider ID
+            if (dto.ProviderID != submittedByUserId) return null;
+
             var member = await _db.Members.FindAsync(dto.MemberID);
             if (member == null) return null;
+
+            // Reject if the member's coverage has lapsed
+            if (member.CoverageEnd.HasValue && member.CoverageEnd.Value.Date < DateTime.UtcNow.Date)
+                return null;
 
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
@@ -312,6 +321,30 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             audit.ResourceID = claim.ClaimID.ToString();
             await _db.SaveChangesAsync();   // ← Saves lines + documents + updates audit ResourceID
+
+            // Notify all active InsuranceStaff in the org to verify documents
+            var staffUsers = await _db.Users
+                .Where(u => u.Role == UserRole.InsuranceStaff
+                         && u.Status == AccountStatus.Active
+                         && u.OrganizationID == userOrgId)
+                .ToListAsync();
+
+            foreach (var staff in staffUsers)
+            {
+                await _notificationRepo.CreateAsync(new Notification
+                {
+                    UserID = staff.UserID,
+                    ClaimID = claim.ClaimID,
+                    Message = $"New claim CLM-{claim.ClaimID} submitted by {provider.Name} " +
+                              $"for ₹{dto.TotalBilledAmount:N2}. " +
+                              $"Please verify documents before adjudication.",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Info,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = now,
+                    OrganizationID = userOrgId,
+                });
+            }
 
             return new ClaimResponseDto
             {

@@ -1,10 +1,11 @@
 // src/pages/shared/Claims/components/ClaimDetailModal.jsx
-// Full claim detail with 4 tabs: Info / Lines / Documents / Adjudication
+// Full claim detail with 5 tabs: Info / Lines / Documents / Adjudication / Payment
 // All roles can view. Hospital + Policyholder can upload documents.
 import { useState, useRef, useEffect } from 'react';
 import {
   Modal, Tab, Tabs, Badge, Button, Alert, Spinner, Table,
 } from 'react-bootstrap';
+import { getAllPayments } from '../../../../services/payments/paymentService';
 import {
   formatDate, formatDateTime, formatCurrency,
   statusVariant, statusLabel,
@@ -41,6 +42,8 @@ export default function ClaimDetailModal({
   const [deletingDocId,  setDeletingDocId]  = useState(null);
   const [verifyingDocId, setVerifyingDocId] = useState(null);
   const [previewDocId,   setPreviewDocId]   = useState(null);
+  const [payment,        setPayment]        = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -51,9 +54,21 @@ export default function ClaimDetailModal({
       setDeletingDocId(null);
       setVerifyingDocId(null);
       setPreviewDocId(null);
+      setPayment(null);
+      setPaymentLoading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
   }, [show]);
+
+  // Load payment when the payment tab is opened
+  useEffect(() => {
+    if (activeTab !== 'payment' || !claim?.claimID) return;
+    setPaymentLoading(true);
+    getAllPayments(null, claim.claimID)
+      .then((list) => setPayment(list?.[0] ?? null))
+      .catch(() => setPayment(null))
+      .finally(() => setPaymentLoading(false));
+  }, [activeTab, claim?.claimID]);
 
   // ── Document permission helpers ─────────────────────────────────────────
   const finalStatuses  = ['Approved', 'Rejected', 'Paid'];
@@ -781,6 +796,135 @@ export default function ClaimDetailModal({
                   )}
                 </div>
               </Tab>
+              {/* ── TAB 5: PAYMENT / EOB ─────────────────────────────── */}
+              <Tab
+                eventKey="payment"
+                title={<><i className="bi bi-credit-card me-1"></i>Payment</>}
+              >
+                <div style={{ overflowY: 'auto', maxHeight: '45vh' }}>
+                  {paymentLoading ? (
+                    <div className="text-center py-5">
+                      <Spinner animation="border" variant="primary" size="sm" />
+                      <div className="text-muted mt-2 small">Loading payment…</div>
+                    </div>
+                  ) : !payment ? (
+                    <div className="text-center py-5 text-muted">
+                      <i className="bi bi-credit-card" style={{ fontSize: 32, color: '#dfe4ea' }}></i>
+                      <div className="mt-2 fw-semibold">No payment record yet</div>
+                      <div className="small">A payment is created automatically once the claim is approved.</div>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Status banner */}
+                      <div
+                        className="rounded-3 p-3 mb-3 text-center"
+                        style={{
+                          background: payment.status === 'Executed' ? '#d1f2eb'
+                            : payment.status === 'Pending' ? '#fff8e1'
+                            : payment.status === 'OnHold'  ? '#fff3cd'
+                            : '#f8f9fa',
+                          border: `1px solid ${payment.status === 'Executed' ? '#a5d6a7'
+                            : payment.status === 'Pending' ? '#ffe082'
+                            : payment.status === 'OnHold'  ? '#ffc107'
+                            : '#dee2e6'}`,
+                        }}
+                      >
+                        <Badge
+                          bg={payment.status === 'Executed' ? 'success'
+                            : payment.status === 'Pending'  ? 'warning'
+                            : payment.status === 'OnHold'   ? 'warning'
+                            : 'secondary'}
+                          className="px-3 py-2 fs-6"
+                        >
+                          {payment.status}
+                        </Badge>
+                        <div className="small text-muted mt-1">
+                          Payment ID: <strong>PAY-{payment.paymentID}</strong>
+                        </div>
+                      </div>
+
+                      {/* Payment details */}
+                      <div
+                        className="rounded-3"
+                        style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
+                      >
+                        {[
+                          { label: 'Payee', value: payment.payeeName, icon: 'bi-person' },
+                          { label: isPolicyholder ? 'Approved Amount' : 'Payment Amount',
+                            value: `₹${Number(payment.amount).toLocaleString('en-IN')}`,
+                            icon: 'bi-cash-coin' },
+                          { label: 'Currency', value: payment.currency, icon: 'bi-currency-rupee' },
+                          { label: 'Method', value: payment.paymentMethod, icon: 'bi-bank' },
+                          { label: 'Created', value: formatDate(payment.createdAt), icon: 'bi-clock' },
+                          payment.executedAt
+                            ? { label: 'Executed', value: formatDateTime(payment.executedAt), icon: 'bi-check-circle' }
+                            : null,
+                          payment.referenceNumber
+                            ? { label: 'Reference', value: payment.referenceNumber, icon: 'bi-hash' }
+                            : null,
+                        ].filter(Boolean).map((row, idx, arr) => (
+                          <div
+                            key={row.label}
+                            className="d-flex align-items-start justify-content-between px-3"
+                            style={{
+                              padding: '10px 12px',
+                              borderBottom: idx < arr.length - 1 ? '1px solid #e9ecef' : 'none',
+                            }}
+                          >
+                            <div
+                              className="d-flex align-items-center gap-2 text-muted"
+                              style={{ fontSize: '0.8rem', minWidth: 130 }}
+                            >
+                              <i className={row.icon} style={{ fontSize: '0.75rem' }}></i>
+                              {row.label}
+                            </div>
+                            <div className="fw-semibold text-end" style={{ fontSize: '0.85rem' }}>
+                              {row.value}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* EOB section for Policyholder */}
+                      {isPolicyholder && (
+                        <div className="mt-3 rounded-3 p-3" style={{ background: '#e8f5e9', border: '1px solid #a5d6a7' }}>
+                          <div className="small fw-semibold mb-2" style={{ color: '#2e7d32' }}>
+                            <i className="bi bi-file-earmark-text me-2"></i>
+                            Explanation of Benefits (EOB)
+                          </div>
+                          <div className="d-flex flex-column gap-1" style={{ fontSize: '0.85rem' }}>
+                            <div className="d-flex justify-content-between">
+                              <span className="text-muted">Total Billed</span>
+                              <span className="fw-semibold">
+                                ₹{Number(claim.totalBilledAmount).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                            <div className="d-flex justify-content-between">
+                              <span className="text-muted">Amount Approved</span>
+                              <span className="fw-semibold text-success">
+                                ₹{Number(payment.amount).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                            {claim.totalBilledAmount > payment.amount && (
+                              <div className="d-flex justify-content-between">
+                                <span className="text-muted">Not Covered</span>
+                                <span className="fw-semibold text-danger">
+                                  ₹{Number(claim.totalBilledAmount - payment.amount).toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="small text-muted mt-2">
+                            <i className="bi bi-info-circle me-1"></i>
+                            Payment is sent directly to your provider. Contact support if you have questions.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Tab>
+
             </Tabs>
           </>
         )}

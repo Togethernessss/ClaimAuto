@@ -24,23 +24,25 @@ export function formatCurrency(val) {
 
 export function statusVariant(status) {
   switch (status) {
-    case 'Submitted':   return 'secondary';
-    case 'UnderReview': return 'warning';
-    case 'Approved':    return 'primary';
-    case 'Paid':        return 'success';
-    case 'Rejected':    return 'danger';
-    default:            return 'secondary';
+    case 'Submitted':              return 'secondary';
+    case 'DocsVerificationPending': return 'info';
+    case 'UnderReview':            return 'warning';
+    case 'Approved':               return 'primary';
+    case 'Paid':                   return 'success';
+    case 'Rejected':               return 'danger';
+    default:                       return 'secondary';
   }
 }
 
 export function statusLabel(status) {
   switch (status) {
-    case 'Submitted':   return 'Submitted';
-    case 'UnderReview': return 'Under Review';
-    case 'Approved':    return 'Approved';
-    case 'Paid':        return 'Paid';
-    case 'Rejected':    return 'Rejected';
-    default:            return status || '—';
+    case 'Submitted':              return 'Submitted';
+    case 'DocsVerificationPending': return 'Docs Review';
+    case 'UnderReview':            return 'Under Review';
+    case 'Approved':               return 'Approved';
+    case 'Paid':                   return 'Paid';
+    case 'Rejected':               return 'Rejected';
+    default:                       return status || '—';
   }
 }
 export function priorityVariant(priority) {
@@ -126,11 +128,12 @@ export const HOSPITAL_CLAIM_TYPES = [
 // 'Validated'   REMOVED — was a manual trigger, no longer part of flow.
 // All status transitions are automatic on submission.
 export const CLAIM_STATUSES = [
-  'Submitted',    // auto: fraud screening + adjudication runs immediately
-  'UnderReview',  // auto: fraud blocked OR adjudication routed to manual review
-  'Approved',     // auto: adjudication Paid/Partial → payment auto-created (Pending)
-  'Paid',         // auto: payment Executed by staff
-  'Rejected',     // auto: denied by adjudication OR fraud confirmed
+  'Submitted',               // legacy / direct channel submissions
+  'DocsVerificationPending', // awaiting staff document review before adjudication
+  'UnderReview',             // fraud flagged OR adjudication routed to manual review
+  'Approved',                // adjudication Paid/Partial → payment auto-created
+  'Paid',                    // payment executed by staff
+  'Rejected',                // denied by adjudication OR fraud confirmed
 ];
 
 export const CLAIM_PRIORITIES = ['Normal', 'High', 'Urgent'];

@@ -1,6 +1,10 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import api from '../api/axiosClient';
 
 const AuthContext = createContext(undefined);
+
+// How often to ping /api/auth/me to detect admin-initiated deactivation.
+const STATUS_POLL_MS = 30_000;
 
 export function AuthProvider({ children }) {
   // Read localStorage synchronously BEFORE the first render so refresh works.
@@ -10,37 +14,91 @@ export function AuthProvider({ children }) {
       const saved = localStorage.getItem('user');
       return saved ? JSON.parse(saved) : null;
     } catch {
-      // Corrupted JSON in localStorage — clear it and treat as logged out.
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       return null;
     }
   });
 
+  // Message shown on the Login page when an admin deactivates this account.
+  const [deactivatedMessage, setDeactivatedMessage] = useState(null);
+
   const login = (newToken, newUser) => {
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+    setDeactivatedMessage(null);
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-  };
+  }, []);
+
+  const clearDeactivatedMessage = useCallback(() => {
+    setDeactivatedMessage(null);
+  }, []);
+
+  // Listen for events dispatched by the axios interceptor.
+  useEffect(() => {
+    const handleLogout = () => logout();
+
+    const handleDeactivated = (e) => {
+      const msg =
+        e.detail?.message ||
+        'Your account has been deactivated by the organisation. Please contact support.';
+      setDeactivatedMessage(msg);
+      logout();
+    };
+
+    window.addEventListener('auth:logout', handleLogout);
+    window.addEventListener('auth:deactivated', handleDeactivated);
+
+    return () => {
+      window.removeEventListener('auth:logout', handleLogout);
+      window.removeEventListener('auth:deactivated', handleDeactivated);
+    };
+  }, [logout]);
+
+  // Poll /api/auth/me every 30 s while logged in.
+  // UserStatusMiddleware intercepts this call and returns 401 ACCOUNT_DEACTIVATED
+  // if the admin has deactivated the account — the axios interceptor fires
+  // auth:deactivated and the effect above takes over from there.
+  useEffect(() => {
+    if (!token) return;
+
+    const poll = async () => {
+      try {
+        await api.get('/api/auth/me');
+      } catch {
+        // Errors are handled by the axios interceptor — nothing extra needed here.
+      }
+    };
+
+    const id = setInterval(poll, STATUS_POLL_MS);
+    return () => clearInterval(id);
+  }, [token]);
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!token, login, logout }}
+      value={{
+        user,
+        token,
+        isAuthenticated: !!token,
+        deactivatedMessage,
+        login,
+        logout,
+        clearDeactivatedMessage,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Custom hook so any component can do: const { user, login } = useAuth();
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');

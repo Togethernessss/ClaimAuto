@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import { NotificationProvider } from '../security/NotificationContext';
 import { getAllAppeals } from '../services/appeals/appealService';
+import { getPagePath } from '../security/permissions';
 
 function AppealBell() {
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ function AppealBell() {
 
   return (
     <button
-      onClick={() => navigate('/appeals')}
+      onClick={() => navigate(getPagePath(user?.role, '/appeals'))}
       title={`${count} active appeal${count !== 1 ? 's' : ''}`}
       style={{
         background: 'none', border: 'none',

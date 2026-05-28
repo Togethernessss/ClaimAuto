@@ -130,6 +130,13 @@ export const MENU_ITEMS = [
 
   // ── Admin only ────────────────────────────────────────────────
   {
+    key:   'users',
+    label: 'User Management',
+    icon:  'bi-people-fill',
+    path:  '/admin/users',
+    roles: ['Admin'],
+  },
+  {
     key:   'rules',
     label: 'Rules Engine',
     icon:  'bi-gear',
@@ -141,13 +148,6 @@ export const MENU_ITEMS = [
     label: 'Audit Logs',
     icon:  'bi-journal-text',
     path:  '/admin/audit-logs',
-    roles: ['Admin'],
-  },
-  {
-    key:   'auditpkg',
-    label: 'Audit Packages',
-    icon:  'bi-archive',
-    path:  '/audit-packages',
     roles: ['Admin'],
   },
 ];
@@ -176,6 +176,22 @@ export function getMenuForRole(role) {
 
 export function canAccess(role, allowedRoles) {
   return allowedRoles.includes(role);
+}
+
+// ── getPagePath — resolve any shared path to its role-prefixed absolute path ─
+// Use this wherever a hardcoded path like '/notifications' needs to be navigated
+// to from a shared component that is rendered for multiple roles.
+export function getPagePath(role, path) {
+  const prefix = ROLE_PREFIX[role] || '';
+  if (
+    path.startsWith('/admin/') ||
+    path.startsWith('/staff/') ||
+    path.startsWith('/hospital/') ||
+    path.startsWith('/policyholder/')
+  ) {
+    return path;
+  }
+  return `${prefix}${path}`;
 }
 
 // ── Each role has its OWN unique dashboard path ───────────────
