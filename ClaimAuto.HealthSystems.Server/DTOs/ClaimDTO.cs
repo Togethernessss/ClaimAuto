@@ -107,10 +107,24 @@
         public string UploadedByName { get; set; } = string.Empty;
         public string? VerifiedByName { get; set; }
         public string DocType { get; set; } = string.Empty;
+
+        // ── NEW: file metadata ──
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public long FileSize { get; set; }
+        public string FileSizeDisplay => FormatBytes(FileSize);
+
         public string FileURI { get; set; } = string.Empty;
         public string SHA256 { get; set; } = string.Empty;
         public DateTime UploadedAt { get; set; }
         public string Status { get; set; } = string.Empty;
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        }
     }
 
     public class VerifyDocumentDto
@@ -123,5 +137,13 @@
     {
         public string? Status { get; set; }    // "UnderReview" | "Approved" | "Rejected"
         public string? Priority { get; set; } // "Normal","High","Urgent"
+    }
+    public class UploadDocumentFormDto
+    {
+        /// <summary>The file being uploaded (PDF, image, doc, etc.)</summary>
+        public IFormFile File { get; set; } = null!;
+
+        /// <summary>One of: Invoice, MedicalRecord, LabReport, Prescription, DischargeSummary</summary>
+        public string DocType { get; set; } = string.Empty;
     }
 }

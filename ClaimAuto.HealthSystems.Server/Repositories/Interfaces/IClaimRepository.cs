@@ -1,4 +1,5 @@
 ﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.Model;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 {
@@ -54,8 +55,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // ── CLAIM DOCUMENTS ─────────────────────────────────────────────
 
         // Used by: POST /api/claims/{id}/documents
-        Task<ClaimDocumentResponseDto?> UploadDocumentAsync(int claimId, UploadDocumentDto dto,
-            int uploadedByUserId);
+        Task<ClaimDocumentResponseDto?> UploadDocumentAsync(
+    int claimId,
+    Microsoft.AspNetCore.Http.IFormFile file,
+    string docType,
+    int uploadedByUserId);
+        Task<ClaimDocument?> GetClaimDocumentEntityAsync(int claimId, int docId, int? userOrgId = null);
 
         // ── APPEAL RESET — used when an appeal is Overturned ──────────────────
         // Bypasses any state-machine validation in UpdateClaimAsync and FORCE

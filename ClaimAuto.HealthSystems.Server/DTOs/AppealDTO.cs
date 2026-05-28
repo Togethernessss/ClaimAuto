@@ -37,4 +37,10 @@
         public decimal? RecoverableAmount { get; set; }
         public string? ThirdPartyDetailsJSON { get; set; }
     }
+    public class FileAppealFormDto
+    {
+        public int ClaimID { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public List<IFormFile>? Files { get; set; }
+    }
 }

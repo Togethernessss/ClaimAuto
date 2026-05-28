@@ -576,7 +576,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         //  UPLOAD DOCUMENT — saves document reference with SHA-256 hash
         // ══════════════════════════════════════════════════════════════════
         public async Task<ClaimDocumentResponseDto?> UploadDocumentAsync(
-            int claimId, UploadDocumentDto dto, int uploadedByUserId)
+     int claimId,
+     Microsoft.AspNetCore.Http.IFormFile file,
+     string docType,
+     int uploadedByUserId)
         {
             var claim = await _db.Claims.FindAsync(claimId);
             if (claim == null) return null;
@@ -584,19 +587,38 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var uploader = await _db.Users.FindAsync(uploadedByUserId);
             if (uploader == null) return null;
 
-            if (!Enum.TryParse<DocType>(dto.DocType, out var docType))
+            if (!Enum.TryParse<DocType>(docType, out var parsedDocType))
                 return null;
+
+            if (file == null || file.Length == 0)
+                return null;
+
+            // Read file bytes into memory
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            // Generate SHA256 for tamper-detection
+            var sha256 = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(bytes)
+            ).ToLowerInvariant();
 
             var doc = new ClaimDocument
             {
                 ClaimID = claimId,
                 UploadedBy = uploadedByUserId,
-                DocType = docType,
-                FileURI = dto.FileURI,
-                SHA256 = dto.SHA256,
+                DocType = parsedDocType,
+                FileName = file.FileName,
+                ContentType = string.IsNullOrEmpty(file.ContentType)
+                                    ? "application/octet-stream"
+                                    : file.ContentType,
+                FileSize = file.Length,
+                FileData = bytes,
+                FileURI = $"db://claimdoc/{Guid.NewGuid()}",   // pseudo-URI (file is in DB)
+                SHA256 = sha256,
                 UploadedAt = DateTime.UtcNow,
                 Status = DocStatus.Pending,
-                OrganizationID = claim.OrganizationID,   // ← Phase 4: inherit from parent claim
+                OrganizationID = claim.OrganizationID,
             };
 
             _db.ClaimDocuments.Add(doc);
@@ -610,12 +632,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 UploadedByName = uploader.Name,
                 VerifiedByName = null,
                 DocType = doc.DocType.ToString(),
+                FileName = doc.FileName,
+                ContentType = doc.ContentType,
+                FileSize = doc.FileSize,
                 FileURI = doc.FileURI,
                 SHA256 = doc.SHA256,
                 UploadedAt = doc.UploadedAt,
                 Status = doc.Status.ToString()
             };
         }
+
         // ── APPEAL RESET — direct, audit-logged, tenant-scoped, atomic ────────
         // Used ONLY by the appeal-overturn flow. Bypasses any state-machine
         // validation in UpdateClaimAsync so a Rejected/Adjudicated claim can
@@ -681,29 +707,43 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         public async Task<List<ClaimDocumentResponseDto>> GetClaimDocumentsAsync(int claimId, int? userOrgId = null)
         {
-            var query = _db.ClaimDocuments
-                .Where(d => d.ClaimID == claimId);
+            var query = _db.ClaimDocuments.Where(d => d.ClaimID == claimId);
 
             if (userOrgId.HasValue)
                 query = query.Where(d => d.OrganizationID == userOrgId.Value);
 
             return await query
-            .Select(d => new ClaimDocumentResponseDto
-            {
-                DocID = d.DocID,
-                ClaimID = d.ClaimID,
-                UploadedByID = d.UploadedBy,
-                UploadedByName = d.Uploader.Name,
-                VerifiedByName = d.VerifiedBy != null ? d.VerifiedBy.Name : null,
-                DocType = d.DocType.ToString(),
-                FileURI = d.FileURI,
-                SHA256 = d.SHA256,
-                UploadedAt = d.UploadedAt,
-                Status = d.Status.ToString()
-            })
-            .ToListAsync();
+                .Select(d => new ClaimDocumentResponseDto
+                {
+                    DocID = d.DocID,
+                    ClaimID = d.ClaimID,
+                    UploadedByID = d.UploadedBy,
+                    UploadedByName = d.Uploader.Name,
+                    VerifiedByName = d.VerifiedBy != null ? d.VerifiedBy.Name : null,
+                    DocType = d.DocType.ToString(),
+                    FileName = d.FileName,             // ← NEW
+                    ContentType = d.ContentType,          // ← NEW
+                    FileSize = d.FileSize,             // ← NEW
+                    FileURI = d.FileURI,
+                    SHA256 = d.SHA256,
+                    UploadedAt = d.UploadedAt,
+                    Status = d.Status.ToString()
+                })
+              
+                .ToListAsync();
         }
 
+        public async Task<ClaimDocument?> GetClaimDocumentEntityAsync(
+    int claimId, int docId, int? userOrgId = null)
+        {
+            var query = _db.ClaimDocuments
+                .Where(d => d.DocID == docId && d.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            return await query.FirstOrDefaultAsync();
+        }
         // ══════════════════════════════════════════════════════════════════
         //  DELETE DOCUMENT
         // ══════════════════════════════════════════════════════════════════
@@ -771,6 +811,28 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Timestamp = DateTime.UtcNow,
                 OrganizationID = userOrgId,
             });
+            // After: doc.Status = newStatus; doc.VerifiedByID = verifiedByUserId;
+
+            // If the doc was rejected, log it more visibly and notify
+            if (newStatus == DocStatus.Rejected)
+            {
+                var claim = await _db.Claims.FindAsync(claimId);
+                if (claim != null)
+                {
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserID = claim.ProviderID,   // notify the hospital
+                        ClaimID = claimId,
+                        Message = $"Document #{docId} on Claim CLM-{claimId} was REJECTED by staff. " +
+                                         "Re-upload a valid replacement before requesting adjudication.",
+                        Category = NotificationCategory.Exception,
+                        Severity = NotificationSeverity.Warning,
+                        CreatedAt = DateTime.UtcNow,
+                        Status = NotificationStatus.Unread,
+                        OrganizationID = userOrgId,
+                    });
+                }
+            }
 
             await _db.SaveChangesAsync();
 
@@ -833,10 +895,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (claim.Status != ClaimStatus.DocsVerificationPending)
                 return "wrongstatus";
 
-            // Every document must have been actively reviewed — no unreviewed (Pending) docs allowed.
-            // Staff can still proceed with zero documents — the judgment call belongs to them.
+            // No unreviewed documents allowed
             var hasPendingDocs = claim.ClaimDocuments.Any(d => d.Status == DocStatus.Pending);
             if (hasPendingDocs) return "pendingdocs";
+
+            // ── NEW: Any rejected documents → claim must be denied ──
+            var rejectedCount = claim.ClaimDocuments.Count(d => d.Status == DocStatus.Rejected);
+            if (rejectedCount > 0)
+                return $"hasrejecteddocs:{rejectedCount}";
 
             return "ok";
         }

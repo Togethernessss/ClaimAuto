@@ -142,9 +142,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> FileAppeal(
-            [FromForm] int claimID,
-            [FromForm] string reason,
-            [FromForm] List<IFormFile>? files)
+    [FromForm] int claimID,
+    [FromForm] string reason,
+    [FromForm] List<IFormFile>? files)
         {
             // ── Validate claim exists (org-scoped for SaaS) ──
             var claim = await _claimRepo.GetClaimByIdAsync(claimID, GetLoggedInUserOrgId());
