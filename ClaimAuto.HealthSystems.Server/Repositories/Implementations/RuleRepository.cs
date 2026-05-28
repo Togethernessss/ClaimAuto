@@ -34,8 +34,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (!string.IsNullOrEmpty(ruleType))
             {
-                if (Enum.TryParse<RuleType>(ruleType, true, out var parsedType))
-                    query = query.Where(r => r.RuleType == parsedType);
+                // RuleType is now a template-key string (e.g. "PolicyActive","AmountAbove").
+                // Match case-insensitively so legacy/casual values from the UI still work.
+                query = query.Where(r => r.RuleType.ToLower() == ruleType.ToLower());
             }
 
             query = query.OrderBy(r => r.Priority);
@@ -88,8 +89,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
         public async Task<RuleResponseDto> CreateRuleAsync(CreateRuleDto dto, int createdByUserId, int? userOrgId = null)
         {
-            if (!Enum.TryParse<RuleType>(dto.RuleType, true, out var ruleType))
-                ruleType = RuleType.Validation;
+            // RuleType is now a free-form template-key string (e.g. "PolicyActive",
+            // "AmountAbove"). The engine dispatches to a strategy by this key, so we
+            // accept whatever the admin/UI sent and let the strategy registry validate it.
+            var ruleType = string.IsNullOrWhiteSpace(dto.RuleType)
+                ? RuleTemplate.ROUTE_TO_REVIEW   // safe default — routes to manual review
+                : dto.RuleType.Trim();
 
             var rule = new Rule
             {

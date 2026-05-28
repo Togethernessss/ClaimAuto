@@ -884,5 +884,210 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             return "ok";
         }
+
+        public async Task<string> StaffRejectClaimAsync(
+        int claimId,
+        string reason,
+        int rejectedByUserId,
+        int? userOrgId = null)
+        {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                // ── Tenant-scoped lookup ──
+                var query = _db.Claims.Where(c => c.ClaimID == claimId);
+                if (userOrgId.HasValue)
+                    query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+                var claim = await query.FirstOrDefaultAsync();
+                if (claim == null)
+                {
+                    await transaction.RollbackAsync();
+                    return "notfound";
+                }
+
+                // Cannot reject already-finalized claims
+                if (claim.Status == ClaimStatus.Approved
+                    || claim.Status == ClaimStatus.Rejected
+                    || claim.Status == ClaimStatus.Paid)
+                {
+                    await transaction.RollbackAsync();
+                    return "alreadyfinalized";
+                }
+
+                var previousStatus = claim.Status;
+
+                // ── Update claim ──
+                claim.Status = ClaimStatus.Rejected;
+
+                // ── Audit log entry ──
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    UserID = rejectedByUserId,
+                    Action = "StaffRejectClaim",
+                    ResourceType = "Claim",
+                    ResourceID = claimId.ToString(),
+                    DetailsJSON = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        claimID = claimId,
+                        previousStatus = previousStatus.ToString(),
+                        newStatus = "Rejected",
+                        reason = reason,
+                        rejectedBy = rejectedByUserId
+                    }),
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = claim.OrganizationID,
+                });
+
+                // ── Notify the claim filer (provider) ──
+                _db.Notifications.Add(new Notification
+                {
+                    UserID = claim.ProviderID,
+                    ClaimID = claimId,
+                    Message = $"Your claim CLM-{claimId} has been REJECTED by staff. " +
+                              $"Reason: {reason}",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Warning,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = NotificationStatus.Unread,
+                    OrganizationID = claim.OrganizationID,
+                });
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return "ok";
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"[StaffRejectClaim ERROR] Claim {claimId}: {ex.Message}");
+                throw;
+            }
+        }
+
+
+        public async Task<ClaimDocumentResponseDto?> ReplaceDocumentAsync(
+        int claimId,
+        int docId,
+        ReplaceDocumentDto dto,
+        int replacedByUserId,
+        int? userOrgId = null)
+        {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                // ── Tenant-scoped lookup ──
+                var query = _db.ClaimDocuments
+                    .Where(d => d.DocID == docId && d.ClaimID == claimId);
+
+                if (userOrgId.HasValue)
+                    query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+                var doc = await query.FirstOrDefaultAsync();
+                if (doc == null)
+                {
+                    await transaction.RollbackAsync();
+                    return null;
+                }
+
+                // ── Only Rejected docs can be replaced ──
+                if (doc.Status != DocStatus.Rejected)
+                {
+                    await transaction.RollbackAsync();
+                    return null;
+                }
+
+                // ── Capture old values for audit ──
+                var oldFileURI = doc.FileURI;
+                var oldSHA256 = doc.SHA256;
+                var oldStatus = doc.Status.ToString();
+
+                // ── Update document in place ──
+                doc.FileURI = dto.FileURI;
+                doc.SHA256 = dto.SHA256;
+                doc.Status = DocStatus.Pending;       // reset for re-review
+                doc.VerifiedByID = null;                     // clear old rejector
+                doc.UploadedBy = replacedByUserId;
+                doc.UploadedAt = DateTime.UtcNow;
+
+                // ── Audit log entry ──
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    UserID = replacedByUserId,
+                    Action = "ReplaceDocument",
+                    ResourceType = "ClaimDocument",
+                    ResourceID = docId.ToString(),
+                    DetailsJSON = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        claimID = claimId,
+                        docID = docId,
+                        docType = doc.DocType.ToString(),
+                        oldStatus,
+                        newStatus = "Pending",
+                        oldFileURI,
+                        newFileURI = dto.FileURI,
+                        oldSHA256,
+                        newSHA256 = dto.SHA256,
+                        replacedBy = replacedByUserId,
+                    }),
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = doc.OrganizationID,
+                });
+
+                // ── Notify in-org Staff/Admin that the doc was re-uploaded ──
+                var claim = await _db.Claims.FindAsync(claimId);
+                if (claim != null)
+                {
+                    var staff = await _db.Users
+                        .Where(u =>
+                            (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                            && u.Status == AccountStatus.Active
+                            && u.OrganizationID == claim.OrganizationID)
+                        .ToListAsync();
+
+                    foreach (var s in staff)
+                    {
+                        _db.Notifications.Add(new Notification
+                        {
+                            UserID = s.UserID,
+                            ClaimID = claimId,
+                            Message = $"A rejected document on Claim CLM-{claimId} has been " +
+                                             $"re-uploaded with a corrected version ({doc.DocType}). " +
+                                             "Please review.",
+                            Category = NotificationCategory.Exception,
+                            Severity = NotificationSeverity.Info,
+                            CreatedAt = DateTime.UtcNow,
+                            Status = NotificationStatus.Unread,
+                            OrganizationID = claim.OrganizationID,
+                        });
+                    }
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // ── Return updated DTO ──
+                var uploader = await _db.Users.FindAsync(replacedByUserId);
+                return new ClaimDocumentResponseDto
+                {
+                    DocID = doc.DocID,
+                    ClaimID = doc.ClaimID,
+                    UploadedByID = doc.UploadedBy,
+                    UploadedByName = uploader?.Name ?? "Unknown",
+                    VerifiedByName = null,                 // cleared on replace
+                    DocType = doc.DocType.ToString(),
+                    FileURI = doc.FileURI,
+                    SHA256 = doc.SHA256,
+                    UploadedAt = doc.UploadedAt,
+                    Status = doc.Status.ToString(),
+                };
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"[ReplaceDocument ERROR] Doc {docId}: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

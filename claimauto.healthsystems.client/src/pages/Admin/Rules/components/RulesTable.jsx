@@ -2,6 +2,55 @@
 import { Card, Table, Button, Alert, Spinner } from 'react-bootstrap';
 import { formatDate, ruleStatusStyle, ruleStatusIcon, ruleTypeStyle, ruleTypeIcon } from '../utils/ruleHelpers';
 
+// Map template keys → human-readable labels for the Type column.
+// Falls back to the raw value if unknown (e.g., custom rule type).
+const TEMPLATE_LABELS = {
+  PolicyActive:           'Policy Active',
+  InNetwork:              'In-Network',
+  WaitingPeriod:          'Waiting Period',
+  CoverageRemaining:      'Coverage Remaining',
+  AmountBelow:            'Auto-Approve Below',
+  AmountAbove:            'Route Above Amount',
+  AmountBetween:          'Amount in Range',
+  ClaimTypeDeny:          'Deny by Type',
+  ClaimTypePass:          'Auto-Pass by Type',
+  DuplicateCheck:         'Duplicate Check',
+  ReimbursementDuplicate: 'Reimbursement Dup',
+  Deductible:             'Deductible',
+  CoPay:                  'CoPay',
+  RequireDocType:         'Require Document',
+  RouteToReview:          'Always Route',
+};
+
+function getTemplateLabel(ruleType) {
+  return TEMPLATE_LABELS[ruleType] || ruleType;
+}
+
+// Build a short human-readable summary from the rule's condition JSON
+// so admins see "Max: ₹5,000" instead of raw {"maxAmount":5000}.
+function getParamsSummary(rule) {
+  if (!rule?.conditionExpressionJSON) return null;
+  try {
+    const p = JSON.parse(rule.conditionExpressionJSON);
+    if (!p || typeof p !== 'object') return null;
+    const parts = [];
+    if (p.minAmount !== undefined && p.minAmount !== null)
+      parts.push(`Min: ₹${Number(p.minAmount).toLocaleString('en-IN')}`);
+    if (p.maxAmount !== undefined && p.maxAmount !== null)
+      parts.push(`Max: ₹${Number(p.maxAmount).toLocaleString('en-IN')}`);
+    if (p.windowDays) parts.push(`${p.windowDays}-day window`);
+    if (p.days)       parts.push(`${p.days} days`);
+    if (p.percent)    parts.push(`${p.percent}%`);
+    if (Array.isArray(p.types) && p.types.length > 0)
+      parts.push(`Types: ${p.types.join(', ')}`);
+    if (Array.isArray(p.requiredTypes) && p.requiredTypes.length > 0)
+      parts.push(`Required: ${p.requiredTypes.join(', ')}`);
+    return parts.length > 0 ? parts.join(' • ') : null;
+  } catch {
+    return null;
+  }
+}
+
 function StatusBadge({ status }) {
   const s = ruleStatusStyle(status);
   return (
@@ -27,7 +76,7 @@ function TypeBadge({ type }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
       <i className={ruleTypeIcon(type)} style={{ fontSize: 10 }}></i>
-      {type}
+      {getTemplateLabel(type)}
     </span>
   );
 }
@@ -135,12 +184,28 @@ export default function RulesTable({
                     </div>
                   </td>
 
-                  {/* Name + description */}
+                  {/* Name + description + params summary */}
                   <td className="py-3" style={{ maxWidth: 280 }}>
                     <div className="fw-semibold" style={{ fontSize: 13 }}>{rule.name}</div>
                     {rule.description && (
                       <div className="text-muted" style={{ fontSize: 11, lineHeight: 1.3 }}>
                         {rule.description}
+                      </div>
+                    )}
+                    {getParamsSummary(rule) && (
+                      <div
+                        className="font-monospace mt-1"
+                        style={{
+                          fontSize: 10,
+                          color: '#5a6268',
+                          background: '#f0f2f5',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          display: 'inline-block',
+                        }}
+                      >
+                        <i className="bi bi-sliders me-1"></i>
+                        {getParamsSummary(rule)}
                       </div>
                     )}
                   </td>

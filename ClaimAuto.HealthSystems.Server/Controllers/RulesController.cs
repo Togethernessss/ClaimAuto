@@ -58,9 +58,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            if (!Enum.TryParse<RuleType>(dto.RuleType, true, out _))
+            // RuleType is now a template-key string. Validate against the registered
+            // list of templates so admins can't create rules the engine can't execute.
+            if (string.IsNullOrWhiteSpace(dto.RuleType) ||
+                !RuleTemplate.All.Any(t => string.Equals(t, dto.RuleType, StringComparison.OrdinalIgnoreCase)))
+            {
                 return BadRequest($"Invalid RuleType '{dto.RuleType}'. " +
-                                  $"Must be: Coverage, Payment, or Validation.");
+                                  $"Must be one of: {string.Join(", ", RuleTemplate.All)}.");
+            }
 
             var created = await _ruleRepo.CreateRuleAsync(dto, userId.Value, userOrgId);
 

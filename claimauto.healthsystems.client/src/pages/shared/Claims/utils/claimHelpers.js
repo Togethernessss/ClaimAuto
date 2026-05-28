@@ -105,7 +105,8 @@ export function lineStatusVariant(status) {
 
 export function adjDecisionVariant(decision) {
   switch (decision) {
-    case 'Paid':          return 'success';
+    case 'Approved':
+    case 'Paid':          return 'success';  // 'Paid' kept for legacy data
     case 'Partial':       return 'info';
     case 'Denied':        return 'danger';
     case 'PendingReview': return 'warning';

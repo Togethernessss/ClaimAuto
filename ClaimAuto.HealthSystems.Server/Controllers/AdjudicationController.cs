@@ -79,15 +79,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (parsedDecision == AdjDecision.PendingReview)
                 return BadRequest("Decision cannot be 'PendingReview'. " +
                                   "Manual adjudication requires a final decision: " +
-                                  "Paid, Denied, or Partial.");
+                                  "Approved, Denied, or Partial.");
 
             if (string.IsNullOrWhiteSpace(dto.Notes))
                 return BadRequest("Notes are required for manual adjudication. " +
                                   "Please document your reason for this decision.");
 
-            if ((parsedDecision == AdjDecision.Paid || parsedDecision == AdjDecision.Partial)
+            if ((parsedDecision == AdjDecision.Approved || parsedDecision == AdjDecision.Partial)
                 && dto.PayableAmount.HasValue && dto.PayableAmount.Value <= 0)
-                return BadRequest("PayableAmount must be greater than zero for Paid or Partial decisions.");
+                return BadRequest("PayableAmount must be greater than zero for Approved or Partial decisions.");
 
             var userOrgId = GetLoggedInUserOrgId();
             var result = await _adjRepo.ManualAdjudicateAsync(dto, userId.Value, userOrgId);
