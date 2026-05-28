@@ -12,7 +12,6 @@ import {
   claimTypeVariant, claimTypeIcon,
   docStatusVariant, lineStatusVariant,
   adjDecisionVariant, DOC_TYPES,
-  simulateFileURI, computeSHA256,
 } from '../utils/claimHelpers';
 
 export default function ClaimDetailModal({
@@ -34,6 +33,7 @@ export default function ClaimDetailModal({
   onDeleteDocument,
   onVerifyDocument,
   onProceedToAdjudication,
+  onRejectClaim,
 }) {
   const [activeTab,      setActiveTab]      = useState('info');
   const [docType,        setDocType]        = useState('Invoice');
@@ -63,16 +63,13 @@ export default function ClaimDetailModal({
   //   Staff/Admin — any non-finalized claim
   //   Hospital/Policyholder — only while in the document review window (Submitted legacy or DocsVerificationPending)
   const docReviewWindow = claim?.status === 'Submitted' || claim?.status === 'DocsVerificationPending';
-  const canUpload = !claimFinalized && (
-    (isAdmin || isStaff) || ((isHospital || isPolicyholder) && docReviewWindow)
-  );
+  const canUpload = !claimFinalized && (isHospital || isPolicyholder) && docReviewWindow;
 
   // Who can delete a specific document
   const canDeleteDoc = (doc) => {
-    if (doc.status === 'Verified') return false;   // audit trail — never deletable once verified
+    if (doc.status === 'Verified') return false;
     if (claimFinalized) return false;
     if (isAdmin) return true;
-    if (isStaff) return true;
     return doc.uploadedByID === currentUserId && docReviewWindow;
   };
 
@@ -89,16 +86,11 @@ export default function ClaimDetailModal({
     if (file) setFileName(file.name);
   };
 
-    const handleUpload = async () => {
+  const handleUpload = () => {
     if (!fileName || !claim) return;
     const file = fileRef.current?.files?.[0];
-    const sha256 = file ? await computeSHA256(file) : '';
-    const dto = {
-      docType,
-      fileURI: simulateFileURI(claim.claimID, docType, fileName),
-      sha256,
-    };
-    onUploadDocument(claim.claimID, dto);
+    if (!file) return;
+    onUploadDocument(claim.claimID, file, docType);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -352,6 +344,30 @@ export default function ClaimDetailModal({
                     </div>
                   )}
 
+                  {/* Re-upload notice for hospital/policyholder when docs are rejected */}
+                  {(isHospital || isPolicyholder) && claim?.status === 'DocsVerificationPending' && (() => {
+                    const rejectedDocs = (claim.claimDocuments ?? []).filter((d) => d.status === 'Rejected');
+                    if (rejectedDocs.length === 0) return null;
+                    return (
+                      <div
+                        className="rounded-3 p-3 mb-3 d-flex align-items-start gap-2"
+                        style={{ background: '#fff8e1', border: '1px solid #fde68a' }}
+                      >
+                        <i className="bi bi-exclamation-triangle-fill text-warning mt-1 flex-shrink-0"></i>
+                        <div>
+                          <div className="small fw-semibold mb-1" style={{ color: '#92400e' }}>
+                            {rejectedDocs.length} document{rejectedDocs.length !== 1 ? 's' : ''} rejected — action required
+                          </div>
+                          <div className="small text-muted">
+                            Insurance staff have rejected {rejectedDocs.length === 1 ? 'a document' : 'some documents'} on this claim.
+                            Please review the list below, delete the rejected file(s), and upload
+                            corrected versions so staff can continue verification.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Lock notice for finalized claims */}
                   {claimFinalized && (
                     <div
@@ -365,68 +381,104 @@ export default function ClaimDetailModal({
                     </div>
                   )}
 
-                  {/* ── Proceed to Adjudication panel — Staff/Admin only ─────────────────── */}
-                  {/* Shown only while the claim is awaiting document verification.          */}
-                  {/* The button is disabled until every document is Verified or Rejected,   */}
-                  {/* enforcing that staff cannot silently skip document review.              */}
-                  {(isAdmin || isStaff) && claim?.status === 'DocsVerificationPending' && (
-                    <div
-                      className="rounded-3 p-3 mb-3"
-                      style={{ background: '#e8f5e9', border: '1px solid #a5d6a7' }}
-                    >
-                      <div className="small fw-semibold mb-1" style={{ color: '#2e7d32' }}>
-                        <i className="bi bi-cpu me-2"></i>
-                        Ready to Adjudicate?
-                      </div>
-                      {(() => {
-                        const pendingCount = (claim.claimDocuments ?? [])
-                          .filter((d) => d.status === 'Pending').length;
-                        return (
-                          <>
-                            {pendingCount > 0 ? (
-                              <div className="small text-muted mb-2">
-                                <i className="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                                {pendingCount} document{pendingCount !== 1 ? 's are' : ' is'} still
-                                unreviewed. Verify or reject all documents before proceeding.
-                              </div>
+                  {/* ── Adjudication / Reject panel — Staff/Admin only ───────────────────── */}
+                  {/* All-rejected → offer to reject the claim outright.                     */}
+                  {/* Otherwise → normal "Proceed to Adjudication" flow.                     */}
+                  {(isAdmin || isStaff) && claim?.status === 'DocsVerificationPending' && (() => {
+                    const docs          = claim.claimDocuments ?? [];
+                    const pendingCount  = docs.filter((d) => d.status === 'Pending').length;
+                    const verifiedCount = docs.filter((d) => d.status === 'Verified').length;
+                    const rejectedCount = docs.filter((d) => d.status === 'Rejected').length;
+                    const allRejected   = pendingCount === 0 && verifiedCount === 0 && rejectedCount > 0;
+
+                    if (allRejected) {
+                      return (
+                        <div
+                          className="rounded-3 p-3 mb-3"
+                          style={{ background: '#fff5f5', border: '1px solid #fca5a5' }}
+                        >
+                          <div className="small fw-semibold mb-1" style={{ color: '#b91c1c' }}>
+                            <i className="bi bi-x-circle-fill me-2"></i>
+                            All Documents Rejected
+                          </div>
+                          <div className="small text-muted mb-2">
+                            Every submitted document has been rejected and no verified documents remain.
+                            You may reject this claim now, or wait for the provider to re-upload
+                            corrected documents.
+                          </div>
+                          {proceedError && (
+                            <div className="small text-danger mb-2 d-flex align-items-center gap-1">
+                              <i className="bi bi-exclamation-triangle-fill"></i>
+                              {proceedError}
+                            </div>
+                          )}
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            className="fw-semibold px-3"
+                            disabled={proceedLoading}
+                            onClick={() => onRejectClaim(claim.claimID)}
+                          >
+                            {proceedLoading ? (
+                              <><Spinner animation="border" size="sm" className="me-2" />Processing...</>
                             ) : (
-                              <div className="small text-muted mb-2">
-                                All documents have been reviewed. You can now proceed to fraud
-                                scoring and auto-adjudication.
-                              </div>
+                              <><i className="bi bi-x-circle-fill me-2"></i>Reject Claim</>
                             )}
-                            {proceedError && (
-                              <div
-                                className="small text-danger mb-2 d-flex align-items-center gap-1"
-                              >
-                                <i className="bi bi-exclamation-triangle-fill"></i>
-                                {proceedError}
-                              </div>
-                            )}
-                            <Button
-                              variant="success"
-                              size="sm"
-                              className="fw-semibold px-3"
-                              disabled={pendingCount > 0 || proceedLoading}
-                              onClick={() => onProceedToAdjudication(claim.claimID)}
-                            >
-                              {proceedLoading ? (
-                                <>
-                                  <Spinner animation="border" size="sm" className="me-2" />
-                                  Processing...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="bi bi-play-circle-fill me-2"></i>
-                                  Proceed to Adjudication
-                                </>
-                              )}
-                            </Button>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        className="rounded-3 p-3 mb-3"
+                        style={{ background: '#e8f5e9', border: '1px solid #a5d6a7' }}
+                      >
+                        <div className="small fw-semibold mb-1" style={{ color: '#2e7d32' }}>
+                          <i className="bi bi-cpu me-2"></i>
+                          Ready to Adjudicate?
+                        </div>
+                        {pendingCount > 0 ? (
+                          <div className="small text-muted mb-2">
+                            <i className="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                            {pendingCount} document{pendingCount !== 1 ? 's are' : ' is'} still
+                            unreviewed. Verify or reject all documents before proceeding.
+                          </div>
+                        ) : rejectedCount > 0 ? (
+                          <div className="small text-muted mb-2">
+                            <i className="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                            {rejectedCount} document{rejectedCount !== 1 ? 's have' : ' has'} been
+                            rejected. The provider must delete and re-upload corrected files before
+                            adjudication can proceed.
+                          </div>
+                        ) : (
+                          <div className="small text-muted mb-2">
+                            All documents are verified. You can now proceed to fraud scoring
+                            and auto-adjudication.
+                          </div>
+                        )}
+                        {proceedError && (
+                          <div className="small text-danger mb-2 d-flex align-items-center gap-1">
+                            <i className="bi bi-exclamation-triangle-fill"></i>
+                            {proceedError}
+                          </div>
+                        )}
+                        <Button
+                          variant="success"
+                          size="sm"
+                          className="fw-semibold px-3"
+                          disabled={!(pendingCount === 0 && rejectedCount === 0 && verifiedCount > 0) || proceedLoading}
+                          onClick={() => onProceedToAdjudication(claim.claimID)}
+                        >
+                          {proceedLoading ? (
+                            <><Spinner animation="border" size="sm" className="me-2" />Processing...</>
+                          ) : (
+                            <><i className="bi bi-play-circle-fill me-2"></i>Proceed to Adjudication</>
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Document list — hidden for Hospital/Policyholder on finalized claims */}
                   {!canViewDocs ? (
@@ -444,8 +496,8 @@ export default function ClaimDetailModal({
                   ) : (
                     <div className="d-flex flex-column gap-2">
                       {claim.claimDocuments.map((doc) => {
-                        const docFileName = doc.fileURI?.split('/').pop() ?? doc.docType;
-                        const isRealUrl   = doc.fileURI?.startsWith('http://') || doc.fileURI?.startsWith('https://');
+                        const isApiUrl    = doc.fileURI?.startsWith('http://') || doc.fileURI?.startsWith('https://');
+                        const docFileName = isApiUrl ? doc.docType : (doc.fileURI?.split('/').pop() ?? doc.docType);
                         const isExpanded  = previewDocId === doc.docID;
                         return (
                           <div
@@ -486,9 +538,9 @@ export default function ClaimDetailModal({
                                   size="sm"
                                   className="p-1"
                                   style={{ lineHeight: 1 }}
-                                  title={isRealUrl ? 'Open file' : 'View document details'}
+                                  title={isApiUrl ? 'Open file in new tab' : 'View document details'}
                                   onClick={() => {
-                                    if (isRealUrl) {
+                                    if (isApiUrl) {
                                       window.open(doc.fileURI, '_blank');
                                     } else {
                                       setPreviewDocId(isExpanded ? null : doc.docID);
@@ -519,11 +571,11 @@ export default function ClaimDetailModal({
                                       }
                                     </Button>
                                     <Button
-                                      variant="outline-warning"
+                                      variant="outline-danger"
                                       size="sm"
                                       className="p-1"
                                       style={{ lineHeight: 1 }}
-                                      title="Reject document"
+                                      title="Reject & request re-upload"
                                       disabled={verifyingDocId === doc.docID}
                                       onClick={async () => {
                                         setVerifyingDocId(doc.docID);
@@ -533,7 +585,7 @@ export default function ClaimDetailModal({
                                     >
                                       {verifyingDocId === doc.docID
                                         ? <Spinner animation="border" size="sm" style={{ width: '0.75rem', height: '0.75rem' }} />
-                                        : <i className="bi bi-x-lg" style={{ fontSize: '0.75rem' }}></i>
+                                        : <i className="bi bi-arrow-counterclockwise" style={{ fontSize: '0.75rem' }}></i>
                                       }
                                     </Button>
                                   </>
@@ -593,12 +645,17 @@ export default function ClaimDetailModal({
                                       </span>
                                     </div>
                                   )}
-                                  <div
-                                    className="mt-1 d-flex align-items-center gap-1"
-                                    style={{ color: '#0d6efd', fontSize: '0.75rem' }}
-                                  >
-                                    <i className="bi bi-info-circle"></i>
-                                    In production, this button opens the file directly from cloud storage.
+                                  <div className="mt-2">
+                                    <a
+                                      href={doc.fileURI}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn btn-sm btn-outline-primary"
+                                      style={{ fontSize: '0.75rem' }}
+                                    >
+                                      <i className="bi bi-box-arrow-up-right me-1"></i>
+                                      Open file in new tab
+                                    </a>
                                   </div>
                                 </div>
                               </div>

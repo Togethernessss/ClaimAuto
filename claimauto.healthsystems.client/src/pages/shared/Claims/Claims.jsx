@@ -14,6 +14,8 @@ import {
   verifyDocument,
   proceedToAdjudication,
 } from '../../../services/claims/claimService';
+import { uploadFile } from '../../../services/files/fileService';
+import { computeSHA256 } from './utils/claimHelpers';
 import { getAllMembers } from '../../../services/members/memberService';
 import ClaimsHeader       from './components/ClaimsHeader';
 import ClaimsFilters      from './components/ClaimsFilters';
@@ -215,12 +217,14 @@ export default function Claims() {
     }
   };
 
-  const handleUploadDocument = async (claimId, dto) => {
+  const handleUploadDocument = async (claimId, file, docType) => {
     setUploadError(null);
     setUploadSuccess(null);
     setUploadingDoc(true);
     try {
-      await uploadDocument(claimId, dto);
+      const { fileUrl } = await uploadFile(file);
+      const sha256      = await computeSHA256(file);
+      await uploadDocument(claimId, { docType, fileURI: fileUrl, sha256 });
       const refreshed = await getClaimById(claimId);
       setDetailClaim(refreshed);
       setUploadSuccess('Document uploaded successfully.');
@@ -275,6 +279,26 @@ export default function Claims() {
                || err.response?.data
                || 'Failed to proceed to adjudication.';
       setProceedError(typeof msg === 'string' ? msg : 'Failed to proceed to adjudication.');
+    } finally {
+      setProceedLoading(false);
+    }
+  };
+
+  // ── REJECT CLAIM HANDLER — staff rejects when all docs are rejected ───────
+  const handleRejectClaim = async (claimId) => {
+    setProceedError(null);
+    setProceedLoading(true);
+    try {
+      await updateClaim(claimId, { status: 'Rejected' });
+      setShowDetail(false);
+      setDetailClaim(null);
+      setProceedError(null);
+      await loadClaims();
+    } catch (err) {
+      const msg = err.response?.data?.message
+               || err.response?.data
+               || 'Failed to reject claim.';
+      setProceedError(typeof msg === 'string' ? msg : 'Failed to reject claim.');
     } finally {
       setProceedLoading(false);
     }
@@ -443,6 +467,7 @@ export default function Claims() {
         onDeleteDocument={handleDeleteDocument}
         onVerifyDocument={handleVerifyDocument}
         onProceedToAdjudication={handleProceedToAdjudication}
+        onRejectClaim={handleRejectClaim}
       />
 
       {/* Staff/Admin — update status and priority */}

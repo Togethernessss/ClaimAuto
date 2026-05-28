@@ -268,6 +268,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     "Cannot delete a verified document — " +
                     "it has been reviewed and is part of the audit trail.");
 
+            // InsuranceStaff cannot delete documents — Admin only
+            if (userRole == "InsuranceStaff")
+                return Forbid();
+
             // Hospital/Policyholder: only their own uploads, only while in the doc-review window
             if (userRole == "Hospital" || userRole == "Policyholder")
             {
@@ -375,7 +379,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 case "pendingdocs":
                     return BadRequest(
                         $"Claim {id} has one or more unreviewed documents. " +
-                        "All documents must be Verified or Rejected before adjudication can begin.");
+                        "All documents must be Verified before adjudication can begin.");
+
+                case "rejecteddocs":
+                    return BadRequest(
+                        $"Claim {id} has rejected documents. " +
+                        "The provider must re-upload corrected documents before adjudication can proceed.");
+
+                case "nodocs":
+                    return BadRequest(
+                        $"Claim {id} has no verified documents. " +
+                        "At least one document must be verified before adjudication can proceed.");
             }
 
             // ── Fraud scoring ────────────────────────────────────────────────────

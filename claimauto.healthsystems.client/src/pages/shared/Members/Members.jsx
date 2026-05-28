@@ -126,7 +126,17 @@ const [policyholderUsers, setPolicyholderUsers] = useState([]);
 
   // ── CREATE HANDLERS ───────────────────────────────────────────────────────
   const handleCreateField = (field) => (e) =>
-    setCreateForm({ ...createForm, [field]: e.target.value });
+    setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  // Auto-fills Name + Email from the selected registered user
+  const handleUserSelect = (user) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      policyholderUserID: String(user.userID),
+      name:         user.name  || prev.name,
+      contactEmail: user.email || prev.contactEmail,
+    }));
+  };
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -337,6 +347,7 @@ const [policyholderUsers, setPolicyholderUsers] = useState([]);
         policyholderUsers={policyholderUsers}
         onHide={() => setShowCreate(false)}
         onFieldChange={handleCreateField}
+        onUserSelect={handleUserSelect}
         onSubmit={handleCreateSubmit}
       />
 

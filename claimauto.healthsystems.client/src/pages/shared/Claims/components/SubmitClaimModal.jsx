@@ -8,8 +8,9 @@ import {
 } from 'react-bootstrap';
 import {
   HOSPITAL_CLAIM_TYPES, CLAIM_PRIORITIES, formatCurrency,
-  DOC_TYPES, computeSHA256, simulateFileURI,
+  DOC_TYPES, computeSHA256,
 } from '../utils/claimHelpers';
+import { uploadFile } from '../../../../services/files/fileService';
 import { lookupMemberByNumber } from '../../../../services/members/memberService';
 const EMPTY_LINE = {
   serviceCode:   '',
@@ -56,6 +57,7 @@ export default function SubmitClaimModal({
   const [docFileName,   setDocFileName]   = useState('');
   const [docError,      setDocError]      = useState(null);
   const [showDocForm,   setShowDocForm]   = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const docFileRef = useRef(null);
 
   // Reset on open
@@ -83,6 +85,7 @@ export default function SubmitClaimModal({
       setDocFileName('');
       setDocError(null);
       setShowDocForm(false);
+      setUploadingFiles(false);
       if (docFileRef.current) docFileRef.current.value = '';
     }
   }, [show]);
@@ -242,16 +245,21 @@ export default function SubmitClaimModal({
       setLookupError('Please find a patient first by entering their member number above.');
       return;
     }
-    // Compute SHA-256 and build fileURIs for each queued document.
-    // This runs before the API call so documents are embedded in the claim
-    // creation payload and saved before adjudication runs.
-    const processedDocs = await Promise.all(
-      docs.map(async (d) => ({
-        docType:  d.docType,
-        fileURI:  simulateFileURI(0, d.docType, d.fileName),  // claimID=0 placeholder; backend stores as-is
-        sha256:   await computeSHA256(d.file),
-      }))
-    );
+    // Upload each file to the BLOB store, then embed the returned URL in the
+    // claim payload so the backend saves real file URIs before adjudication runs.
+    setUploadingFiles(true);
+    let processedDocs = [];
+    try {
+      processedDocs = await Promise.all(
+        docs.map(async (d) => {
+          const { fileUrl } = await uploadFile(d.file);
+          const sha256      = await computeSHA256(d.file);
+          return { docType: d.docType, fileURI: fileUrl, sha256 };
+        })
+      );
+    } finally {
+      setUploadingFiles(false);
+    }
     onSubmit(
       {
         externalClaimRef:  form.externalClaimRef || null,
@@ -801,13 +809,16 @@ export default function SubmitClaimModal({
               className="px-4 fw-semibold"
               disabled={
                 loading ||
+                uploadingFiles ||
                 lines.length === 0 ||
                 !form.memberID ||
                 !form.policyID ||
                 !form.claimType
               }
             >
-              {loading ? (
+              {uploadingFiles ? (
+                <><Spinner animation="border" size="sm" className="me-2" />Uploading files...</>
+              ) : loading ? (
                 <><Spinner animation="border" size="sm" className="me-2" />Submitting...</>
               ) : (
                 <><i className="bi bi-send me-2"></i>Submit Claim</>
