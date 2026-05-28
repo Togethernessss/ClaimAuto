@@ -410,6 +410,27 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return Ok(new { Message = "Your password has been reset. You can now sign in." });
             }
 
+            /// <summary>
+            /// Returns the calling user's current account info.
+            /// Used by the frontend to poll for status changes (deactivation).
+            /// UserStatusMiddleware intercepts this call automatically if the
+            /// account has been deactivated, so the controller body never runs.
+            /// </summary>
+            [HttpGet("me")]
+            [Authorize]
+            [ProducesResponseType(StatusCodes.Status200OK)]
+            [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+            public async Task<ActionResult<UserResponseDto>> Me()
+            {
+                var userId = GetLoggedInUserId();
+                if (userId == null) return Unauthorized();
+
+                var user = await _auth.GetUserByIdAsync(userId.Value);
+                if (user == null) return Unauthorized();
+
+                return Ok(BuildUserResponse(user));
+            }
+
             // ── Helper: builds the standard UserResponseDto used by Login/VerifyMfa/Register.
             private static UserResponseDto BuildUserResponse(User user) => new()
             {

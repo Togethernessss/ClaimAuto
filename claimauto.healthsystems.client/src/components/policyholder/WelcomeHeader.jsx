@@ -47,7 +47,7 @@ export default function WelcomeHeader({ user, pendingClaims, unreadCount }) {
           variant="outline-primary"
           size="sm"
           className="rounded-pill"
-          onClick={() => navigate('/notifications')}
+          onClick={() => navigate('/policyholder/notifications')}
         >
           <i className="bi bi-bell me-1"></i> Notifications
         </Button>

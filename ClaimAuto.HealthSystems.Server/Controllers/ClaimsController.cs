@@ -74,8 +74,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claim);
         }
 
-        /// <summary>Submits a new insurance claim.</summary>
+        /// <summary>Submits a new insurance claim. Hospital and Policyholder only.</summary>
         [HttpPost]
+        [Authorize(Roles = "Hospital,Policyholder")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -98,8 +99,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value, userOrgId);
             if (created == null)
-                return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
-                                  "MemberID, and PolicyID (must be Active) all exist and are valid.");
+                return BadRequest("Validation failed — check that ProviderID matches your account, " +
+                                  "MemberID coverage is active, and PolicyID (must be Active) are all valid.");
 
 
             // ── Document verification gate ────────────────────────────────────────────

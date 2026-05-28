@@ -1,22 +1,17 @@
-// src/security/RequireRole.jsx
-// Route-level role guard.
-// Wraps a route — if the logged-in user's role is not in the allowed list,
-// redirects to /dashboard instead of showing the page.
-// This is the frontend's actual security boundary (hiding nav links is just UX).
+import { Outlet } from 'react-router-dom';
+import { useAuth } from './AuthContext';
+import AccessDenied from '../pages/AccessDenied';
 
-import { Navigate } from 'react-router-dom';
-import { useAuth }  from './AuthContext';
-
-export default function RequireRole({ roles, children }) {
+export default function RequireRole({ roles }) {
   const { user } = useAuth();
 
-  // Not logged in → AuthContext / RequireAuth handles this, but guard here too
-  if (!user) return <Navigate to="/login" replace />;
+  // Defensive: no user — deny
+  if (!user) return <AccessDenied />;
 
-  // Logged in but wrong role → send to their own dashboard
-  if (!roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+  // Wrong role — show AccessDenied (Madhav's behavior kept)
+  if (!Array.isArray(roles) || !roles.includes(user.role)) {
+    return <AccessDenied />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }

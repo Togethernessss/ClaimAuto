@@ -1,4 +1,4 @@
-﻿using ClaimAuto.HealthSystems.Server.Data;
+using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.DTOs;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
@@ -9,10 +9,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
     public class ClaimRepository : IClaimRepository
     {
         private readonly ApplicationDbContext _db;
+        private readonly INotificationRepository _notificationRepo;
 
-        public ClaimRepository(ApplicationDbContext db)
+        public ClaimRepository(ApplicationDbContext db, INotificationRepository notificationRepo)
         {
             _db = db;
+            _notificationRepo = notificationRepo;
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -202,8 +204,15 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 if (provider.Role != UserRole.Hospital) return null;
             }
 
+            // Prevent submitting a claim under another user's provider ID
+            if (dto.ProviderID != submittedByUserId) return null;
+
             var member = await _db.Members.FindAsync(dto.MemberID);
             if (member == null) return null;
+
+            // Reject if the member's coverage has lapsed
+            if (member.CoverageEnd.HasValue && member.CoverageEnd.Value.Date < DateTime.UtcNow.Date)
+                return null;
 
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
@@ -314,6 +323,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _db.SaveChangesAsync();   // ← Saves lines + documents + updates audit ResourceID
 
             // ── Notify all staff + admin: new claim awaiting document verification ────
+            // Using _db.Notifications.Add() directly for consistency with all other
+            // notification calls in this file. Notifies both InsuranceStaff AND Admin.
             var staffToNotify = await _db.Users
                 .Where(u => (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
                          && u.Status == AccountStatus.Active
@@ -326,12 +337,13 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 {
                     UserID = staffUser.UserID,
                     ClaimID = claim.ClaimID,
-                    Message = $"New claim CLM-{claim.ClaimID} submitted by {provider.Name}. " +
-                                     $"Documents require verification before adjudication can proceed.",
+                    Message = $"New claim CLM-{claim.ClaimID} submitted by {provider.Name} " +
+                              $"for ₹{dto.TotalBilledAmount:N2}. " +
+                              $"Documents require verification before adjudication can proceed.",
                     Category = NotificationCategory.Exception,
                     Severity = NotificationSeverity.Info,
                     Status = NotificationStatus.Unread,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = now,
                     OrganizationID = userOrgId,
                 });
             }
@@ -412,24 +424,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 };
                 _db.AuditLogs.Add(audit);
                 await _db.SaveChangesAsync();
-
-                // ── Notify provider when their claim is rejected by staff ────────────
-                if (claim.Status == ClaimStatus.Rejected)
-                {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = claim.ProviderID,
-                        ClaimID = claim.ClaimID,
-                        Message = $"Your claim CLM-{claim.ClaimID} has been rejected by insurance staff. " +
-                                         $"If you believe this is incorrect, you may file an appeal.",
-                        Category = NotificationCategory.Exception,
-                        Severity = NotificationSeverity.Warning,
-                        Status = NotificationStatus.Unread,
-                        CreatedAt = DateTime.UtcNow,
-                        OrganizationID = userOrgId,
-                    });
-                    await _db.SaveChangesAsync();
-                }
             }
 
             return new ClaimResponseDto
@@ -645,34 +639,29 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _db.ClaimDocuments.Add(doc);
             await _db.SaveChangesAsync();
 
-            // ── Notify staff when hospital/policyholder re-uploads during doc review ──
-            if (claim.Status == ClaimStatus.DocsVerificationPending
-             && (uploader.Role == UserRole.Hospital || uploader.Role == UserRole.Policyholder))
-            {
-                var staffToAlert = await _db.Users
-                    .Where(u => (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
-                             && u.Status == AccountStatus.Active
-                             && (claim.OrganizationID == null || u.OrganizationID == claim.OrganizationID))
-                    .ToListAsync();
+            // ── Notify InsuranceStaff + Admin about the new upload ───────────────────
+            var staffToNotifyUpload = await _db.Users
+                .Where(u => (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                         && u.Status == AccountStatus.Active
+                         && (doc.OrganizationID == null || u.OrganizationID == doc.OrganizationID))
+                .ToListAsync();
 
-                foreach (var staffUser in staffToAlert)
+            foreach (var staffUser in staffToNotifyUpload)
+            {
+                _db.Notifications.Add(new Notification
                 {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = staffUser.UserID,
-                        ClaimID = claimId,
-                        Message = $"{uploader.Name} has uploaded a new document ({dto.DocType}) " +
-                                         $"for CLM-{claimId}. Please review the updated document set.",
-                        Category = NotificationCategory.Exception,
-                        Severity = NotificationSeverity.Info,
-                        Status = NotificationStatus.Unread,
-                        CreatedAt = DateTime.UtcNow,
-                        OrganizationID = claim.OrganizationID,
-                    });
-                }
-                if (staffToAlert.Count > 0)
-                    await _db.SaveChangesAsync();
+                    UserID = staffUser.UserID,
+                    ClaimID = claimId,
+                    Message = $"New document '{doc.DocType}' uploaded for CLM-{claimId} by {uploader.Name}. Please review.",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Info,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = doc.OrganizationID,
+                });
             }
+            if (staffToNotifyUpload.Count > 0)
+                await _db.SaveChangesAsync();
 
             return new ClaimDocumentResponseDto
             {
@@ -787,27 +776,22 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             await _db.SaveChangesAsync();
 
-            // ── Notify provider when their document is rejected ───────────────────────
+            // ── When a document is rejected, notify the uploader so they can re-upload ─
             if (newStatus == DocStatus.Rejected)
             {
-                var parentClaim = await _db.Claims.FindAsync(claimId);
-                if (parentClaim != null)
+                _db.Notifications.Add(new Notification
                 {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserID = parentClaim.ProviderID,
-                        ClaimID = claimId,
-                        Message = $"Your document ({doc.DocType}) for CLM-{claimId} was rejected " +
-                                         $"by insurance staff. Please re-upload a corrected document " +
-                                         $"to continue processing your claim.",
-                        Category = NotificationCategory.Exception,
-                        Severity = NotificationSeverity.Warning,
-                        Status = NotificationStatus.Unread,
-                        CreatedAt = DateTime.UtcNow,
-                        OrganizationID = userOrgId,
-                    });
-                    await _db.SaveChangesAsync();
-                }
+                    UserID = doc.UploadedBy,
+                    ClaimID = claimId,
+                    Message = $"Your '{doc.DocType}' document on claim CLM-{claimId} was rejected during verification. " +
+                              $"Please log in and re-upload a valid document.",
+                    Category = NotificationCategory.Exception,
+                    Severity = NotificationSeverity.Warning,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = userOrgId,
+                });
+                await _db.SaveChangesAsync();
             }
 
             var uploader = await _db.Users.FindAsync(doc.UploadedBy);
@@ -852,7 +836,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         //    2. Claim must be in DocsVerificationPending status
         //    3. Every attached document must be Verified or Rejected — none can be Pending
         //       (forces staff to actively review every document, not silently skip them)
-        //  Returns: "ok" | "notfound" | "wrongstatus" | "pendingdocs" | "rejecteddocs" | "nodocs"
+        //  Returns: "ok" | "notfound" | "wrongstatus" | "pendingdocs"
         // ══════════════════════════════════════════════════════════════════
         public async Task<string> ValidateProceedToAdjudicationAsync(int claimId, int? userOrgId = null)
         {
@@ -869,225 +853,191 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (claim.Status != ClaimStatus.DocsVerificationPending)
                 return "wrongstatus";
 
-            // 1. No unreviewed documents — staff must actively review every doc.
+            // Every document must have been actively reviewed — no unreviewed (Pending) docs allowed.
+            // Staff can still proceed with zero documents — the judgment call belongs to them.
             var hasPendingDocs = claim.ClaimDocuments.Any(d => d.Status == DocStatus.Pending);
             if (hasPendingDocs) return "pendingdocs";
 
-            // 2. No rejected documents — provider must re-upload before adjudication proceeds.
-            var hasRejectedDocs = claim.ClaimDocuments.Any(d => d.Status == DocStatus.Rejected);
-            if (hasRejectedDocs) return "rejecteddocs";
+            // No documents attached at all — informational warning, not a hard block
+            if (!claim.ClaimDocuments.Any()) return "nodocs";
 
-            // 3. At least one verified document required (if any docs exist at all).
-            if (claim.ClaimDocuments.Count > 0 &&
-                !claim.ClaimDocuments.Any(d => d.Status == DocStatus.Verified))
-                return "nodocs";
+            // All documents were rejected and none are verified — informational, allows proceed + reject
+            var hasVerifiedDoc = claim.ClaimDocuments.Any(d => d.Status == DocStatus.Verified);
+            if (!hasVerifiedDoc && claim.ClaimDocuments.Any(d => d.Status == DocStatus.Rejected))
+                return "rejecteddocs";
 
             return "ok";
         }
 
-        public async Task<string> StaffRejectClaimAsync(
-        int claimId,
-        string reason,
-        int rejectedByUserId,
-        int? userOrgId = null)
+        // ══════════════════════════════════════════════════════════════════
+        //  STAFF REJECT CLAIM — outright rejection from DocsVerificationPending or UnderReview
+        //  Notifies the provider and writes an audit log.
+        // ══════════════════════════════════════════════════════════════════
+        public async Task<ClaimResponseDto?> StaffRejectClaimAsync(int claimId, string reason, int staffUserId, int? userOrgId = null)
         {
-            using var transaction = await _db.Database.BeginTransactionAsync();
-            try
+            var query = _db.Claims
+                .Include(c => c.Provider)
+                .Include(c => c.Member)
+                .Include(c => c.Policy)
+                .Where(c => c.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(c => c.OrganizationID == userOrgId.Value);
+
+            var claim = await query.FirstOrDefaultAsync();
+            if (claim == null) return null;
+
+            // Only reject claims that have not already been finalized
+            if (claim.Status == ClaimStatus.Approved ||
+                claim.Status == ClaimStatus.Paid    ||
+                claim.Status == ClaimStatus.Rejected)
+                return null;
+
+            var now = DateTime.UtcNow;
+            claim.Status = ClaimStatus.Rejected;
+
+            _db.AuditLogs.Add(new AuditLog
             {
-                // ── Tenant-scoped lookup ──
-                var query = _db.Claims.Where(c => c.ClaimID == claimId);
-                if (userOrgId.HasValue)
-                    query = query.Where(c => c.OrganizationID == userOrgId.Value);
+                UserID         = staffUserId,
+                Action         = "StaffRejectClaim",
+                ResourceType   = "Claim",
+                ResourceID     = claimId.ToString(),
+                DetailsJSON    = $"{{\"reason\":\"{reason}\"}}",
+                Timestamp      = now,
+                OrganizationID = userOrgId,
+            });
 
-                var claim = await query.FirstOrDefaultAsync();
-                if (claim == null)
-                {
-                    await transaction.RollbackAsync();
-                    return "notfound";
-                }
+            await _db.SaveChangesAsync();
 
-                // Cannot reject already-finalized claims
-                if (claim.Status == ClaimStatus.Approved
-                    || claim.Status == ClaimStatus.Rejected
-                    || claim.Status == ClaimStatus.Paid)
-                {
-                    await transaction.RollbackAsync();
-                    return "alreadyfinalized";
-                }
-
-                var previousStatus = claim.Status;
-
-                // ── Update claim ──
-                claim.Status = ClaimStatus.Rejected;
-
-                // ── Audit log entry ──
-                _db.AuditLogs.Add(new AuditLog
-                {
-                    UserID = rejectedByUserId,
-                    Action = "StaffRejectClaim",
-                    ResourceType = "Claim",
-                    ResourceID = claimId.ToString(),
-                    DetailsJSON = System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        claimID = claimId,
-                        previousStatus = previousStatus.ToString(),
-                        newStatus = "Rejected",
-                        reason = reason,
-                        rejectedBy = rejectedByUserId
-                    }),
-                    Timestamp = DateTime.UtcNow,
-                    OrganizationID = claim.OrganizationID,
-                });
-
-                // ── Notify the claim filer (provider) ──
-                _db.Notifications.Add(new Notification
-                {
-                    UserID = claim.ProviderID,
-                    ClaimID = claimId,
-                    Message = $"Your claim CLM-{claimId} has been REJECTED by staff. " +
-                              $"Reason: {reason}",
-                    Category = NotificationCategory.Exception,
-                    Severity = NotificationSeverity.Warning,
-                    CreatedAt = DateTime.UtcNow,
-                    Status = NotificationStatus.Unread,
-                    OrganizationID = claim.OrganizationID,
-                });
-
-                await _db.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return "ok";
-            }
-            catch (Exception ex)
+            // ── Notify the provider about the rejection ──────────────────────────────
+            _db.Notifications.Add(new Notification
             {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"[StaffRejectClaim ERROR] Claim {claimId}: {ex.Message}");
-                throw;
-            }
+                UserID         = claim.ProviderID,
+                ClaimID        = claimId,
+                Message        = $"Your claim CLM-{claimId} has been rejected by insurance staff. " +
+                                 $"Reason: {reason}",
+                Category       = NotificationCategory.Exception,
+                Severity       = NotificationSeverity.Warning,
+                Status         = NotificationStatus.Unread,
+                CreatedAt      = now,
+                OrganizationID = userOrgId,
+            });
+            await _db.SaveChangesAsync();
+
+            return new ClaimResponseDto
+            {
+                ClaimID            = claim.ClaimID,
+                ExternalClaimRef   = claim.ExternalClaimRef,
+                ProviderID         = claim.ProviderID,
+                ProviderName       = claim.Provider.Name,
+                MemberID           = claim.MemberID,
+                MemberName         = claim.Member.Name,
+                PolicyName         = claim.Policy.PlanName,
+                ClaimType          = claim.ClaimType.ToString(),
+                TotalBilledAmount  = claim.TotalBilledAmount,
+                Currency           = claim.Currency,
+                Status             = claim.Status.ToString(),
+                Priority           = claim.Priority.ToString(),
+                SubmittedAt        = claim.SubmittedAt,
+                Notes              = claim.Notes,
+            };
         }
 
-
+        // ══════════════════════════════════════════════════════════════════
+        //  REPLACE DOCUMENT — hospital/policyholder re-uploads a rejected doc
+        //  Deletes the old Rejected doc, creates a new Pending doc, notifies staff.
+        // ══════════════════════════════════════════════════════════════════
         public async Task<ClaimDocumentResponseDto?> ReplaceDocumentAsync(
-        int claimId,
-        int docId,
-        ReplaceDocumentDto dto,
-        int replacedByUserId,
-        int? userOrgId = null)
+            int claimId, int docId, UploadDocumentDto dto,
+            int uploadedByUserId, int? userOrgId = null)
         {
-            using var transaction = await _db.Database.BeginTransactionAsync();
-            try
+            var query = _db.ClaimDocuments
+                .Where(d => d.DocID == docId && d.ClaimID == claimId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            var oldDoc = await query.FirstOrDefaultAsync();
+
+            // Can only replace a document that was Rejected by staff
+            if (oldDoc == null || oldDoc.Status != DocStatus.Rejected) return null;
+
+            var uploader = await _db.Users.FindAsync(uploadedByUserId);
+            if (uploader == null) return null;
+
+            if (!Enum.TryParse<DocType>(dto.DocType, out var docType))
+                docType = oldDoc.DocType;   // fallback — keep the original doc type
+
+            var now   = DateTime.UtcNow;
+            var orgId = oldDoc.OrganizationID;
+
+            // ── Delete the old rejected doc and create a fresh Pending one ───────────
+            _db.ClaimDocuments.Remove(oldDoc);
+
+            var newDoc = new ClaimDocument
             {
-                // ── Tenant-scoped lookup ──
-                var query = _db.ClaimDocuments
-                    .Where(d => d.DocID == docId && d.ClaimID == claimId);
+                ClaimID        = claimId,
+                UploadedBy     = uploadedByUserId,
+                DocType        = docType,
+                FileURI        = dto.FileURI,
+                SHA256         = dto.SHA256,
+                UploadedAt     = now,
+                Status         = DocStatus.Pending,
+                OrganizationID = orgId,
+            };
+            _db.ClaimDocuments.Add(newDoc);
 
-                if (userOrgId.HasValue)
-                    query = query.Where(d => d.OrganizationID == userOrgId.Value);
+            _db.AuditLogs.Add(new AuditLog
+            {
+                UserID         = uploadedByUserId,
+                Action         = "ReplaceDocument",
+                ResourceType   = "ClaimDocument",
+                ResourceID     = docId.ToString(),
+                DetailsJSON    = $"{{\"claimID\":{claimId},\"oldDocID\":{docId},\"docType\":\"{dto.DocType}\"}}",
+                Timestamp      = now,
+                OrganizationID = orgId,
+            });
 
-                var doc = await query.FirstOrDefaultAsync();
-                if (doc == null)
+            await _db.SaveChangesAsync();
+
+            // ── Notify InsuranceStaff + Admin so they can re-verify the new doc ──────
+            var staffToNotify = await _db.Users
+                .Where(u => (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
+                         && u.Status == AccountStatus.Active
+                         && (orgId == null || u.OrganizationID == orgId))
+                .ToListAsync();
+
+            foreach (var staffUser in staffToNotify)
+            {
+                _db.Notifications.Add(new Notification
                 {
-                    await transaction.RollbackAsync();
-                    return null;
-                }
-
-                // ── Only Rejected docs can be replaced ──
-                if (doc.Status != DocStatus.Rejected)
-                {
-                    await transaction.RollbackAsync();
-                    return null;
-                }
-
-                // ── Capture old values for audit ──
-                var oldFileURI = doc.FileURI;
-                var oldSHA256 = doc.SHA256;
-                var oldStatus = doc.Status.ToString();
-
-                // ── Update document in place ──
-                doc.FileURI = dto.FileURI;
-                doc.SHA256 = dto.SHA256;
-                doc.Status = DocStatus.Pending;       // reset for re-review
-                doc.VerifiedByID = null;                     // clear old rejector
-                doc.UploadedBy = replacedByUserId;
-                doc.UploadedAt = DateTime.UtcNow;
-
-                // ── Audit log entry ──
-                _db.AuditLogs.Add(new AuditLog
-                {
-                    UserID = replacedByUserId,
-                    Action = "ReplaceDocument",
-                    ResourceType = "ClaimDocument",
-                    ResourceID = docId.ToString(),
-                    DetailsJSON = System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        claimID = claimId,
-                        docID = docId,
-                        docType = doc.DocType.ToString(),
-                        oldStatus,
-                        newStatus = "Pending",
-                        oldFileURI,
-                        newFileURI = dto.FileURI,
-                        oldSHA256,
-                        newSHA256 = dto.SHA256,
-                        replacedBy = replacedByUserId,
-                    }),
-                    Timestamp = DateTime.UtcNow,
-                    OrganizationID = doc.OrganizationID,
+                    UserID         = staffUser.UserID,
+                    ClaimID        = claimId,
+                    Message        = $"'{newDoc.DocType}' document on CLM-{claimId} was replaced by {uploader.Name}. " +
+                                     $"Previous document was rejected — please review the new upload.",
+                    Category       = NotificationCategory.Exception,
+                    Severity       = NotificationSeverity.Info,
+                    Status         = NotificationStatus.Unread,
+                    CreatedAt      = now,
+                    OrganizationID = orgId,
                 });
-
-                // ── Notify in-org Staff/Admin that the doc was re-uploaded ──
-                var claim = await _db.Claims.FindAsync(claimId);
-                if (claim != null)
-                {
-                    var staff = await _db.Users
-                        .Where(u =>
-                            (u.Role == UserRole.InsuranceStaff || u.Role == UserRole.Admin)
-                            && u.Status == AccountStatus.Active
-                            && u.OrganizationID == claim.OrganizationID)
-                        .ToListAsync();
-
-                    foreach (var s in staff)
-                    {
-                        _db.Notifications.Add(new Notification
-                        {
-                            UserID = s.UserID,
-                            ClaimID = claimId,
-                            Message = $"A rejected document on Claim CLM-{claimId} has been " +
-                                             $"re-uploaded with a corrected version ({doc.DocType}). " +
-                                             "Please review.",
-                            Category = NotificationCategory.Exception,
-                            Severity = NotificationSeverity.Info,
-                            CreatedAt = DateTime.UtcNow,
-                            Status = NotificationStatus.Unread,
-                            OrganizationID = claim.OrganizationID,
-                        });
-                    }
-                }
-
+            }
+            if (staffToNotify.Count > 0)
                 await _db.SaveChangesAsync();
-                await transaction.CommitAsync();
 
-                // ── Return updated DTO ──
-                var uploader = await _db.Users.FindAsync(replacedByUserId);
-                return new ClaimDocumentResponseDto
-                {
-                    DocID = doc.DocID,
-                    ClaimID = doc.ClaimID,
-                    UploadedByID = doc.UploadedBy,
-                    UploadedByName = uploader?.Name ?? "Unknown",
-                    VerifiedByName = null,                 // cleared on replace
-                    DocType = doc.DocType.ToString(),
-                    FileURI = doc.FileURI,
-                    SHA256 = doc.SHA256,
-                    UploadedAt = doc.UploadedAt,
-                    Status = doc.Status.ToString(),
-                };
-            }
-            catch (Exception ex)
+            return new ClaimDocumentResponseDto
             {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"[ReplaceDocument ERROR] Doc {docId}: {ex.Message}");
-                throw;
-            }
+                DocID          = newDoc.DocID,
+                ClaimID        = newDoc.ClaimID,
+                UploadedByID   = newDoc.UploadedBy,
+                UploadedByName = uploader.Name,
+                VerifiedByName = null,
+                DocType        = newDoc.DocType.ToString(),
+                FileURI        = newDoc.FileURI,
+                SHA256         = newDoc.SHA256,
+                UploadedAt     = newDoc.UploadedAt,
+                Status         = newDoc.Status.ToString()
+            };
         }
     }
 }

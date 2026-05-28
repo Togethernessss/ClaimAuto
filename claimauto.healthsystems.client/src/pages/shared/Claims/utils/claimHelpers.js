@@ -27,24 +27,25 @@ export function statusVariant(status) {
     case 'Submitted':               return 'secondary';
     case 'DocsVerificationPending': return 'info';
     case 'UnderReview':             return 'warning';
-    case 'Approved':    return 'primary';
-    case 'Paid':        return 'success';
-    case 'Rejected':    return 'danger';
-    default:            return 'secondary';
+    case 'Approved':                return 'primary';
+    case 'Paid':                    return 'success';
+    case 'Rejected':                return 'danger';
+    default:                        return 'secondary';
   }
 }
 
 export function statusLabel(status) {
   switch (status) {
-    case 'Submitted':              return 'Submitted';
-    case 'DocsVerificationPending': return 'Docs Verification';
-    case 'UnderReview':            return 'Under Review';
-    case 'Approved':    return 'Approved';
-    case 'Paid':        return 'Paid';
-    case 'Rejected':    return 'Rejected';
-    default:            return status || '—';
+    case 'Submitted':               return 'Submitted';
+    case 'DocsVerificationPending': return 'Docs Verification';   // frontend/claim (more descriptive)
+    case 'UnderReview':             return 'Under Review';
+    case 'Approved':                return 'Approved';
+    case 'Paid':                    return 'Paid';
+    case 'Rejected':                return 'Rejected';
+    default:                        return status || '—';
   }
 }
+
 export function priorityVariant(priority) {
   switch (priority) {
     case 'Normal': return 'light';
@@ -105,8 +106,8 @@ export function lineStatusVariant(status) {
 
 export function adjDecisionVariant(decision) {
   switch (decision) {
-    case 'Approved':
-    case 'Paid':          return 'success';  // 'Paid' kept for legacy data
+    case 'Approved':      return 'success';   // frontend/claim addition — new flow uses Approved
+    case 'Paid':          return 'success';
     case 'Partial':       return 'info';
     case 'Denied':        return 'danger';
     case 'PendingReview': return 'warning';
@@ -125,16 +126,16 @@ export const HOSPITAL_CLAIM_TYPES = [
 ];
 
 // Staff-visible statuses — used in filters and the UpdateStatusModal priority-only form.
-// 'Adjudicated' REMOVED — never set in new flow (Paid → Approved directly).
+// 'Adjudicated' REMOVED — never set in new flow (Approved directly).
 // 'Validated'   REMOVED — was a manual trigger, no longer part of flow.
 // All status transitions are automatic on submission.
 export const CLAIM_STATUSES = [
-  'Submitted',              // auto: fraud screening + adjudication runs immediately
-  'DocsVerificationPending', // staff verifies documents before adjudication proceeds
-  'UnderReview',            // auto: fraud blocked OR adjudication routed to manual review
-  'Approved',     // auto: adjudication Paid/Partial → payment auto-created (Pending)
-  'Paid',         // auto: payment Executed by staff
-  'Rejected',     // auto: denied by adjudication OR fraud confirmed
+  'Submitted',               // legacy / direct channel submissions
+  'DocsVerificationPending', // awaiting staff document review before adjudication
+  'UnderReview',             // fraud flagged OR adjudication routed to manual review
+  'Approved',                // adjudication Paid/Partial → payment auto-created
+  'Paid',                    // payment executed by staff
+  'Rejected',                // denied by adjudication OR fraud confirmed
 ];
 
 export const CLAIM_PRIORITIES = ['Normal', 'High', 'Urgent'];

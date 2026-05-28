@@ -1,21 +1,27 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-export default function RequireAuth({ children }) {
-  const { isAuthenticated, user } = useAuth();
+export default function RequireAuth() {
+  const { isAuthenticated, user, deactivatedMessage } = useAuth();
   const location = useLocation();
 
-  // 1. Not logged in → bounce to HomePage
+  // 1. Not logged in → bounce appropriately
   if (!isAuthenticated) {
+    // Admin deactivated this account — send to Login so the message is shown.
+    if (deactivatedMessage) {
+      return <Navigate to="/login" replace />;
+    }
+    // Normal unauthenticated access → HomePage.
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // 2. Logged in but on a temp password → force change before doing anything else
-  //    Allow access ONLY to the force-change-password page itself, otherwise
-  //    redirect there. This locks the user out of dashboards, profile, etc.
-  if (user?.mustChangePassword && location.pathname !== '/force-change-password') {
+  // 2. Must change password → force change page
+  if (
+    user?.mustChangePassword &&
+    location.pathname !== '/force-change-password'
+  ) {
     return <Navigate to="/force-change-password" replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }

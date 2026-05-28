@@ -275,8 +275,22 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
             else if (parsedOutcome == FraudOutcome.Cleared)
             {
-                try { await _adjRepo.AutoAdjudicateAsync(fc.ClaimID, userOrgId); }
-                catch { /* adjudication failure does not block fraud resolution */ }
+                var adjResult = await _adjRepo.AutoAdjudicateAsync(fc.ClaimID, userOrgId);
+                var adjMessage = adjResult?.Decision switch
+                {
+                    "Denied"        => $"CLM-{fc.ClaimID} adjudicated and denied by the rules engine.",
+                    "PendingReview" => $"CLM-{fc.ClaimID} routed to the manual review queue.",
+                    "Paid"          => $"CLM-{fc.ClaimID} approved — payment created automatically.",
+                    "Partial"       => $"CLM-{fc.ClaimID} partially approved — payment created automatically.",
+                    _               => $"CLM-{fc.ClaimID} adjudicated successfully."
+                };
+
+                return Ok(new
+                {
+                    message = $"Fraud case {id} cleared — {adjMessage}",
+                    caseId = id,
+                    adjudication = adjResult
+                });
             }
 
             return Ok(new { message = $"Fraud case {id} resolved as '{dto.Outcome}'.", caseId = id });

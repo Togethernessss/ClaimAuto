@@ -36,3 +36,17 @@ export async function getUsersByRole(role) {
   const response = await api.get(`/api/users/role/${role}`);
   return response.data;
 }
+
+// ── GET /api/users — Admin only ────────────────────────────────
+// Returns all users in the caller's organisation.
+export async function getAllUsers() {
+  const response = await api.get('/api/users');
+  return response.data;
+}
+
+// ── PATCH /api/users/{id}/status — Admin only ─────────────────
+// Toggles a stakeholder between Active and Inactive.
+// status: "Active" | "Inactive"
+export async function updateUserStatus(userId, status) {
+  await api.patch(`/api/users/${userId}/status`, { status });
+}

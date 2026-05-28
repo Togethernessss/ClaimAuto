@@ -284,13 +284,21 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         //Audit
         public async Task LogAuthActionAsync(int userId, string action)
         {
+            // Look up the user's OrganizationID so the audit log is
+            // correctly stamped for multi-tenant filtering.
+            var orgId = await _db.Users
+                .Where(u => u.UserID == userId)
+                .Select(u => u.OrganizationID)
+                .FirstOrDefaultAsync();
+
             _db.AuditLogs.Add(new AuditLog
             {
                 UserID = userId,
                 Action = action,
                 ResourceType = "User",
                 ResourceID = userId.ToString(),
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrganizationID = orgId   // ← THIS IS THE FIX
             });
             await _db.SaveChangesAsync();
         }
