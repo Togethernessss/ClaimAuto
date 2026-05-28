@@ -1,7 +1,6 @@
 import axios from 'axios';
 
 // One axios instance shared across the entire app.
-// All API calls go through this — single place to configure base URL and token.
 const api = axios.create({
   baseURL: 'http://localhost:7182',
   headers: {
@@ -18,11 +17,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// RESPONSE interceptor — if any call returns 401, clear stale token.
+// RESPONSE interceptor — handle 401 responses.
+// Distinguishes between normal token expiry and admin-initiated deactivation.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const code = error.response?.data?.code;
+      const message = error.response?.data?.message;
+
+      if (code === 'ACCOUNT_DEACTIVATED') {
+        // Admin deactivated this user — fire a specific event with the message
+        // so AuthContext can show the "contact support" banner on Login.
+        window.dispatchEvent(
+          new CustomEvent('auth:deactivated', { detail: { message } })
+        );
+      } else {
+        // Regular 401 (token expired / invalid) — silent logout.
+        window.dispatchEvent(new Event('auth:logout'));
+      }
+
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     }

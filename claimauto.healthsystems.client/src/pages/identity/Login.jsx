@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Button, Alert, Spinner, InputGroup } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
@@ -8,11 +8,18 @@ import { login as loginApi } from '../../services/identity/authService';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);   // ← NEW
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, deactivatedMessage, clearDeactivatedMessage } = useAuth();
+
+  // Clear the deactivation banner once the user starts typing their credentials.
+  useEffect(() => {
+    if ((email || password) && deactivatedMessage) {
+      clearDeactivatedMessage();
+    }
+  }, [email, password, deactivatedMessage, clearDeactivatedMessage]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,6 +59,17 @@ export default function Login() {
             <h3 className="fw-bold mt-2 mb-1">ClaimAuto</h3>
             <p className="text-muted small mb-0">Sign in to your account</p>
           </div>
+
+          {/* Deactivation banner — shown when an admin has deactivated this account */}
+          {deactivatedMessage && (
+            <Alert variant="warning" className="d-flex align-items-start">
+              <i className="bi bi-shield-exclamation me-2 mt-1 flex-shrink-0" style={{ fontSize: '1.1rem' }}></i>
+              <div>
+                <strong>Account Deactivated</strong>
+                <div className="small mt-1">{deactivatedMessage}</div>
+              </div>
+            </Alert>
+          )}
 
           {error && (
             <Alert variant="danger" className="d-flex align-items-center">

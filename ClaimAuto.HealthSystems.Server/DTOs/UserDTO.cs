@@ -110,3 +110,10 @@
         public string MfaToken { get; set; } = string.Empty;       // Temporary token from login
         public string Code { get; set; } = string.Empty;           // 6-digit code from app
     }
+
+    // ── UpdateUserStatusDto — admin toggles a stakeholder Active / Inactive
+    public class UpdateUserStatusDto
+    {
+        /// <summary>"Active" or "Inactive"</summary>
+        public string Status { get; set; } = string.Empty;
+    }

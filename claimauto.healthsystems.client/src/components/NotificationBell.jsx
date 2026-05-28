@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { markAllAsRead } from '../services/notifications/notificationService';
 import { useNotifications } from '../security/NotificationContext';
+import { useAuth } from '../security/AuthContext';
+import { getPagePath } from '../security/permissions';
 
 // ── UTC fix: add Z if missing so browser treats as UTC ────────
 function timeAgo(iso) {
@@ -24,6 +26,7 @@ function categoryStyle(cat) {
 
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { unreadCount, unreadList, loading, refresh } =
     useNotifications();
   const [open,    setOpen]    = useState(false);
@@ -50,12 +53,12 @@ export default function NotificationBell() {
 
   function handleViewAll() {
     setOpen(false);
-    navigate('/notifications');
+    navigate(getPagePath(user?.role, '/notifications'));
   }
 
   function handleNotificationClick() {
     setOpen(false);
-    navigate('/notifications');
+    navigate(getPagePath(user?.role, '/notifications'));
   }
 
   return (

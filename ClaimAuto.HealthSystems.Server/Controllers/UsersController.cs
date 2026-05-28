@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ClaimAuto.HealthSystems.Server.Services;
 using ClaimAuto.HealthSystems.Server.Helpers;
+using System.Text.Json;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
@@ -21,15 +22,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IUserRepository _userRepository;
         private readonly IAuthRepository _authRepository;
         private readonly IEmailServices _emailService;
+        private readonly ApplicationDbContext _db;
 
         public UsersController(
             IUserRepository userRepository,
             IAuthRepository authRepository,
-            IEmailServices emailService)
+            IEmailServices emailService,
+            ApplicationDbContext db)
         {
             _userRepository = userRepository;
             _authRepository = authRepository;
             _emailService = emailService;
+            _db = db;
         }
 
         [HttpGet]
@@ -293,6 +297,53 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var success = await _userRepository.SoftDeleteUserAsync(id);
             if (!success)
                 return NotFound($"User with ID {id} not found.");
+
+            return NoContent();
+        }
+
+        /// <summary>Admin toggles a stakeholder's account between Active and Inactive.</summary>
+        [HttpPatch("{id}/status")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateUserStatus(int id, [FromBody] UpdateUserStatusDto dto)
+        {
+            if (!Enum.TryParse<AccountStatus>(dto.Status, true, out var newStatus))
+                return BadRequest($"Invalid status '{dto.Status}'. Valid values: Active, Inactive.");
+
+            var adminId = GetLoggedInUserId();
+            if (adminId == id)
+                return BadRequest("You cannot change your own account status.");
+
+            var user = await _userRepository.GetUserByIdAsync(id, GetLoggedInUserOrgId());
+            if (user == null)
+                return NotFound($"User with ID {id} not found.");
+
+            if (user.Status == newStatus)
+                return NoContent();
+
+            user.Status = newStatus;
+            await _userRepository.UpdateUserAsync(user);
+
+            var action = newStatus == AccountStatus.Active ? "UserActivated" : "UserDeactivated";
+            _db.AuditLogs.Add(new AuditLog
+            {
+                UserID = adminId!.Value,
+                Action = action,
+                ResourceType = "User",
+                ResourceID = id.ToString(),
+                OrganizationID = GetLoggedInUserOrgId(),
+                Timestamp = DateTime.UtcNow,
+                DetailsJSON = JsonSerializer.Serialize(new
+                {
+                    targetUserId = id,
+                    targetUserName = user.Name,
+                    targetUserEmail = user.Email,
+                    newStatus = newStatus.ToString()
+                })
+            });
+            await _db.SaveChangesAsync();
 
             return NoContent();
         }

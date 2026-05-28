@@ -151,6 +151,10 @@ namespace ClaimAuto.HealthSystems.Server
             app.UseAuthentication();//Added this line to enable authentication middleware, which allows the application to authenticate users based on the configured authentication scheme (in this case, JWT tokens).
             app.UseAuthorization();
 
+            // Evict deactivated users before any other gate runs.
+            // Returns 401 ACCOUNT_DEACTIVATED so the frontend can show the right message.
+            app.UseMiddleware<UserStatusMiddleware>();
+
             // Security gate: invited users with MustChangePassword=true can ONLY
             // hit POST /api/auth/change-password — everything else is 403.
             // Must run AFTER auth (needs the user principal) and BEFORE controllers.
