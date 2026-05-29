@@ -13,6 +13,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ClaimAuto.HealthSystems.Server.Services;
 using ClaimAuto.HealthSystems.Server.Model;
+using ClaimAuto.HealthSystems.Server.Services.RuleEngine;
+using ClaimAuto.HealthSystems.Server.Services.RuleEngine.Strategies;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -53,6 +55,23 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddScoped<IEmailServices, SmtpEmailService>();
             builder.Services.AddScoped<IReportPdfService, ReportPdfService>();
             builder.Services.AddScoped<IAuditPackagePdfService, AuditPackagePdfService>();
+
+            // ── Rule Engine Strategies (Template-Based Adjudication) ──────────────
+            builder.Services.AddSingleton<IRuleStrategy, PolicyActiveStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, InNetworkStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, WaitingPeriodStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, CoverageRemainingStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, AmountBelowStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, AmountAboveStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, AmountBetweenStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, ClaimTypeDenyStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, ClaimTypePassStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, DuplicateCheckStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, ReimbursementDuplicateStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, DeductibleStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, CoPayStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, RequireDocTypeStrategy>();
+            builder.Services.AddSingleton<IRuleStrategy, RouteToReviewStrategy>();
 
 
             builder.Services.AddControllers()
@@ -151,6 +170,10 @@ namespace ClaimAuto.HealthSystems.Server
             app.UseAuthentication();//Added this line to enable authentication middleware, which allows the application to authenticate users based on the configured authentication scheme (in this case, JWT tokens).
             app.UseAuthorization();
 
+            // Evict deactivated users before any other gate runs.
+            // Returns 401 ACCOUNT_DEACTIVATED so the frontend can show the right message.
+            app.UseMiddleware<UserStatusMiddleware>();
+
             // Security gate: invited users with MustChangePassword=true can ONLY
             // hit POST /api/auth/change-password — everything else is 403.
             // Must run AFTER auth (needs the user principal) and BEFORE controllers.
@@ -162,36 +185,6 @@ namespace ClaimAuto.HealthSystems.Server
             app.MapFallbackToFile("/index.html");//Added this line to configure a fallback route that serves the index.html file for any requests that do not match existing routes, which is useful for single-page applications (SPAs) that rely on client-side routing.
 
             await DbSeeder.SeedAsync(app);
-
-            // ── Warn at startup about DB rules the engine cannot execute ──
-            using (var scope = app.Services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-                var implementedRules = new HashSet<string>
-                {
-                    "Policy Active Check",
-                    "In-Network Check",
-                    "Amount Threshold",
-                    "Duplicate Detection",
-                    "Deductible Applied",
-                    "Reimbursement Duplicate Check",
-                    "Coverage Remaining Check"
-                };
-
-                var unknownRules = await db.Rules
-                    .Where(r => r.Status == RuleStatus.Active &&
-                                !implementedRules.Contains(r.Name))
-                    .Select(r => new { r.RuleID, r.Name })
-                    .ToListAsync();
-
-                foreach (var rule in unknownRules)
-                    logger.LogWarning(
-                        "Adjudication engine: Rule '{Name}' (ID {Id}) is Active in the " +
-                        "database but has no matching case — it will be SKIPPED at runtime.",
-                        rule.Name, rule.RuleID);
-            }
 
             app.Run();//Added this line to start the application and listen for incoming HTTP requests, effectively running the web server and making the API available to clients.
         }

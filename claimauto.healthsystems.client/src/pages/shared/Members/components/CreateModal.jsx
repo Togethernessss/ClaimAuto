@@ -10,6 +10,7 @@ export default function CreateModal({
   policyholderUsers,
   onHide,
   onFieldChange,
+  onUserSelect,
   onSubmit,
 }) {
   const [userSearch, setUserSearch] = useState('');
@@ -134,9 +135,7 @@ export default function CreateModal({
                                   action
                                   active={isSelected}
                                   onClick={() => {
-                                    onFieldChange('policyholderUserID')({
-                                      target: { value: String(u.userID) },
-                                    });
+                                    onUserSelect(u);
                                     setIsOpen(false);
                                     setUserSearch('');
                                   }}
@@ -179,6 +178,12 @@ export default function CreateModal({
 
                 <Form.Text className="text-muted">
                   The member record will be linked to this user's account.
+                  {form.policyholderUserID && (
+                    <span className="text-success ms-2">
+                      <i className="bi bi-check-circle-fill me-1"></i>
+                      Name and email auto-filled from registration data.
+                    </span>
+                  )}
                 </Form.Text>
               </Form.Group>
             </Col>

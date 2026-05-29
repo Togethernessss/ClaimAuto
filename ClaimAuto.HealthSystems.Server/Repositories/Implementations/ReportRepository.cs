@@ -183,7 +183,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         .CountAsync();
                     var autoPaid = await _context.AdjudicationRecords
                         .CountAsync(a =>
-                            a.Decision == AdjDecision.Paid
+                            a.Decision == AdjDecision.Approved
                             && a.PerformedByID == null);
                     var denied = await _context.AdjudicationRecords
                         .CountAsync(a =>
@@ -266,7 +266,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 var autoPaid = await _context.AdjudicationRecords
                     .Where(a => !userOrgId.HasValue || a.OrganizationID == userOrgId.Value)
                     .CountAsync(a =>
-                        a.Decision == AdjDecision.Paid
+                        a.Decision == AdjDecision.Approved
                         && a.PerformedByID == null);
 
                 var autoAdjRate = Math.Min(Math.Round(
@@ -453,7 +453,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var manualAdj = adjRecords.Count(
                 a => a.PerformedByID != null);
             var adjApproved = adjRecords.Count(
-                a => a.Decision == AdjDecision.Paid);
+                a => a.Decision == AdjDecision.Approved);
             var adjDenied = adjRecords.Count(
                 a => a.Decision == AdjDecision.Denied);
             var denialRate = totalClaims > 0

@@ -138,6 +138,29 @@
         public string? Status { get; set; }    // "UnderReview" | "Approved" | "Rejected"
         public string? Priority { get; set; } // "Normal","High","Urgent"
     }
+
+    /// <summary>
+    /// Input for staff to reject a claim at their discretion with a documented reason.
+    /// </summary>
+    public class RejectClaimDto
+    {
+        /// <summary>Required — reason for rejection, shown to filer + logged in audit trail.</summary>
+        public string Reason { get; set; } = string.Empty;
+
+        /// <summary>Optional — which document IDs (if any) triggered this rejection.</summary>
+        public List<int>? RelatedDocumentIDs { get; set; }
+    }
+
+    /// <summary>
+    /// Input for replacing a rejected document with a corrected version.
+    /// Preserves DocID (audit trail) but updates content + resets status to Pending.
+    /// </summary>
+    public class ReplaceDocumentDto
+    {
+        public string FileURI { get; set; } = string.Empty;
+        public string SHA256 { get; set; } = string.Empty;
+    }
+   
     public class UploadDocumentFormDto
     {
         /// <summary>The file being uploaded (PDF, image, doc, etc.)</summary>
@@ -146,4 +169,4 @@
         /// <summary>One of: Invoice, MedicalRecord, LabReport, Prescription, DischargeSummary</summary>
         public string DocType { get; set; } = string.Empty;
     }
-}
+

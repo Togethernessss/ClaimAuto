@@ -74,8 +74,9 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(claim);
         }
 
-        /// <summary>Submits a new insurance claim.</summary>
+        /// <summary>Submits a new insurance claim. Hospital and Policyholder only.</summary>
         [HttpPost]
+        [Authorize(Roles = "Hospital,Policyholder")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -97,8 +98,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             var created = await _claimRepo.SubmitClaimAsync(dto, userId.Value, userOrgId);
             if (created == null)
-                return BadRequest("Validation failed — check that ProviderID (must be Hospital role), " +
-                                  "MemberID, and PolicyID (must be Active) all exist and are valid.");
+                return BadRequest("Validation failed — check that ProviderID matches your account, " +
+                                  "MemberID coverage is active, and PolicyID (must be Active) are all valid.");
 
             // ── Document verification gate ────────────────────────────────────────────
             // Fraud scoring and adjudication no longer run on submission.
@@ -401,7 +402,17 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 case "pendingdocs":
                     return BadRequest(
                         $"Claim {id} has one or more unreviewed documents. " +
-                        "All documents must be Verified or Rejected before adjudication can begin.");
+                        "All documents must be Verified before adjudication can begin.");
+
+                case "rejecteddocs":
+                    return BadRequest(
+                        $"Claim {id} has rejected documents. " +
+                        "The provider must re-upload corrected documents before adjudication can proceed.");
+
+                case "nodocs":
+                    return BadRequest(
+                        $"Claim {id} has no verified documents. " +
+                        "At least one document must be verified before adjudication can proceed.");
             }
 
             // ── NEW: handle rejected documents — auto-reject claim ──
@@ -504,6 +515,120 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 adjudication = adjResult,
                 message = adjMessage
             });
+        }
+
+        /// <summary>
+        /// Staff-initiated rejection of a claim with a documented reason.
+        /// Available to Admin and InsuranceStaff for non-finalized claims.
+        /// Records reason in audit log + notifies the claim filer.
+        /// </summary>
+        [HttpPost("{id}/reject")]
+        [Authorize(Roles = "Admin,InsuranceStaff")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> StaffRejectClaim(int id, [FromBody] RejectClaimDto dto)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            if (string.IsNullOrWhiteSpace(dto.Reason))
+                return BadRequest(new { message = "Rejection reason is required." });
+
+            if (dto.Reason.Length < 10)
+                return BadRequest(new { message = "Rejection reason must be at least 10 characters." });
+
+            var userOrgId = GetLoggedInUserOrgId();
+            var result = await _claimRepo.StaffRejectClaimAsync(id, dto.Reason, userId.Value, userOrgId);
+
+            return result switch
+            {
+                "ok" => Ok(new
+                {
+                    claimID = id,
+                    status = "Rejected",
+                    message = $"Claim CLM-{id} has been rejected. Reason: {dto.Reason}"
+                }),
+                "notfound" => NotFound(new { message = $"Claim {id} not found." }),
+                "alreadyfinalized" => BadRequest(new
+                {
+                    message = $"Claim {id} is already finalized and cannot be rejected again."
+                }),
+                _ => StatusCode(500, "Unexpected error during rejection.")
+            };
+        }
+
+        /// <summary>
+        /// Replaces a REJECTED document with a corrected version.
+        /// Same DocID preserved for audit trail. Status resets to Pending.
+        /// Hospital/Policyholder can replace their own; Admin can replace any.
+        /// </summary>
+        [HttpPost("{id}/documents/{docId}/replace")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ReplaceDocument(
+            int id, int docId, [FromBody] ReplaceDocumentDto dto)
+        {
+            var userId = GetLoggedInUserId();
+            if (userId == null)
+                return Unauthorized("Invalid token — user ID claim missing.");
+
+            if (string.IsNullOrWhiteSpace(dto.FileURI))
+                return BadRequest(new { message = "FileURI is required." });
+
+            if (string.IsNullOrWhiteSpace(dto.SHA256))
+                return BadRequest(new { message = "SHA256 is required." });
+
+            var userRole = GetLoggedInUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
+
+            // ── Verify claim exists + is non-finalized ──
+            var claim = await _claimRepo.GetClaimByIdAsync(id, userOrgId);
+            if (claim == null)
+                return NotFound(new { message = $"Claim {id} not found." });
+
+            if (claim.Status is "Approved" or "Rejected" or "Paid")
+                return BadRequest(new
+                {
+                    message = $"Cannot replace documents on a {claim.Status} claim. " +
+                              "The claim is finalized."
+                });
+
+            // ── Find the document + verify ownership ──
+            var docs = await _claimRepo.GetClaimDocumentsAsync(id, userOrgId);
+            var doc = docs.FirstOrDefault(d => d.DocID == docId);
+            if (doc == null)
+                return NotFound(new { message = $"Document {docId} not found on Claim {id}." });
+
+            // ── Only Rejected docs can be replaced ──
+            if (doc.Status != "Rejected")
+                return BadRequest(new
+                {
+                    message = $"Document {docId} has status '{doc.Status}' and cannot be re-uploaded. " +
+                              "Only rejected documents can be replaced."
+                });
+
+            // ── Hospital/Policyholder can only replace their own ──
+            if (userRole == "Hospital" || userRole == "Policyholder")
+            {
+                if (doc.UploadedByID != userId.Value)
+                    return Forbid();
+            }
+
+            var result = await _claimRepo.ReplaceDocumentAsync(id, docId, dto, userId.Value, userOrgId);
+            if (result == null)
+                return NotFound(new
+                {
+                    message = $"Document {docId} could not be replaced. " +
+                              "Confirm it exists and is in Rejected status."
+                });
+
+            return Ok(result);
         }
     }
 }

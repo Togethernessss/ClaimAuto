@@ -75,6 +75,26 @@ export default function CreateModal({
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
+                  Sum Insured (₹) <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 500000"
+                  value={form.sumInsured}
+                  onChange={onFieldChange('sumInsured')}
+                  required
+                />
+                <Form.Text className="text-muted">
+                  Maximum total the insurer pays in a policy year.
+                </Form.Text>
+              </Form.Group>
+            </Col>
+
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">
                   Deductible Amount (₹)
                 </Form.Label>
                 <Form.Control
@@ -91,28 +111,13 @@ export default function CreateModal({
             <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
-                  Out-of-Pocket Max (₹)
-                </Form.Label>
-                <Form.Control
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="e.g. 100000"
-                  value={form.outOfPocketMax}
-                  onChange={onFieldChange('outOfPocketMax')}
-                />
-              </Form.Group>
-            </Col>
-
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">
                   Effective From <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="date"
                   value={form.effectiveFrom}
                   onChange={onFieldChange('effectiveFrom')}
+                  min={new Date().toISOString().split('T')[0]}
                   required
                 />
                 <Form.Text className="text-muted">
@@ -144,8 +149,7 @@ export default function CreateModal({
                   Covered Services
                 </Form.Label>
                 <div className="d-flex flex-wrap gap-3 mt-1">
-                  {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
-                    'Dental', 'Vision', 'Mental Health'].map((service) => (
+                  {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency'].map((service) => (
                     <Form.Check
                       key={service}
                       type="checkbox"

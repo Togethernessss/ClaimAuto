@@ -20,9 +20,6 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Column(TypeName = "decimal(12,2)")]
         public decimal? DeductibleAmount { get; set; }
 
-        [Column(TypeName = "decimal(12,2)")]
-        public decimal? OutOfPocketMax { get; set; }
-
         [Required]
         public DateTime EffectiveFrom { get; set; }
 

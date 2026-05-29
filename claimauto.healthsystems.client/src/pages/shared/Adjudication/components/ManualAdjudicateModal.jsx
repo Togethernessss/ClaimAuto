@@ -129,9 +129,9 @@ export default function ManualAdjudicateModal({
                       >
                         <div className="fw-bold">{d.value}</div>
                         <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>
-                          {d.value === 'Paid'    && 'Approve full payment'}
-                          {d.value === 'Denied'  && 'Reject — no payment'}
-                          {d.value === 'Partial' && 'Approve partial amount'}
+                          {d.value === 'Approved' && 'Approve full payment'}
+                          {d.value === 'Denied'   && 'Reject — no payment'}
+                          {d.value === 'Partial'  && 'Approve partial amount'}
                         </div>
                       </button>
                     );

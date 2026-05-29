@@ -99,9 +99,6 @@ export default function PoliciesTable({
                     Deductible
                   </th>
                   <th className="py-3 text-muted small fw-semibold text-uppercase">
-                    OOP Max
-                  </th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">
                     Effective From
                   </th>
                   <th className="py-3 text-muted small fw-semibold text-uppercase">
@@ -137,9 +134,6 @@ export default function PoliciesTable({
 
                     <td className="py-3">
                       {formatCurrency(policy.deductibleAmount)}
-                    </td>
-                    <td className="py-3">
-                      {formatCurrency(policy.outOfPocketMax)}
                     </td>
                     <td className="py-3">
                       {formatDate(policy.effectiveFrom)}

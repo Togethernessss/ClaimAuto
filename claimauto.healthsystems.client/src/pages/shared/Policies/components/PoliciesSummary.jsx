@@ -55,36 +55,38 @@ export default function PoliciesSummary({ policies }) {
   };
 
   return (
-    <div className="d-flex gap-3 mb-4 flex-wrap">
-      {STAT_CARDS.map((card) => (
-        <div
-          key={card.key}
-          className="flex-grow-1"
-          style={{ minWidth: 120, flex: '1 1 0' }}
-        >
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-              <div
-                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                style={{ width: 38, height: 38, backgroundColor: card.bg }}
-              >
-                <i
-                  className={`${card.icon}`}
-                  style={{ color: card.color, fontSize: '1rem' }}
-                ></i>
-              </div>
-              <div>
-                <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>
-                  {values[card.key]}
+    <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+      <div className="d-flex gap-3 mb-4" style={{ minWidth: 'fit-content' }}>
+        {STAT_CARDS.map((card) => (
+          <div
+            key={card.key}
+            className="flex-grow-1"
+            style={{ minWidth: 120, flex: '1 1 0' }}
+          >
+            <Card className="border-0 shadow-sm h-100">
+              <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                  style={{ width: 38, height: 38, backgroundColor: card.bg }}
+                >
+                  <i
+                    className={`${card.icon}`}
+                    style={{ color: card.color, fontSize: '1rem' }}
+                  ></i>
                 </div>
-                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  {card.label}
+                <div>
+                  <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>
+                    {values[card.key]}
+                  </div>
+                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    {card.label}
+                  </div>
                 </div>
-              </div>
-            </Card.Body>
-          </Card>
-        </div>
-      ))}
+              </Card.Body>
+            </Card>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

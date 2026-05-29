@@ -38,9 +38,10 @@
         public DateTime? CoverageEnd { get; set; }
         public string Status { get; set; } = string.Empty;
         public int? PolicyholderUserID { get; set; }
+        public string? CoverageRulesJSON { get; set; }
     }
 
-    // ── EligibilityResponseDto 
+    // ── EligibilityResponseDto
     public class EligibilityResponseDto
     {
         public int MemberID { get; set; }

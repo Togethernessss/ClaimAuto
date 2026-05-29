@@ -272,7 +272,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
             }
             else
             {
-                result.Decision = AdjDecision.Paid;
+                result.Decision = AdjDecision.Approved;
                 result.PayableAmount = payableAmount;
             }
 

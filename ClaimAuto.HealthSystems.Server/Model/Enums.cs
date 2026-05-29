@@ -14,7 +14,10 @@
     public enum PolicyStatus { Active, Expired, Suspended }
     public enum RuleType { Coverage, Payment, Validation }
     public enum RuleStatus { Active, Inactive, Draft }
-    public enum AdjDecision { Paid, Denied, Partial, PendingReview }
+    // NOTE: "Approved" (formerly "Paid") = adjudication decided to approve for payment.
+    // The actual payment status lives in PaymentStatus on the Payment record.
+    // Order is preserved so existing integer-ordinal storage stays compatible.
+    public enum AdjDecision { Approved, Denied, Partial, PendingReview }
     public enum PaymentMethod { EFT, ACH, Check }
     public enum PaymentStatus { Pending, Authorized, Executed, Failed, OnHold }
     public enum RemittanceStatus { Generated, Sent, Acknowledged }

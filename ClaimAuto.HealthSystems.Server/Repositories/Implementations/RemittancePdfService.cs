@@ -48,7 +48,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
             var planName = claim?.Member?.Policy?.PlanName ?? "—";
             var planCode = claim?.Member?.Policy?.PlanCode ?? "—";
             var deductible = claim?.Member?.Policy?.DeductibleAmount ?? 0;
-            var oopMax = claim?.Member?.Policy?.OutOfPocketMax ?? 0;
             var claimType = claim?.ClaimType.ToString() ?? "—";
             var claimNotes = string.IsNullOrWhiteSpace(claim?.Notes)
                                    ? "—" : claim!.Notes!;
@@ -269,8 +268,6 @@ namespace ClaimAuto.HealthSystems.Server.Services.Implementations
                                 DetailRow(c, "Plan code", planCode);
                                 DetailRow(c, "Deductible",
                                     $"INR {deductible:N0}");
-                                DetailRow(c, "Out of pocket max",
-                                    $"INR {oopMax:N0}");
                             });
                         });
 

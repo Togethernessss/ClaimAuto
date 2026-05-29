@@ -150,3 +150,28 @@ export async function proceedToAdjudication(claimId) {
   const response = await api.post(`/api/claims/${claimId}/proceed-to-adjudication`);
   return response.data;
 }
+
+// ── STAFF REJECT CLAIM ────────────────────────────────────────────────
+// Backend: POST /api/claims/{id}/reject
+// Who: Admin + InsuranceStaff only
+// Body: { reason, relatedDocumentIDs? }
+// Effect: Sets claim status to Rejected with audit log + filer notification
+export async function staffRejectClaim(claimId, reason, relatedDocumentIDs = null) {
+    const response = await api.post(`/api/claims/${claimId}/reject`, {
+        reason,
+        relatedDocumentIDs,
+    });
+    return response.data;
+}
+
+// ── REPLACE DOCUMENT ────────────────────────────────────────────────────
+// Backend: POST /api/claims/{id}/documents/{docId}/replace
+// Replaces a REJECTED document with a corrected version in-place.
+// Preserves DocID for audit trail. Status resets to Pending.
+export async function replaceDocument(claimId, docId, dto) {
+    const response = await api.post(
+        `/api/claims/${claimId}/documents/${docId}/replace`,
+        dto
+    );
+    return response.data;
+}
