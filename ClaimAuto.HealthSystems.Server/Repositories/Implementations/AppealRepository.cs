@@ -119,6 +119,37 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _context.SaveChangesAsync();
             return appeal;
         }
+        // ── SAVE ORIGINAL APPEAL DOCUMENTS ────────────────────────────────────
+        public async Task SaveAppealDocumentsAsync(int appealId, List<AppealDocument> documents)
+        {
+            foreach (var doc in documents)
+                doc.AppealID = appealId;
+
+            _context.AppealDocuments.AddRange(documents);
+            await _context.SaveChangesAsync();
+        }
+
+        // ── GET ALL DOCUMENTS FOR AN APPEAL ──────────────────────────────────
+        public async Task<List<AppealDocument>> GetAppealDocumentsAsync(int appealId, int? userOrgId = null)
+        {
+            var query = _context.AppealDocuments.Where(d => d.AppealID == appealId);
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            return await query.OrderBy(d => d.UploadedAt).ToListAsync();
+        }
+
+        // ── GET ONE DOCUMENT BY ID ───────────────────────────────────────────
+        public async Task<AppealDocument?> GetAppealDocumentByIdAsync(int appealId, int documentId, int? userOrgId = null)
+        {
+            var query = _context.AppealDocuments
+                .Where(d => d.DocumentID == documentId && d.AppealID == appealId);
+
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            return await query.FirstOrDefaultAsync();
+        }
 
         public async Task<Appeal?> WithdrawAppealAsync(int id)
         {

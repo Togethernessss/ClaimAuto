@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Reflection.Emit;
 using ClaimAuto.HealthSystems.Server.Model;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClaimAuto.HealthSystems.Server.Data
 {
@@ -40,12 +41,14 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
         // Module 7
         public DbSet<Appeal> Appeals { get; set; }
+        public DbSet<AppealDocument> AppealDocuments { get; set; }
         public DbSet<Subrogation> Subrogations { get; set; }
 
         // Module 8
         public DbSet<Report> Reports { get; set; }
         public DbSet<KPI> KPIs { get; set; }
         public DbSet<AuditPackage> AuditPackages { get; set; }
+
 
         // Module 9
         public DbSet<Notification> Notifications { get; set; }
@@ -117,6 +120,30 @@ namespace ClaimAuto.HealthSystems.Server.Data
     .IsRequired(false)
     .OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<AppealDocument>(entity =>
+            {
+                entity.HasKey(d => d.DocumentID);
+
+                entity.Property(d => d.FileName)
+                      .IsRequired()
+                      .HasMaxLength(500);
+
+                entity.Property(d => d.ContentType)
+                      .IsRequired()
+                      .HasMaxLength(100);
+
+                entity.HasOne(d => d.Appeal)
+                      .WithMany()
+                      .HasForeignKey(d => d.AppealID)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.Organization)
+                      .WithMany()
+                      .HasForeignKey(d => d.OrganizationID)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(d => d.AppealID);
+            });
             // ── Multi-Tenant FK configs added in Phase 4.1 (post-merge) ──
             mb.Entity<ClaimLine>()
                 .HasOne(cl => cl.Organization)

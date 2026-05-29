@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260522121654_appeallllll")]
+    partial class appeallllll
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,9 +45,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<string>("Decision")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("DeductibleApplied")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("EngineVersion")
                         .HasMaxLength(50)
@@ -228,14 +228,11 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("GeneratedByID")
-                        .HasColumnType("int");
-
                     b.Property<int?>("OrganizationID")
                         .HasColumnType("int");
 
-                    b.Property<byte[]>("PackageFilePDF")
-                        .HasColumnType("varbinary(max)");
+                    b.Property<string>("PackageURI")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("PeriodEnd")
                         .HasColumnType("datetime2");
@@ -244,8 +241,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("PackageID");
-
-                    b.HasIndex("GeneratedByID");
 
                     b.HasIndex("OrganizationID");
 
@@ -340,23 +335,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int>("ClaimID")
                         .HasColumnType("int");
 
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("DocType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<byte[]>("FileData")
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint");
 
                     b.Property<string>("FileURI")
                         .IsRequired()
@@ -397,34 +378,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("VerifiedByID");
 
                     b.ToTable("ClaimDocuments");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimDocumentContent", b =>
-                {
-                    b.Property<string>("FileGuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("nvarchar(36)");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<byte[]>("FileBytes")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("FileGuid");
-
-                    b.ToTable("ClaimDocumentContents");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimLine", b =>
@@ -983,6 +936,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int?>("OrganizationID")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("OutOfPocketMax")
+                        .HasColumnType("decimal(12,2)");
+
                     b.Property<string>("PlanCode")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1165,8 +1121,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<string>("RuleType")
                         .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1245,9 +1200,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
-
-                    b.Property<bool>("IsInNetwork")
-                        .HasColumnType("bit");
 
                     b.Property<int>("LoginFailedAttempts")
                         .HasColumnType("int");
@@ -1404,17 +1356,10 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditPackage", b =>
                 {
-                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.User", "GeneratedByUser")
-                        .WithMany()
-                        .HasForeignKey("GeneratedByID")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationID")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("GeneratedByUser");
 
                     b.Navigation("Organization");
                 });

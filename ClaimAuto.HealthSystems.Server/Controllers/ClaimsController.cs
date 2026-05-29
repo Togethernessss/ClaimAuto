@@ -51,7 +51,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetClaimById(int id)
         {
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+            var userOrgId = GetLoggedInUserOrgId();
             var userRole = GetLoggedInUserRole();
             var userId = GetLoggedInUserId();
 
@@ -87,11 +87,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant stamping
+            var userOrgId = GetLoggedInUserOrgId();
 
             if (!string.IsNullOrEmpty(dto.ExternalClaimRef))
             {
-                // ★ FIX 2.4 — scope uniqueness check per tenant
                 var exists = await _claimRepo.ExternalClaimRefExistsAsync(dto.ExternalClaimRef, userOrgId);
                 if (exists)
                     return Conflict($"A claim with ExternalClaimRef '{dto.ExternalClaimRef}' already exists.");
@@ -102,12 +101,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("Validation failed — check that ProviderID matches your account, " +
                                   "MemberID coverage is active, and PolicyID (must be Active) are all valid.");
 
-
             // ── Document verification gate ────────────────────────────────────────────
             // Fraud scoring and adjudication no longer run on submission.
             // The claim is now in DocsVerificationPending — staff must verify all attached
             // documents before triggering adjudication via POST /proceed-to-adjudication.
-            // Future: AI document verification service calls this endpoint automatically.
             return CreatedAtAction(nameof(GetClaimById), new { id = created.ClaimID }, new
             {
                 claim = created,
@@ -127,7 +124,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            var userOrgId = GetLoggedInUserOrgId();   // ← Phase 4: tenant scoping
+            var userOrgId = GetLoggedInUserOrgId();
 
             var updated = await _claimRepo.UpdateClaimAsync(id, dto, userId.Value, userOrgId);
             if (updated == null)
@@ -149,7 +146,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // ★ FIX 2.3 — CRITICAL: tenant ownership check on delete
             var userOrgId = GetLoggedInUserOrgId();
             var result = await _claimRepo.DeleteClaimAsync(id, userId.Value, userOrgId);
 
@@ -185,7 +181,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimLines(int id)
         {
-            // ★ FIX 2.1 — tenant-scoped read
             var userOrgId = GetLoggedInUserOrgId();
             var lines = await _claimRepo.GetClaimLinesAsync(id, userOrgId);
             return Ok(lines);
@@ -193,15 +188,24 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         /// <summary>Uploads a supporting document to a claim.</summary>
         [HttpPost("{id}/documents")]
+        [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UploadDocument(int id, [FromBody] UploadDocumentDto dto)
+        public async Task<IActionResult> UploadDocument(
+            int id,
+            [FromForm] UploadDocumentFormDto form)
         {
             var userId = GetLoggedInUserId();
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
+
+            if (form?.File == null || form.File.Length == 0)
+                return BadRequest("No file was uploaded.");
+
+            if (string.IsNullOrWhiteSpace(form.DocType))
+                return BadRequest("DocType is required.");
 
             var userRole = GetLoggedInUserRole();
             var userOrgId = GetLoggedInUserOrgId();
@@ -210,24 +214,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (claim == null)
                 return NotFound($"Claim with ID {id} was not found.");
 
-            // Finalized claims are immutable — their document set is part of the audit trail
             if (claim.Status is "Approved" or "Rejected" or "Paid")
                 return BadRequest(
                     $"Cannot upload documents to a {claim.Status} claim. " +
-                    "The claim is finalized and its document set is locked.");
+                    "The claim is finalized.");
 
-            // Hospital/Policyholder: documents can be added while the claim is Submitted
-            // or awaiting document verification (DocsVerificationPending).
-            // Once staff begins adjudication the document window is closed for non-staff.
             if ((userRole == "Hospital" || userRole == "Policyholder")
                 && claim.Status != "Submitted"
                 && claim.Status != "DocsVerificationPending")
                 return BadRequest(
                     "Documents can only be attached while the claim is awaiting document verification.");
 
-            var created = await _claimRepo.UploadDocumentAsync(id, dto, userId.Value);
+            var created = await _claimRepo.UploadDocumentAsync(id, form.File, form.DocType, userId.Value);
             if (created == null)
-                return NotFound($"Claim with ID {id} was not found or user is invalid.");
+                return BadRequest("Failed to upload document. Check DocType is valid (Invoice/MedicalRecord/LabReport/Prescription/DischargeSummary).");
 
             return CreatedAtAction(nameof(GetClaimDocuments), new { id = id }, created);
         }
@@ -252,7 +252,6 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (claim == null)
                 return NotFound($"Claim {id} not found.");
 
-            // Finalized claims — document set is sealed
             if (claim.Status is "Approved" or "Rejected" or "Paid")
                 return BadRequest(
                     $"Cannot delete documents on a {claim.Status} claim. " +
@@ -263,17 +262,11 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (doc == null)
                 return NotFound($"Document {docId} not found on Claim {id}.");
 
-            // Verified documents are part of the audit trail and cannot be removed
             if (doc.Status == "Verified")
                 return BadRequest(
                     "Cannot delete a verified document — " +
                     "it has been reviewed and is part of the audit trail.");
 
-            // InsuranceStaff cannot delete documents — Admin only
-            if (userRole == "InsuranceStaff")
-                return Forbid();
-
-            // Hospital/Policyholder: only their own uploads, only while in the doc-review window
             if (userRole == "Hospital" || userRole == "Policyholder")
             {
                 if (claim.Status != "Submitted" && claim.Status != "DocsVerificationPending")
@@ -316,8 +309,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return NotFound($"Claim {id} not found.");
 
             if (claim.Status is "Approved" or "Rejected" or "Paid")
-                return BadRequest(
-                    $"Cannot update documents on a {claim.Status} claim.");
+                return BadRequest($"Cannot update documents on a {claim.Status} claim.");
 
             var result = await _claimRepo.VerifyDocumentAsync(
                 id, docId, dto, userId.Value, userOrgId);
@@ -333,10 +325,42 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetClaimDocuments(int id)
         {
-            // ★ FIX 2.2 — tenant-scoped read
             var userOrgId = GetLoggedInUserOrgId();
             var docs = await _claimRepo.GetClaimDocumentsAsync(id, userOrgId);
             return Ok(docs);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/claims/{id}/documents/{docId}/view — inline view
+        // ═══════════════════════════════════════════════════════════════
+        [HttpGet("{id}/documents/{docId}/view")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ViewClaimDocument(int id, int docId)
+        {
+            var userOrgId = GetLoggedInUserOrgId();
+            var doc = await _claimRepo.GetClaimDocumentEntityAsync(id, docId, userOrgId);
+            if (doc == null || doc.FileData == null || doc.FileData.Length == 0)
+                return NotFound(new { message = $"Document {docId} not found." });
+
+            Response.Headers["Content-Disposition"] = $"inline; filename=\"{doc.FileName}\"";
+            return File(doc.FileData, doc.ContentType);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/claims/{id}/documents/{docId}/download — force download
+        // ═══════════════════════════════════════════════════════════════
+        [HttpGet("{id}/documents/{docId}/download")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DownloadClaimDocument(int id, int docId)
+        {
+            var userOrgId = GetLoggedInUserOrgId();
+            var doc = await _claimRepo.GetClaimDocumentEntityAsync(id, docId, userOrgId);
+            if (doc == null || doc.FileData == null || doc.FileData.Length == 0)
+                return NotFound(new { message = $"Document {docId} not found." });
+
+            return File(doc.FileData, doc.ContentType, doc.FileName);
         }
 
         /// <summary>
@@ -346,10 +370,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// Pre-conditions (enforced by the repository):
         ///   1. Claim must be in DocsVerificationPending status.
         ///   2. No documents on the claim can be in Pending (unreviewed) state.
-        ///      Staff must have explicitly Verified or Rejected every document.
-        ///
-        /// Future extension point: an AI document verification service calls this endpoint
-        /// automatically once it has reviewed all documents — no code change required here.
+        ///   3. If any document is Rejected → claim is auto-denied (no fraud/adj runs).
         /// </summary>
         [HttpPost("{id}/proceed-to-adjudication")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
@@ -367,6 +388,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             // ── Pre-flight validation ────────────────────────────────────────────
             var validation = await _claimRepo.ValidateProceedToAdjudicationAsync(id, userOrgId);
+
             switch (validation)
             {
                 case "notfound":
@@ -393,8 +415,33 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                         "At least one document must be verified before adjudication can proceed.");
             }
 
-            // ── Fraud scoring ────────────────────────────────────────────────────
-            // Same engine that previously ran on submission — just runs here instead.
+            // ── NEW: handle rejected documents — auto-reject claim ──
+            if (validation.StartsWith("hasrejecteddocs"))
+            {
+                var rejectedCount = int.Parse(validation.Split(':')[1]);
+
+                // Auto-reject the claim
+                await _claimRepo.UpdateClaimAsync(
+                    id,
+                    new UpdateClaimDto { Status = "Rejected" },
+                    userId.Value,
+                    userOrgId);
+
+                return Ok(new
+                {
+                    claimID = id,
+                    autoAdjudicated = true,
+                    adjudication = new
+                    {
+                        decision = "Denied",
+                        reason = $"Claim auto-denied because {rejectedCount} supporting document(s) were rejected during verification."
+                    },
+                    message = $"CLM-{id} has been REJECTED because {rejectedCount} supporting document(s) " +
+                              "were rejected during verification. The claim cannot proceed without valid documentation."
+                });
+            }
+
+            // ── Fraud scoring (only runs when no rejected docs) ─────────────────
             var fraudScore = await _fraudRepo.ScoreClaimAsync(id, userOrgId);
 
             if (fraudScore.ScoreValue >= 70)

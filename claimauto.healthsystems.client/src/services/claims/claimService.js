@@ -75,9 +75,47 @@ export async function getClaimLines(claimId) {
 // Returns:  ClaimDocumentResponseDto (201 Created)
 // NOTE:     In production, file goes to S3/Azure first → then store URI here.
 //           For this project we simulate the URI.
-export async function uploadDocument(claimId, dto) {
-  const response = await api.post(`/api/claims/${claimId}/documents`, dto);
-  return response.data;
+// ── UPLOAD DOCUMENT (multipart) ───────────────────────────────────────
+// Backend: POST /api/claims/{id}/documents (multipart/form-data)
+export async function uploadDocument(claimId, file, docType) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('docType', docType);
+
+    const response = await api.post(`/api/claims/${claimId}/documents`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+}
+
+// ── VIEW DOCUMENT INLINE ──────────────────────────────────────────────
+export async function viewClaimDocument(claimId, docId) {
+    const res = await api.get(`/api/claims/${claimId}/documents/${docId}/view`, {
+        responseType: 'blob',
+    });
+    const contentType = res.headers['content-type'] || 'application/octet-stream';
+    const blob = new Blob([res.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+    const newTab = window.open(url, '_blank');
+    if (!newTab) window.location.href = url;
+    setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+}
+
+// ── DOWNLOAD DOCUMENT ─────────────────────────────────────────────────
+export async function downloadClaimDocument(claimId, docId, fileName) {
+    const res = await api.get(`/api/claims/${claimId}/documents/${docId}/download`, {
+        responseType: 'blob',
+    });
+    const contentType = res.headers['content-type'] || 'application/octet-stream';
+    const blob = new Blob([res.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || `claim-${claimId}-doc-${docId}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 }
 
 // ── GET CLAIM DOCUMENTS ───────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ using ClaimAuto.HealthSystems.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClaimAuto.HealthSystems.Server.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260527173854_claimrejection")]
+    partial class claimrejection
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -397,34 +400,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasIndex("VerifiedByID");
 
                     b.ToTable("ClaimDocuments");
-                });
-
-            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimDocumentContent", b =>
-                {
-                    b.Property<string>("FileGuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("nvarchar(36)");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<byte[]>("FileBytes")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("FileGuid");
-
-                    b.ToTable("ClaimDocumentContents");
                 });
 
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.ClaimLine", b =>
@@ -983,6 +958,9 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Property<int?>("OrganizationID")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("OutOfPocketMax")
+                        .HasColumnType("decimal(12,2)");
+
                     b.Property<string>("PlanCode")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1165,8 +1143,7 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
 
                     b.Property<string>("RuleType")
                         .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()

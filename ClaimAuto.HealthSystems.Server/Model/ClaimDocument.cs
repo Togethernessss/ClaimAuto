@@ -20,6 +20,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
         [Required]
         public DocType DocType { get; set; }
 
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = "application/octet-stream";
+        public long FileSize { get; set; }
+        public byte[]? FileData { get; set; }
+
         [Required]
         public string FileURI { get; set; } = string.Empty;
 
