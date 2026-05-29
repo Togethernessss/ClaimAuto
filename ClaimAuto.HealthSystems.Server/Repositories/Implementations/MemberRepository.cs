@@ -61,6 +61,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageEnd = m.CoverageEnd,
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
+                    CoverageRulesJSON = m.Policy.CoverageRulesJSON,
                 })
                 .ToListAsync();
         }
@@ -91,6 +92,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageEnd = m.CoverageEnd,
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
+                    CoverageRulesJSON = m.Policy.CoverageRulesJSON,
                 })
                 .FirstOrDefaultAsync();
         }
@@ -157,7 +159,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var totalPaid = memberClaims.Sum();    // sum all approved/paid claim amounts
 
-            var policyMax = member.Policy.OutOfPocketMax ?? 0m;
+            var policyMax = member.Policy.SumInsured ?? 0m;
             var deductible = member.Policy.DeductibleAmount ?? 0m;
 
             // RemainingBenefit = PolicyMax - TotalPaid (minimum 0)
@@ -296,6 +298,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 CoverageEnd = member.CoverageEnd,
                 Status = member.Status.ToString(),
                 PolicyholderUserID = member.PolicyholderUserID,
+                CoverageRulesJSON = policy.CoverageRulesJSON,
             };
         }
 
@@ -359,6 +362,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageEnd = member.CoverageEnd,
                     Status = member.Status.ToString(),
                     PolicyholderUserID = member.PolicyholderUserID,
+                    CoverageRulesJSON = member.Policy.CoverageRulesJSON,
                 };
             }
 
@@ -399,7 +403,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ContactInfoJSON = member.ContactInfoJSON,
                 CoverageStart = member.CoverageStart,
                 CoverageEnd = member.CoverageEnd,
-                Status = member.Status.ToString()
+                Status = member.Status.ToString(),
+                CoverageRulesJSON = member.Policy.CoverageRulesJSON,
             };
         }
 
@@ -531,6 +536,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageEnd = m.CoverageEnd,
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
+                    CoverageRulesJSON = m.Policy.CoverageRulesJSON,
                 })
                 .FirstOrDefaultAsync();
         }
@@ -562,6 +568,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageEnd = m.CoverageEnd,
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
+                    CoverageRulesJSON = m.Policy.CoverageRulesJSON,
                 })
                 .FirstOrDefaultAsync();
         }

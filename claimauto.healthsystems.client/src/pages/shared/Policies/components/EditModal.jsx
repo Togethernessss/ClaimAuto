@@ -121,6 +121,25 @@ export default function EditModal({
                   <Col md={6}>
                     <Form.Group>
                       <Form.Label className="small fw-semibold">
+                        Sum Insured (₹)
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g. 500000"
+                        value={form.sumInsured}
+                        onChange={onFieldChange('sumInsured')}
+                      />
+                      <Form.Text className="text-muted">
+                        Maximum total the insurer pays in a policy year.
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">
                         Deductible (₹)
                       </Form.Label>
                       <Form.Control
@@ -129,21 +148,6 @@ export default function EditModal({
                         step="0.01"
                         value={form.deductibleAmount}
                         onChange={onFieldChange('deductibleAmount')}
-                      />
-                    </Form.Group>
-                  </Col>
-
-                  <Col md={6}>
-                    <Form.Group>
-                      <Form.Label className="small fw-semibold">
-                        OOP Max (₹)
-                      </Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={form.outOfPocketMax}
-                        onChange={onFieldChange('outOfPocketMax')}
                       />
                     </Form.Group>
                   </Col>
@@ -173,8 +177,7 @@ export default function EditModal({
                         Covered Services
                       </Form.Label>
                       <div className="d-flex flex-wrap gap-3 mt-1">
-                        {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
-                          'Dental', 'Vision', 'Mental Health'].map((service) => {
+                        {['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency'].map((service) => {
                           // Check if this service is currently selected
                           let isChecked = false;
                           try {

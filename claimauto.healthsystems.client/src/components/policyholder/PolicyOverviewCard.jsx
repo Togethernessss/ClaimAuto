@@ -77,15 +77,6 @@ export default function PolicyOverviewCard({ policy, memberCount }) {
 
           <Col xs={6} md={3}>
             <div className="small opacity-75 mb-1">
-              <i className="bi bi-graph-down me-1"></i> OOP Max
-            </div>
-            <div className="fw-semibold">
-              {formatCompactCurrency(policy.outOfPocketMax)}
-            </div>
-          </Col>
-
-          <Col xs={6} md={3}>
-            <div className="small opacity-75 mb-1">
               <i className="bi bi-calendar-range me-1"></i> Effective
             </div>
             <div className="fw-semibold small">

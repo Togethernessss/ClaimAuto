@@ -578,12 +578,7 @@ export default function ClaimDetailModal({
                                           if (!file || !onReplaceDocument) return;
                                           setReuploadingDocId(doc.docID);
                                           try {
-                                            const sha256 = await computeSHA256(file);
-                                            await onReplaceDocument(claim.claimID, doc.docID, {
-                                              docType: doc.docType,
-                                              fileURI: simulateFileURI(claim.claimID, doc.docType, file.name),
-                                              sha256,
-                                            });
+                                            await onReplaceDocument(claim.claimID, doc.docID, file);
                                           } finally {
                                             setReuploadingDocId(null);
                                             e.target.value = '';
@@ -871,10 +866,10 @@ export default function ClaimDetailModal({
         show={showRejectModal}
         claim={claim}
         onHide={() => setShowRejectModal(false)}
-        onConfirm={(reason) => {
+        onRejected={(message) => {
           setShowRejectModal(false);
           if (onRejectClaim && claim?.claimID) {
-            onRejectClaim(claim.claimID, reason);
+            onRejectClaim(claim.claimID, message);
           }
         }}
       />

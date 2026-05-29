@@ -120,10 +120,10 @@ export default function Policies() {
         planCode:          createForm.planCode,
         planName:          createForm.planName,
         coverageRulesJSON: createForm.coverageRulesJSON || null,
+        sumInsured:        createForm.sumInsured !== ''
+                             ? Number(createForm.sumInsured) : null,
         deductibleAmount:  createForm.deductibleAmount !== ''
                              ? Number(createForm.deductibleAmount) : null,
-        outOfPocketMax:    createForm.outOfPocketMax !== ''
-                             ? Number(createForm.outOfPocketMax) : null,
         effectiveFrom:     createForm.effectiveFrom,
         effectiveTo:       createForm.effectiveTo || null,
       });
@@ -148,8 +148,8 @@ export default function Policies() {
     setEditForm(new UpdatePolicyDto({
       planName:          policy.planName          ?? '',
       coverageRulesJSON: policy.coverageRulesJSON ?? '',
+      sumInsured:        policy.sumInsured        ?? '',
       deductibleAmount:  policy.deductibleAmount  ?? '',
-      outOfPocketMax:    policy.outOfPocketMax    ?? '',
       effectiveTo:       policy.effectiveTo
                            ? policy.effectiveTo.split('T')[0]
                            : '',
@@ -170,10 +170,10 @@ export default function Policies() {
       await updatePolicy(editTarget.policyID, {
         planName:          editForm.planName          || null,
         coverageRulesJSON: editForm.coverageRulesJSON || null,
+        sumInsured:        editForm.sumInsured !== ''
+                            ? Number(editForm.sumInsured) : null,
         deductibleAmount:  editForm.deductibleAmount !== ''
                             ? Number(editForm.deductibleAmount) : null,
-        outOfPocketMax:    editForm.outOfPocketMax !== ''
-                            ? Number(editForm.outOfPocketMax) : null,
         effectiveTo:       editForm.effectiveTo || null,
         status:            editForm.status      || null,
       });

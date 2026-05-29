@@ -35,23 +35,19 @@ const USE_DEMO = false;
 
 /**
  * Policy mapper.
- * Backend has no `coverageAmount` column. We try to parse it from
- * `coverageRulesJSON` (the seed stores it there). If that fails, we derive
- * an estimate from outOfPocketMax. This keeps `CoverageUtilization` working.
+ * Uses sumInsured as the primary coverage amount. Falls back to
+ * coverageRulesJSON if sumInsured is null (legacy data support).
  */
 function mapPolicy(p) {
   if (!p) return null;
 
-  let coverageAmount = null;
-  if (p.coverageRulesJSON) {
+  let coverageAmount = p.sumInsured ? Number(p.sumInsured) : null;
+
+  if (coverageAmount == null && p.coverageRulesJSON) {
     try {
       const rules = JSON.parse(p.coverageRulesJSON);
       coverageAmount = rules.coverageAmount ?? rules.annualLimit ?? null;
-    } catch { /* malformed JSON — ignore and fall through */ }
-  }
-
-  if (coverageAmount == null && p.outOfPocketMax) {
-    coverageAmount = Number(p.outOfPocketMax) * 15;
+    } catch { /* malformed JSON — ignore */ }
   }
 
   return {
@@ -60,7 +56,6 @@ function mapPolicy(p) {
     planName:         p.planName,
     coverageAmount:   coverageAmount ?? 0,
     deductibleAmount: p.deductibleAmount ?? 0,
-    outOfPocketMax:   p.outOfPocketMax ?? 0,
     effectiveFrom:    p.effectiveFrom,
     effectiveTo:      p.effectiveTo,
     status:           p.status,

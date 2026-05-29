@@ -20,12 +20,33 @@ namespace ClaimAuto.HealthSystems.Server.Data
             {
                 logger.LogInformation("[DbSeeder] Starting startup seed…");
 
-                // CRITICAL: this must run FIRST. Without it, the rule seeder can't
-                // find any "Admin"/"Active" user because legacy rows store '0'/'1'.
+                // CRITICAL: run FIRST — converts legacy integer-as-string enum rows
+                // ('0','1','2') to named values ('Admin','Active', etc.) so all
+                // subsequent queries that filter by enum name work correctly.
                 await MigrateLegacyEnumValuesAsync(context, logger);
 
+                // ── Bootstrap check ──────────────────────────────────────────
+                // If no organizations exist this is a fresh install.
+                // We cannot seed rules yet (rules.CreatedBy requires a valid UserID).
+                // Guide the developer to the setup endpoint instead.
+                var orgCount = await context.Organizations.CountAsync();
+                if (orgCount == 0)
+                {
+                    logger.LogWarning(
+                        "[DbSeeder] ⚠  No organizations found — this looks like a fresh installation.\n" +
+                        "           → Step 1: POST /api/setup/create-org   (X-Setup-Key header required)\n" +
+                        "                     Creates the organization. Returns organizationID.\n" +
+                        "           → Step 2: POST /api/setup/create-admin (X-Setup-Key header required)\n" +
+                        "                     Creates the admin for that org. Seeds rules + KPIs.\n" +
+                        "           → The key is in appsettings.Development.json → Setup:SecretKey.");
+                    logger.LogInformation("[DbSeeder] Startup seed skipped (no orgs). Waiting for setup.");
+                    return;
+                }
+
+                // ── Normal path: seed KPIs and rules for every existing org ──
                 await SeedDefaultKPIsForAllOrgsAsync(context);
                 await SeedDefaultRulesForAllOrgsAsync(context, logger);
+
                 logger.LogInformation("[DbSeeder] Startup seed complete.");
             }
             catch (Exception ex)
@@ -128,7 +149,11 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
             if (adminId == 0)
             {
-                logger?.LogWarning("[DbSeeder] Org {OrgId}: no active admin found — cannot seed rules.", orgId);
+                logger?.LogWarning(
+                    "[DbSeeder] Org {OrgId}: no active Admin user found — default rules cannot be seeded.\n" +
+                    "           → Fix: call POST /api/setup/create-admin with this OrgId.\n" +
+                    "             Rules and KPIs will be seeded automatically at that point.",
+                    orgId);
                 return;
             }
 
