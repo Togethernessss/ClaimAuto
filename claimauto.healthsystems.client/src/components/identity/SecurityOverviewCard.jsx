@@ -49,20 +49,20 @@ export default function SecurityOverviewCard({ user }) {
   // ── Role-specific quick-access links (2 per role) ──────────────
   const quickLinks = ({
     Admin:          [
-      { icon: 'bi-people-fill',       label: 'Manage Users',  path: '/users' },
-      { icon: 'bi-journal-text',      label: 'Audit Logs',    path: '/audit-logs' },
+      { icon: 'bi-people-fill',       label: 'Manage Users',  path: '/admin/users' },
+      { icon: 'bi-journal-text',      label: 'Audit Logs',    path: '/admin/audit-logs' },
     ],
     InsuranceStaff: [
-      { icon: 'bi-file-earmark-text', label: 'View Claims',   path: '/claims' },
-      { icon: 'bi-calculator',        label: 'Adjudication',  path: '/adjudication' },
+      { icon: 'bi-file-earmark-text', label: 'View Claims',   path: '/staff/claims' },
+      { icon: 'bi-calculator',        label: 'Adjudication',  path: '/staff/adjudication' },
     ],
     Hospital:       [
-      { icon: 'bi-file-plus-fill',    label: 'Submit Claim',  path: '/claims' },
-      { icon: 'bi-bell-fill',         label: 'Notifications', path: '/notifications' },
+      { icon: 'bi-file-plus-fill',    label: 'Submit Claim',  path: '/hospital/claims' },
+      { icon: 'bi-bell-fill',         label: 'Notifications', path: '/hospital/notifications' },
     ],
     Policyholder:   [
-      { icon: 'bi-file-earmark-text', label: 'My Claims',     path: '/claims' },
-      { icon: 'bi-card-text',         label: 'My Policies',   path: '/policies' },
+      { icon: 'bi-file-earmark-text', label: 'My Claims',     path: '/policyholder/claims' },
+      { icon: 'bi-card-text',         label: 'My Policies',   path: '/policyholder/policies' },
     ],
   })[user.role] ?? [];
 

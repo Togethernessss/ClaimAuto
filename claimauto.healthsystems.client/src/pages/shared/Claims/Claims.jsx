@@ -27,6 +27,39 @@ import ReimbursementModal from './components/ReimbursementModal';
 import ClaimDetailModal from './components/ClaimDetailModal';
 import UpdateStatusModal from './components/UpdateStatusModal';
 import DeleteClaimModal from './components/DeleteClaimModal';
+import { useSearchParams } from 'react-router-dom';
+
+// ── Policyholder segment definitions ─────────────────────────────────────────
+const SEGMENTS = [
+    {
+        key: 'all',
+        label: 'Total Claims',
+        icon: 'bi-folder2-open',
+        color: '#667eea',
+        statuses: null,
+    },
+    {
+        key: 'approved',
+        label: 'Approved / Paid',
+        icon: 'bi-check-circle-fill',
+        color: '#10b981',
+        statuses: ['Approved', 'Paid'],
+    },
+    {
+        key: 'inprogress',
+        label: 'In Progress',
+        icon: 'bi-hourglass-split',
+        color: '#f59e0b',
+        statuses: ['Pending', 'UnderReview', 'Submitted', 'Adjudicating'],
+    },
+    {
+        key: 'rejected',
+        label: 'Rejected',
+        icon: 'bi-x-circle-fill',
+        color: '#ef4444',
+        statuses: ['Rejected'],
+    },
+];
 
 export default function Claims() {
 
@@ -47,6 +80,20 @@ export default function Claims() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [priorityFilter, setPriorityFilter] = useState('All');
+
+    // ── SEGMENT FILTER (Policyholder only) ────────────────────────────────────
+    const [searchParams] = useSearchParams();
+    const [segmentFilter, setSegmentFilter] = useState(() => {
+        const s = searchParams.get('status');
+        return ['approved', 'inprogress', 'rejected'].includes(s) ? s : 'all';
+    });
+
+    const handleSegmentChange = (key) => setSegmentFilter(key);
+
+    const getSegmentCount = (seg) =>
+        seg.statuses
+            ? claims.filter((c) => seg.statuses.includes(c.status)).length
+            : claims.length;
 
     // ── SUPPORTING DATA ───────────────────────────────────────────────────────
     const [members, setMembers] = useState([]);
@@ -124,6 +171,7 @@ export default function Claims() {
     }, [successMsg]);
 
     // ── FILTERED LIST ─────────────────────────────────────────────────────────
+    const activeSeg = SEGMENTS.find((s) => s.key === segmentFilter);
     const filtered = claims.filter((c) => {
         const q = search.toLowerCase();
         const matchSearch =
@@ -134,10 +182,11 @@ export default function Claims() {
             c.policyName?.toLowerCase().includes(q);
         const matchStatus = statusFilter === 'All' || c.status === statusFilter;
         const matchPriority = priorityFilter === 'All' || c.priority === priorityFilter;
-        return matchSearch && matchStatus && matchPriority;
+        const matchSegment = !activeSeg?.statuses || activeSeg.statuses.includes(c.status);
+        return matchSearch && matchStatus && matchPriority && matchSegment;
     });
 
-    const hasFilters = !!search || statusFilter !== 'All' || priorityFilter !== 'All';
+    const hasFilters = !!search || statusFilter !== 'All' || priorityFilter !== 'All' || segmentFilter !== 'all';
 
     // ── HOSPITAL SUBMIT HANDLERS ──────────────────────────────────────────────
     const handleSubmitClaim = async (formData, lines, documents) => {
@@ -397,6 +446,94 @@ export default function Claims() {
                 }}
             />
 
+            {/* ── Segment control — Policyholder only ─────────────────────────── */}
+            {isPolicyholder && (
+                <div style={{ marginBottom: 20 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            background: '#f1f5f9',
+                            borderRadius: 14,
+                            padding: 5,
+                            gap: 4,
+                        }}
+                    >
+                        {SEGMENTS.map((seg) => {
+                            const count = getSegmentCount(seg);
+                            const isActive = segmentFilter === seg.key;
+                            return (
+                                <button
+                                    key={seg.key}
+                                    onClick={() => handleSegmentChange(seg.key)}
+                                    style={{
+                                        flex: 1,
+                                        border: 'none',
+                                        borderRadius: 10,
+                                        padding: '14px 8px 12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        background: isActive ? 'white' : 'transparent',
+                                        boxShadow: isActive ? '0 2px 12px rgba(0,0,0,0.09)' : 'none',
+                                        textAlign: 'center',
+                                        outline: 'none',
+                                    }}
+                                >
+                                    {/* Icon + Label */}
+                                    <div
+                                        style={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.6px',
+                                            textTransform: 'uppercase',
+                                            color: isActive ? seg.color : '#94a3b8',
+                                            marginBottom: 8,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 4,
+                                        }}
+                                    >
+                                        <i className={`bi ${seg.icon}`} style={{ fontSize: '0.8rem' }}></i>
+                                        <span style={{ display: window.innerWidth < 576 ? 'none' : 'inline' }}>
+                                            {seg.label}
+                                        </span>
+                                    </div>
+
+                                    {/* Count */}
+                                    <div
+                                        style={{
+                                            fontSize: '1.9rem',
+                                            fontWeight: 900,
+                                            lineHeight: 1,
+                                            color: isActive ? seg.color : '#64748b',
+                                            letterSpacing: '-1px',
+                                        }}
+                                    >
+                                        {loading ? (
+                                            <span style={{ fontSize: '1rem', opacity: 0.4 }}>—</span>
+                                        ) : count}
+                                    </div>
+
+                                    {/* Active indicator bar */}
+                                    <div
+                                        style={{
+                                            height: 3,
+                                            borderRadius: 2,
+                                            marginTop: 10,
+                                            marginLeft: 'auto',
+                                            marginRight: 'auto',
+                                            width: isActive ? '40%' : '0%',
+                                            background: seg.color,
+                                            transition: 'width 0.25s ease',
+                                        }}
+                                    />
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Search + status + priority filters */}
             <ClaimsFilters
                 search={search}
@@ -407,9 +544,12 @@ export default function Claims() {
                 loading={loading}
                 isAdmin={isAdmin}
                 isStaff={isStaff}
+                isPolicyholder={isPolicyholder}
+                segmentFilter={segmentFilter}
                 onSearchChange={setSearch}
                 onStatusChange={setStatusFilter}
                 onPriorityChange={setPriorityFilter}
+                onSegmentReset={() => setSegmentFilter('all')}
             />
 
             {/* Summary stat cards */}

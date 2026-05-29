@@ -16,6 +16,14 @@ export default function Register() {
   const [success, setSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Phone validation state ─────────────────────────────────────────
+  const [phoneError, setPhoneError] = useState(null);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+
+  // ── Email validation state ─────────────────────────────────────────
+  const [emailError, setEmailError] = useState(null);
+  const [emailTouched, setEmailTouched] = useState(false);
+
   // ── Organizations state ───────────────────────────────────────────
   const [organizations, setOrganizations] = useState([]);
   const [loadingOrgs, setLoadingOrgs] = useState(true);
@@ -59,9 +67,74 @@ export default function Register() {
     return () => { cancelled = true; };
   }, []);
 
+  // ── Phone validation ──────────────────────────────────────────────
+  // Returns an error string if invalid, null if valid.
+  // Empty value is always valid (field is optional).
+  const validatePhone = (value) => {
+    const digits = value.replace(/[\s\-().+]/g, '');
+    if (digits === '') return null;
+    if (!/^\d+$/.test(digits)) return 'Phone number must contain only digits.';
+    if (digits.length !== 10) return `Must be exactly 10 digits (you entered ${digits.length}).`;
+    if (!/^[6-9]/.test(digits)) return 'Must start with 6, 7, 8, or 9.';
+    return null;
+  };
+
+  const phoneIsValid = phoneError === null;
+
+  // ── Email validation ──────────────────────────────────────────────
+  // Required field. Returns an error string if invalid, null if valid.
+  const validateEmail = (value) => {
+    const v = value.trim();
+    if (!v) return 'Email address is required.';
+    if (v.length > 254) return 'Email address is too long (max 254 characters).';
+    if (v.includes(' ')) return 'Email address must not contain spaces.';
+
+    const atIndex = v.indexOf('@');
+    if (atIndex === -1) return 'Email address must include an "@" symbol.';
+    if (v.lastIndexOf('@') !== atIndex) return 'Email address must have exactly one "@" symbol.';
+
+    const local = v.slice(0, atIndex);
+    const domain = v.slice(atIndex + 1);
+
+    if (!local) return 'Please enter the part before "@".';
+    if (local.length > 64) return 'The part before "@" is too long (max 64 characters).';
+    if (!domain) return 'Please enter the domain after "@".';
+    if (!domain.includes('.')) return 'Email domain must include a "." (e.g., gmail.com).';
+
+    const parts = domain.split('.');
+    if (parts.some((p) => p === '')) return 'Email domain cannot have consecutive or trailing dots.';
+
+    const tld = parts[parts.length - 1];
+    if (tld.length < 2) return 'Domain extension must be at least 2 characters (e.g., .com, .in).';
+
+    return null;
+  };
+
   // ── Handlers ──────────────────────────────────────────────────────
   const handleChange = (field) => (e) =>
     setForm({ ...form, [field]: e.target.value });
+
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value;
+    setForm({ ...form, phone: raw });
+    if (phoneTouched) setPhoneError(validatePhone(raw));
+  };
+
+  const handlePhoneBlur = () => {
+    setPhoneTouched(true);
+    setPhoneError(validatePhone(form.phone));
+  };
+
+  const handleEmailChange = (e) => {
+    const raw = e.target.value;
+    setForm({ ...form, email: raw });
+    if (emailTouched) setEmailError(validateEmail(raw));
+  };
+
+  const handleEmailBlur = () => {
+    setEmailTouched(true);
+    setEmailError(validateEmail(form.email));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,8 +145,24 @@ export default function Register() {
       setError('Please select an insurance provider.');
       return;
     }
+    // Force-touch email so the inline error becomes visible.
+    const emailValidationError = validateEmail(form.email);
+    setEmailTouched(true);
+    setEmailError(emailValidationError);
+    if (emailValidationError) {
+      setError('Please enter a valid email address.');
+      return;
+    }
     if (!passwordValid) {
       setError('Your password does not meet all the requirements.');
+      return;
+    }
+    // Force-touch the phone field so the inline error becomes visible.
+    const phoneValidationError = validatePhone(form.phone);
+    setPhoneTouched(true);
+    setPhoneError(phoneValidationError);
+    if (phoneValidationError) {
+      setError('Please fix the phone number before submitting.');
       return;
     }
     if (!termsAccepted) {
@@ -94,7 +183,14 @@ export default function Register() {
     }
   };
 
-  const formReady = !submitting && !loadingOrgs && passwordValid && termsAccepted && form.organizationId;
+  const formReady =
+    !submitting &&
+    !loadingOrgs &&
+    passwordValid &&
+    termsAccepted &&
+    form.organizationId &&
+    phoneIsValid &&
+    !validateEmail(form.email);
 
   // ─────────────────────────────────────────────────────────────────
   return (
@@ -330,30 +426,68 @@ export default function Register() {
               </Form.Group>
 
               <Form.Group className="mb-3">
-                <Form.Label className="small fw-semibold text-secondary">Email address</Form.Label>
+                <Form.Label className="small fw-semibold text-secondary">
+                  Email address <span style={{ color: '#ef4444' }}>*</span>
+                </Form.Label>
                 <Form.Control
                   type="email"
                   placeholder="jane@example.com"
                   value={form.email}
-                  onChange={handleChange('email')}
-                  required
+                  onChange={handleEmailChange}
+                  onBlur={handleEmailBlur}
+                  maxLength={254}
+                  isInvalid={emailTouched && !!emailError}
+                  isValid={emailTouched && !emailError}
                   size="lg"
                   style={{ fontSize: '0.95rem' }}
                 />
+                <Form.Control.Feedback type="invalid">
+                  {emailError}
+                </Form.Control.Feedback>
+                <Form.Control.Feedback type="valid">
+                  Looks good!
+                </Form.Control.Feedback>
               </Form.Group>
 
               <Form.Group className="mb-4">
                 <Form.Label className="small fw-semibold text-secondary">
                   Phone number <span className="text-muted fw-normal">(optional)</span>
                 </Form.Label>
-                <Form.Control
-                  type="tel"
-                  placeholder="9000000000"
-                  value={form.phone}
-                  onChange={handleChange('phone')}
-                  size="lg"
-                  style={{ fontSize: '0.95rem' }}
-                />
+                <InputGroup size="lg">
+                  <InputGroup.Text
+                    style={{
+                      background: '#f8fafc',
+                      borderRight: 'none',
+                      color: '#6b7280',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    +91
+                  </InputGroup.Text>
+                  <Form.Control
+                    type="tel"
+                    placeholder="98765 43210"
+                    value={form.phone}
+                    onChange={handlePhoneChange}
+                    onBlur={handlePhoneBlur}
+                    maxLength={15}
+                    isInvalid={phoneTouched && !!phoneError}
+                    isValid={phoneTouched && !phoneError && form.phone.trim() !== ''}
+                    size="lg"
+                    style={{ fontSize: '0.95rem', borderLeft: 'none' }}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {phoneError}
+                  </Form.Control.Feedback>
+                  <Form.Control.Feedback type="valid">
+                    Looks good!
+                  </Form.Control.Feedback>
+                </InputGroup>
+                <div className="d-flex align-items-center gap-1 mt-1" style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                  <i className="bi bi-info-circle"></i>
+                  10-digit Indian mobile number starting with 6–9
+                </div>
               </Form.Group>
 
               {/* ── SECTION 3: Account security ────────────────────── */}
