@@ -41,6 +41,14 @@ export default function CreateModal({
     (u) => String(u.userID) === String(form.policyholderUserID)
   );
 
+  // Derive the selected policy's end date to cap Coverage End
+  const selectedPolicy = (policies || []).find(
+    (p) => String(p.policyID) === String(form.policyID)
+  );
+  const policyMax = selectedPolicy?.effectiveTo
+    ? selectedPolicy.effectiveTo.split('T')[0]
+    : undefined;
+
   return (
     <Modal show={show} onHide={onHide} size="lg" backdrop="static">
       <Modal.Header closeButton className="border-0 pb-0">
@@ -280,8 +288,12 @@ export default function CreateModal({
                   type="date"
                   value={form.coverageStart}
                   onChange={onFieldChange('coverageStart')}
+                  min={new Date().toISOString().split('T')[0]}
                   required
                 />
+                <Form.Text className="text-muted">
+                  Cannot be a past date.
+                </Form.Text>
               </Form.Group>
             </Col>
 
@@ -296,9 +308,11 @@ export default function CreateModal({
                   value={form.coverageEnd}
                   onChange={onFieldChange('coverageEnd')}
                   min={form.coverageStart || undefined}
+                  max={policyMax}
                 />
                 <Form.Text className="text-muted">
                   Leave blank for open-ended coverage.
+                  {policyMax && ` Cannot exceed policy end (${policyMax}).`}
                 </Form.Text>
               </Form.Group>
             </Col>

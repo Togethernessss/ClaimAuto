@@ -136,9 +136,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
-        /// <summary>Permanently deletes a claim. Only Rejected claims can be deleted. Admin only.</summary>
+        /// <summary>
+        /// Permanently deletes a claim.
+        /// Admin: can delete Rejected or Submitted claims.
+        /// Hospital: can delete only their own Submitted claims (before staff review).
+        /// </summary>
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Hospital")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -149,15 +153,18 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (userId == null)
                 return Unauthorized("Invalid token — user ID claim missing.");
 
-            // ★ FIX 2.3 — CRITICAL: tenant ownership check on delete
             var userOrgId = GetLoggedInUserOrgId();
-            var result = await _claimRepo.DeleteClaimAsync(id, userId.Value, userOrgId);
+            var isHospital = GetLoggedInUserRole() == "Hospital";
+            var result = await _claimRepo.DeleteClaimAsync(id, userId.Value, userOrgId, isHospital);
 
             return result switch
             {
-                "ok" => Ok($"Claim {id} has been deleted successfully."),
-                "notfound" => NotFound($"Claim with ID {id} was not found."),
-                "notrejected" => BadRequest($"Cannot delete Claim {id} — only Rejected claims can be deleted."),
+                "ok"         => Ok($"Claim {id} has been deleted successfully."),
+                "notfound"   => NotFound($"Claim with ID {id} was not found."),
+                "notallowed" => BadRequest(
+                    isHospital
+                        ? $"Cannot delete Claim {id}. Hospitals can only delete their own Submitted claims."
+                        : $"Cannot delete Claim {id}. Only Submitted or Rejected claims can be deleted."),
                 _ => StatusCode(500, "Unexpected error during deletion.")
             };
         }

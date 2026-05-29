@@ -36,11 +36,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<ClaimResponseDto?> UpdateClaimAsync(int claimId, UpdateClaimDto dto, int updatedByUserId, int? userOrgId = null);
 
         // Used by: DELETE /api/claims/{id}
-        // Admin deletes a claim — only allowed for Rejected claims.
-        // userOrgId (Phase 4): when supplied, returns "notfound" if claim isn't in caller's org
-        //                     (prevents cross-tenant deletion).
-        // Returns: "ok", "notfound", "notrejected"
-        Task<string> DeleteClaimAsync(int claimId, int deletedByUserId, int? userOrgId = null);
+        // Admin deletes Rejected or Submitted claims.
+        // Hospital deletes only their own Submitted claims (before staff review).
+        // userOrgId (Phase 4): scopes to caller's org.
+        // Returns: "ok", "notfound", "notallowed"
+        Task<string> DeleteClaimAsync(int claimId, int deletedByUserId, int? userOrgId = null, bool isHospital = false);
 
         // ── CLAIM LINES ─────────────────────────────────────────────────
 

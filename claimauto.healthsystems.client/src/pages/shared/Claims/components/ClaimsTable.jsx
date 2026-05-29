@@ -22,7 +22,8 @@ export default function ClaimsTable({
   onDelete,
 }) {
   const canUpdate = isAdmin || isStaff;
-  const canDelete = isAdmin;
+  const canDelete = isAdmin || isHospital;
+  const finalStatuses = ['Rejected', 'Approved', 'Paid'];
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -203,8 +204,8 @@ export default function ClaimsTable({
                         View
                       </Button>
 
-                      {/* Update status — Admin + Staff */}
-                      {canUpdate && (
+                      {/* Update status — Admin + Staff only, not on finalized claims */}
+                      {canUpdate && !finalStatuses.includes(claim.status) && (
                         <Button
                           size="sm"
                           onClick={() => onUpdateStatus(claim)}
@@ -237,8 +238,11 @@ export default function ClaimsTable({
                         </Button>
                       )}
 
-                      {/* Delete — Admin only, Rejected claims only */}
-                      {canDelete && claim.status === 'Rejected' && (
+                      {/* Delete — Admin: Rejected or Submitted | Hospital: own Submitted only */}
+                      {canDelete && (
+                        claim.status === 'Rejected' ||
+                        (claim.status === 'Submitted' && (isAdmin || isHospital))
+                      ) && (
                         <Button
                           size="sm"
                           onClick={() => onDelete(claim)}
