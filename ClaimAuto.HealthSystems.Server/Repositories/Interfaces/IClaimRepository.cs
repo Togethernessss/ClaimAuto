@@ -87,7 +87,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         /// Available only on non-finalized claims (Submitted, DocsVerificationPending,
         /// or UnderReview).
         /// </summary>
-        Task<string> StaffRejectClaimAsync( int claimId, string reason, int rejectedByUserId, int? userOrgId = null);
+        Task<string> StaffRejectClaimAsync(int claimId, string reason, int rejectedByUserId, int? userOrgId = null);
 
         /// <summary>
         /// Replaces a REJECTED document with a corrected version.
@@ -95,6 +95,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         /// Resets Status to Pending and clears the VerifiedBy field
         /// so staff can review the new version.
         /// </summary>
-        Task<ClaimDocumentResponseDto?> ReplaceDocumentAsync( int claimId, int docId, ReplaceDocumentDto dto, int replacedByUserId, int? userOrgId = null);
+        Task<ClaimDocumentResponseDto?> ReplaceDocumentAsync(int claimId, int docId, ReplaceDocumentDto dto, int replacedByUserId, int? userOrgId = null);
     }
 }

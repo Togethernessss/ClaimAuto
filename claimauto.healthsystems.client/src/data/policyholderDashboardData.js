@@ -112,7 +112,6 @@ export const demoPolicy = {
   planName: 'Blue Shield Premium Plus',
   coverageAmount: 1500000,
   deductibleAmount: 5000,
-  outOfPocketMax: 100000,
   effectiveFrom: '2024-01-01',
   effectiveTo: '2026-12-31',
   status: 'Active',

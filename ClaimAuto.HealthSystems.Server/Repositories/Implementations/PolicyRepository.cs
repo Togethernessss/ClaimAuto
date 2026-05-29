@@ -30,8 +30,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PlanCode = p.PlanCode ?? string.Empty,
                     PlanName = p.PlanName,
                     CoverageRulesJSON = p.CoverageRulesJSON,
+                    SumInsured = p.SumInsured,
                     DeductibleAmount = p.DeductibleAmount,
-                    OutOfPocketMax = p.OutOfPocketMax,
                     EffectiveFrom = p.EffectiveFrom,
                     EffectiveTo = p.EffectiveTo,
                     Status = p.Status.ToString(),
@@ -61,8 +61,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PlanCode = p.PlanCode ?? string.Empty,
                     PlanName = p.PlanName,
                     CoverageRulesJSON = p.CoverageRulesJSON,
+                    SumInsured = p.SumInsured,
                     DeductibleAmount = p.DeductibleAmount,
-                    OutOfPocketMax = p.OutOfPocketMax,
                     EffectiveFrom = p.EffectiveFrom,
                     EffectiveTo = p.EffectiveTo,
                     Status = p.Status.ToString(),
@@ -86,8 +86,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PlanCode = p.PlanCode ?? string.Empty,
                     PlanName = p.PlanName,
                     CoverageRulesJSON = p.CoverageRulesJSON,
+                    SumInsured = p.SumInsured,
                     DeductibleAmount = p.DeductibleAmount,
-                    OutOfPocketMax = p.OutOfPocketMax,
                     EffectiveFrom = p.EffectiveFrom,
                     EffectiveTo = p.EffectiveTo,
                     Status = p.Status.ToString(),
@@ -112,8 +112,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PlanCode = dto.PlanCode,
                 PlanName = dto.PlanName,
                 CoverageRulesJSON = dto.CoverageRulesJSON,
+                SumInsured = dto.SumInsured,
                 DeductibleAmount = dto.DeductibleAmount,
-                OutOfPocketMax = dto.OutOfPocketMax,
                 EffectiveFrom = dto.EffectiveFrom,
                 EffectiveTo = dto.EffectiveTo,
                 Status = PolicyStatus.Active,
@@ -145,12 +145,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PlanCode = policy.PlanCode ?? string.Empty,
                 PlanName = policy.PlanName,
                 CoverageRulesJSON = policy.CoverageRulesJSON,
+                SumInsured = policy.SumInsured,
                 DeductibleAmount = policy.DeductibleAmount,
-                OutOfPocketMax = policy.OutOfPocketMax,
                 EffectiveFrom = policy.EffectiveFrom,
                 EffectiveTo = policy.EffectiveTo,
                 Status = policy.Status.ToString(),
-                MemberCount = 0   
+                MemberCount = 0
             };
         }
 
@@ -173,16 +173,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 policy.CoverageRulesJSON = dto.CoverageRulesJSON;
             }
 
+            if (dto.SumInsured.HasValue && dto.SumInsured != policy.SumInsured)
+            {
+                changes.Add($"SumInsured: {policy.SumInsured} → {dto.SumInsured}");
+                policy.SumInsured = dto.SumInsured;
+            }
+
             if (dto.DeductibleAmount.HasValue && dto.DeductibleAmount != policy.DeductibleAmount)
             {
                 changes.Add($"DeductibleAmount: {policy.DeductibleAmount} → {dto.DeductibleAmount}");
                 policy.DeductibleAmount = dto.DeductibleAmount;
-            }
-
-            if (dto.OutOfPocketMax.HasValue && dto.OutOfPocketMax != policy.OutOfPocketMax)
-            {
-                changes.Add($"OutOfPocketMax: {policy.OutOfPocketMax} → {dto.OutOfPocketMax}");
-                policy.OutOfPocketMax = dto.OutOfPocketMax;
             }
 
             if (dto.EffectiveTo.HasValue && dto.EffectiveTo != policy.EffectiveTo)
@@ -217,8 +217,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PlanCode = policy.PlanCode ?? string.Empty,
                     PlanName = policy.PlanName,
                     CoverageRulesJSON = policy.CoverageRulesJSON,
+                    SumInsured = policy.SumInsured,
                     DeductibleAmount = policy.DeductibleAmount,
-                    OutOfPocketMax = policy.OutOfPocketMax,
                     EffectiveFrom = policy.EffectiveFrom,
                     EffectiveTo = policy.EffectiveTo,
                     Status = policy.Status.ToString(),
@@ -245,8 +245,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 PlanCode = policy.PlanCode ?? string.Empty,
                 PlanName = policy.PlanName,
                 CoverageRulesJSON = policy.CoverageRulesJSON,
+                SumInsured = policy.SumInsured,
                 DeductibleAmount = policy.DeductibleAmount,
-                OutOfPocketMax = policy.OutOfPocketMax,
                 EffectiveFrom = policy.EffectiveFrom,
                 EffectiveTo = policy.EffectiveTo,
                 Status = policy.Status.ToString(),
@@ -467,8 +467,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     PlanCode = p.PlanCode,
                     PlanName = p.PlanName,
                     CoverageRulesJSON = p.CoverageRulesJSON,
+                    SumInsured = p.SumInsured,
                     DeductibleAmount = p.DeductibleAmount,
-                    OutOfPocketMax = p.OutOfPocketMax,
                     EffectiveFrom = p.EffectiveFrom,
                     EffectiveTo = p.EffectiveTo,
                     Status = p.Status.ToString(),

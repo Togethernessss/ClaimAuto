@@ -4,19 +4,19 @@
 
 export class CreatePolicyDto {
   constructor({
-    planCode        = '',   // e.g. "FAMILY-GOLD-2025"  — unique, locked after save
-    planName        = '',   // e.g. "Family Gold Health Plan"
-    coverageRulesJSON = '', // optional JSON string
-    deductibleAmount  = '', // number — e.g. 5000
-    outOfPocketMax    = '', // number — e.g. 100000
-    effectiveFrom     = '', // date string — e.g. "2025-01-01"
-    effectiveTo       = '', // date string — blank means auto-renewing
+    planCode          = '',   // e.g. "FAMILY-GOLD-2025"  — unique, locked after save
+    planName          = '',   // e.g. "Family Gold Health Plan"
+    coverageRulesJSON = '',   // optional JSON string
+    sumInsured        = '',   // total insurer payout limit per policy year
+    deductibleAmount  = '',   // number — e.g. 5000
+    effectiveFrom     = '',   // date string — e.g. "2025-01-01"
+    effectiveTo       = '',   // date string — blank means auto-renewing
   } = {}) {
-    this.planCode         = planCode;
-    this.planName         = planName;
+    this.planCode          = planCode;
+    this.planName          = planName;
     this.coverageRulesJSON = coverageRulesJSON;
+    this.sumInsured        = sumInsured;
     this.deductibleAmount  = deductibleAmount;
-    this.outOfPocketMax    = outOfPocketMax;
     this.effectiveFrom     = effectiveFrom;
     this.effectiveTo       = effectiveTo;
   }
@@ -32,15 +32,15 @@ export class UpdatePolicyDto {
   constructor({
     planName          = '',
     coverageRulesJSON = '',
+    sumInsured        = '',   // total insurer payout limit per policy year
     deductibleAmount  = '',
-    outOfPocketMax    = '',
     effectiveTo       = '',
-    status            = '',  // "Active", "Expired", "Suspended"
+    status            = '',   // "Active", "Expired", "Suspended"
   } = {}) {
     this.planName          = planName;
     this.coverageRulesJSON = coverageRulesJSON;
+    this.sumInsured        = sumInsured;
     this.deductibleAmount  = deductibleAmount;
-    this.outOfPocketMax    = outOfPocketMax;
     this.effectiveTo       = effectiveTo;
     this.status            = status;
   }

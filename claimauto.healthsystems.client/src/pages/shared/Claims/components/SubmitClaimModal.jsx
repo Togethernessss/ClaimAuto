@@ -101,7 +101,7 @@ export default function SubmitClaimModal({
     setLookupLoading(true);
     setLookupError(null);
     setLookupResult(null);
-    setForm((prev) => ({ ...prev, memberID: '', policyID: '' }));
+    setForm((prev) => ({ ...prev, memberID: '', policyID: '', claimType: '' }));
     try {
       const member = await lookupMemberByNumber(lookupQuery.trim());
       if (member.status !== 'Active') {
@@ -110,8 +110,9 @@ export default function SubmitClaimModal({
         setLookupResult(member);
         setForm((prev) => ({
           ...prev,
-          memberID: String(member.memberID),
-          policyID: String(member.policyID),
+          memberID:  String(member.memberID),
+          policyID:  String(member.policyID),
+          claimType: '',
         }));
       }
     } catch (err) {
@@ -278,8 +279,22 @@ export default function SubmitClaimModal({
     );
   };
 
- // lookupResult is the found member — drives the policy auto-fill display
+  // lookupResult is the found member — drives the policy auto-fill display
   const selectedEnrollment = lookupResult;
+
+  // Derive allowed claim types from the member's policy coverage rules.
+  // Falls back to all hospital types if the policy has no coverage JSON set.
+  const coveredClaimTypes = (() => {
+    if (!lookupResult?.coverageRulesJSON) return HOSPITAL_CLAIM_TYPES;
+    try {
+      const rules = JSON.parse(lookupResult.coverageRulesJSON);
+      const covered = (rules.coveredServices || []).map(s => s.toLowerCase());
+      const filtered = HOSPITAL_CLAIM_TYPES.filter(t => covered.includes(t.toLowerCase()));
+      return filtered.length > 0 ? filtered : HOSPITAL_CLAIM_TYPES;
+    } catch {
+      return HOSPITAL_CLAIM_TYPES;
+    }
+  })();
 
   return (
     <Modal show={show} onHide={onHide} size="lg" backdrop="static">
@@ -331,7 +346,7 @@ export default function SubmitClaimModal({
                   required
                 >
                   <option value="">— Select type —</option>
-                  {HOSPITAL_CLAIM_TYPES.map((t) => (
+                  {coveredClaimTypes.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </Form.Select>
