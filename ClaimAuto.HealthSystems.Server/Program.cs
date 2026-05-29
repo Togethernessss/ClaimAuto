@@ -15,6 +15,8 @@ using ClaimAuto.HealthSystems.Server.Services;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Services.RuleEngine;
 using ClaimAuto.HealthSystems.Server.Services.RuleEngine.Strategies;
+using Serilog;
+using Serilog.Events;
 
 namespace ClaimAuto.HealthSystems.Server
 {
@@ -22,7 +24,38 @@ namespace ClaimAuto.HealthSystems.Server
     {
         public static async Task Main(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);//Create a WebApplicationBuilder instance to configure the application and its services.
+            // Bootstrap logger captures startup errors before full Serilog is configured.
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateBootstrapLogger();
+
+            try
+            {
+                Log.Information("Starting ClaimAuto Health Systems API");
+                await RunAsync(args);
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Application terminated unexpectedly");
+            }
+            finally
+            {
+                await Log.CloseAndFlushAsync();
+            }
+        }
+
+        private static async Task RunAsync(string[] args)
+        {
+            var builder = WebApplication.CreateBuilder(args);
+
+            // Replace the default .NET logger with Serilog, reading config from appsettings.json.
+            builder.Host.UseSerilog((context, services, configuration) => configuration
+                .ReadFrom.Configuration(context.Configuration)
+                .ReadFrom.Services(services)
+                .Enrich.FromLogContext());
 
             // Add services to the container.
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -157,7 +190,36 @@ namespace ClaimAuto.HealthSystems.Server
 
             var app = builder.Build();//Build the application using the configured services and middleware.
 
-            app.UseMiddleware<ExceptionHandlingMiddleware>();//Added this line to register the custom exception handling middleware, which will catch and handle exceptions that occur during the processing of HTTP requests, providing a centralized way to manage errors and return consistent error responses to clients.
+            app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+            // Serilog request logging — replaces the default ASP.NET Core request log line.
+            // Logs: method, path, status code, and elapsed time for every HTTP request.
+            app.UseSerilogRequestLogging(options =>
+            {
+                options.MessageTemplate =
+                    "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+
+                // Degrade to Error for 5xx responses or exceptions; keep 4xx/2xx as Information.
+                options.GetLevel = (httpContext, elapsed, ex) =>
+                    ex != null || httpContext.Response.StatusCode >= 500
+                        ? LogEventLevel.Error
+                        : LogEventLevel.Information;
+
+                // Attach extra properties to every request log entry.
+                options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                {
+                    diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+                    diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+                    diagnosticContext.Set("UserAgent",
+                        httpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? string.Empty);
+
+                    if (httpContext.User.Identity?.IsAuthenticated == true)
+                    {
+                        diagnosticContext.Set("UserId",
+                            httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty);
+                    }
+                };
+            });
 
             app.UseCors("AllowReactDev");
 
