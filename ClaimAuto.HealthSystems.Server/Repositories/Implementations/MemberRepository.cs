@@ -62,6 +62,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
                     CoverageRulesJSON = m.Policy.CoverageRulesJSON,
+                    PolicyEffectiveTo = m.Policy.EffectiveTo,
                 })
                 .ToListAsync();
         }
@@ -93,6 +94,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
                     CoverageRulesJSON = m.Policy.CoverageRulesJSON,
+                    PolicyEffectiveTo = m.Policy.EffectiveTo,
                 })
                 .FirstOrDefaultAsync();
         }
@@ -243,6 +245,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (userOrgId.HasValue && policy.OrganizationID != userOrgId)
                 return null;
 
+            // Coverage Start must not be a past date
+            if (dto.CoverageStart.Date < DateTime.UtcNow.Date)
+                return null;
+
             // Parse the Gender enum from the string in DTO
             if (!Enum.TryParse<GenderType>(dto.Gender, out var gender))
                 return null;
@@ -299,6 +305,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 Status = member.Status.ToString(),
                 PolicyholderUserID = member.PolicyholderUserID,
                 CoverageRulesJSON = policy.CoverageRulesJSON,
+                PolicyEffectiveTo = policy.EffectiveTo,
             };
         }
 
@@ -537,6 +544,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
                     CoverageRulesJSON = m.Policy.CoverageRulesJSON,
+                    PolicyEffectiveTo = m.Policy.EffectiveTo,
                 })
                 .FirstOrDefaultAsync();
         }
@@ -569,6 +577,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = m.Status.ToString(),
                     PolicyholderUserID = m.PolicyholderUserID,
                     CoverageRulesJSON = m.Policy.CoverageRulesJSON,
+                    PolicyEffectiveTo = m.Policy.EffectiveTo,
                 })
                 .FirstOrDefaultAsync();
         }

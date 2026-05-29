@@ -83,9 +83,15 @@ export default function EditModal({
                     min={member?.coverageStart
                       ? member.coverageStart.split('T')[0]
                       : undefined}
+                    max={member?.policyEffectiveTo
+                      ? member.policyEffectiveTo.split('T')[0]
+                      : undefined}
                   />
                   <Form.Text className="text-muted">
                     Leave blank for open-ended coverage.
+                    {member?.policyEffectiveTo && (
+                      ` Cannot exceed policy end (${member.policyEffectiveTo.split('T')[0]}).`
+                    )}
                   </Form.Text>
                 </Form.Group>
               </Col>

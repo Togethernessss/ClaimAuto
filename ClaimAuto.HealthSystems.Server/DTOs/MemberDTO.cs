@@ -39,6 +39,7 @@
         public string Status { get; set; } = string.Empty;
         public int? PolicyholderUserID { get; set; }
         public string? CoverageRulesJSON { get; set; }
+        public DateTime? PolicyEffectiveTo { get; set; }  // policy end date — used as max for CoverageEnd
     }
 
     // ── EligibilityResponseDto

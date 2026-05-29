@@ -96,7 +96,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var userOrgId = GetLoggedInUserOrgId();
             var created = await _memberRepo.CreateMemberAsync(dto, userId.Value, userOrgId);
             if (created == null)
-                return BadRequest("Policy not found or is not active. Cannot enroll member under an inactive/expired policy.");
+                return BadRequest("Failed to enroll member. Ensure the policy is active and Coverage Start is not a past date.");
 
             return CreatedAtAction(nameof(GetMemberById), new { id = created.MemberID }, created);
         }
