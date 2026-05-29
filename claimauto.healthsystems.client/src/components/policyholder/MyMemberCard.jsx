@@ -1,129 +1,140 @@
 // src/components/policyholder/MyMemberCard.jsx
 // Shows the Policyholder's own enrollment details on the dashboard.
-// Replaces FamilyMembersCard — no family members concept in this flow.
+// Props unchanged: { member }
 
-import { Card, Badge }  from 'react-bootstrap';
-import { formatDate }   from '../../data/policyholderDashboardData';
+import { formatDate } from '../../data/policyholderDashboardData';
 
 export default function MyMemberCard({ member }) {
 
+  // ── Not enrolled ───────────────────────────────────────────────────
   if (!member) {
     return (
-      <Card className="border-0 shadow-sm" style={{ borderRadius: 12 }}>
-        <Card.Body className="text-center py-4">
-          <i className="bi bi-person-x text-muted" style={{ fontSize: 32 }}></i>
-          <div className="fw-semibold text-muted mt-2">Not Enrolled Yet</div>
-          <div className="text-muted small mt-1">
-            Your insurance provider will assign your membership.
-            <br />
-            Please contact support if this takes too long.
-          </div>
-        </Card.Body>
-      </Card>
+      <div
+        style={{
+          background: 'white',
+          borderRadius: 18,
+          boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+          padding: '32px 24px',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: 44, marginBottom: 10 }}>👤</div>
+        <div className="fw-semibold" style={{ color: '#1e293b', marginBottom: 6 }}>Not Enrolled Yet</div>
+        <div style={{ fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.6 }}>
+          Your insurance provider will assign your membership.
+          <br />
+          Please contact support if this takes too long.
+        </div>
+      </div>
     );
   }
 
-  const statusVariant =
-    member.status === 'Active'    ? 'success'   :
-    member.status === 'Suspended' ? 'warning'   :
-    member.status === 'Inactive'  ? 'secondary' : 'secondary';
+  // Status styling — logic unchanged
+  const statusStyle =
+    member.status === 'Active'    ? { bg: '#ecfdf5', color: '#065f46', dot: '#10b981' } :
+    member.status === 'Suspended' ? { bg: '#fffbeb', color: '#92400e', dot: '#f59e0b' } :
+                                    { bg: '#f8fafc',  color: '#64748b', dot: '#94a3b8'  };
+
+  // Detail rows — same fields as before
+  const details = [
+    { icon: 'bi-shield-check',    label: 'Policy',         value: member.policyName ?? '—',       color: '#4f46e5' },
+    { icon: 'bi-calendar-check',  label: 'Coverage Start', value: formatDate(member.coverageStart), color: '#10b981' },
+    { icon: 'bi-calendar-x',      label: 'Coverage End',   value: member.coverageEnd ? formatDate(member.coverageEnd) : 'Open-ended', color: '#f59e0b' },
+    { icon: 'bi-person',          label: 'Gender',          value: member.gender ?? '—',             color: '#6366f1' },
+  ];
 
   return (
-    <Card className="border-0 shadow-sm" style={{ borderRadius: 12 }}>
-
-      <Card.Header
-        className="bg-white border-bottom d-flex align-items-center justify-content-between py-3"
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 18,
+        boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* ── Header ───────────────────────────────────────────────── */}
+      <div
+        className="d-flex align-items-center justify-content-between px-4 py-3"
+        style={{ borderBottom: '1px solid #f1f5f9' }}
       >
-        <div className="fw-bold d-flex align-items-center">
-          <i className="bi bi-person-badge text-primary me-2 fs-5"></i>
-          My Enrollment Details
-        </div>
-        <Badge bg={statusVariant} pill className="px-3 py-2">
-          {member.status}
-        </Badge>
-      </Card.Header>
-
-      <Card.Body className="p-3">
-
-        {/* Member Number — prominently displayed */}
-        <div
-          className="d-flex align-items-center gap-3 p-3 mb-3 rounded-3"
-          style={{ background: '#f0f4ff', border: '1px solid #c7d2fe' }}
-        >
+        <div className="d-flex align-items-center gap-2">
           <div
-            className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
             style={{
-              width: 44, height: 44,
+              width: 36, height: 36, borderRadius: 10,
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <i className="bi bi-person-fill" style={{ fontSize: '1.1rem' }}></i>
+            <i className="bi bi-person-badge-fill text-white" style={{ fontSize: '0.9rem' }}></i>
+          </div>
+          <span className="fw-bold" style={{ color: '#1e293b', fontSize: '0.97rem' }}>My Enrollment</span>
+        </div>
+        <span
+          style={{
+            background: statusStyle.bg,
+            color: statusStyle.color,
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            padding: '4px 12px',
+            borderRadius: 20,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusStyle.dot }} />
+          {member.status}
+        </span>
+      </div>
+
+      <div className="px-4 py-3">
+        {/* ── Member identity block ────────────────────────────── */}
+        <div
+          className="d-flex align-items-center gap-3 mb-3 p-3 rounded-3"
+          style={{ background: '#f8f9ff', border: '1px solid #e0e7ff' }}
+        >
+          <div
+            style={{
+              width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontWeight: 800, fontSize: '1.25rem',
+            }}
+          >
+            {member.name?.charAt(0).toUpperCase()}
           </div>
           <div>
-            <div className="fw-bold" style={{ fontSize: '1.05rem' }}>{member.name}</div>
+            <div className="fw-bold" style={{ color: '#1e293b', fontSize: '1rem' }}>{member.name}</div>
             <div
-              className="font-monospace fw-semibold"
-              style={{ fontSize: '0.8rem', color: '#6366f1' }}
+              className="font-monospace"
+              style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 600 }}
             >
               {member.memberNumber ?? '—'}
             </div>
           </div>
         </div>
 
-        {/* Details grid */}
-        {[
-          {
-            icon:  'bi-shield-check',
-            label: 'Policy',
-            value: member.policyName ?? '—',
-          },
-          {
-            icon:  'bi-calendar-check',
-            label: 'Coverage Start',
-            value: formatDate(member.coverageStart),
-          },
-          {
-            icon:  'bi-calendar-x',
-            label: 'Coverage End',
-            value: member.coverageEnd ? formatDate(member.coverageEnd) : 'Open-ended',
-          },
-          {
-            icon:  'bi-gender-ambiguous',
-            label: 'Gender',
-            value: member.gender ?? '—',
-          },
-        ].map((row, idx, arr) => (
+        {/* ── Detail rows ──────────────────────────────────────── */}
+        {details.map((row, idx) => (
           <div
             key={row.label}
             className="d-flex align-items-center justify-content-between py-2"
-            style={{
-              borderBottom: idx < arr.length - 1 ? '1px solid #f0f0f0' : 'none',
-            }}
+            style={{ borderBottom: idx < details.length - 1 ? '1px solid #f8fafc' : 'none' }}
           >
-            <div
-              className="d-flex align-items-center gap-2 text-muted"
-              style={{ fontSize: '0.8rem' }}
-            >
-              <i className={row.icon} style={{ fontSize: '0.75rem' }}></i>
-              {row.label}
+            <div className="d-flex align-items-center gap-2">
+              <i className={`bi ${row.icon}`} style={{ color: row.color, fontSize: '0.85rem' }}></i>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{row.label}</span>
             </div>
-            <div className="fw-semibold" style={{ fontSize: '0.82rem' }}>
-              {row.value}
-            </div>
+            <span className="fw-semibold" style={{ fontSize: '0.82rem', color: '#1e293b' }}>{row.value}</span>
           </div>
         ))}
 
-        <div
-          className="mt-3 small text-muted text-center"
-          style={{ fontSize: '0.72rem' }}
-        >
+        {/* ── Footer note ──────────────────────────────────────── */}
+        <div className="text-center mt-3" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
           <i className="bi bi-info-circle me-1"></i>
-          Your enrollment is managed by your insurance provider.
-          Contact support to update details.
+          Enrollment managed by your insurance provider. Contact support to update details.
         </div>
-
-      </Card.Body>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -1,45 +1,110 @@
 import { useNavigate } from 'react-router-dom';
-import { Row, Col, Card } from 'react-bootstrap';
+import { Row, Col } from 'react-bootstrap';
 
+/**
+ * Claim stats row — 4 gradient tiles.
+ * Props unchanged: { claims }
+ * Navigate logic unchanged.
+ */
 export default function ClaimStatsRow({ claims }) {
   const navigate = useNavigate();
 
+  // Calculations — unchanged
   const total    = claims.length;
   const approved = claims.filter((c) => ['Approved', 'Paid'].includes(c.status)).length;
   const pending  = claims.filter((c) => ['Pending', 'UnderReview', 'Submitted'].includes(c.status)).length;
   const rejected = claims.filter((c) => c.status === 'Rejected').length;
 
   const stats = [
-    { label: 'Total Claims',  val: total,    icon: 'bi-folder2',           bg: '#e3f2fd', color: '#1565c0', filter: '' },
-    { label: 'Approved/Paid', val: approved, icon: 'bi-check-circle-fill', bg: '#d1f2eb', color: '#2e7d32', filter: 'approved' },
-    { label: 'In Progress',   val: pending,  icon: 'bi-clock-fill',        bg: '#fff3e0', color: '#e65100', filter: 'pending' },
-    { label: 'Rejected',      val: rejected, icon: 'bi-x-circle-fill',     bg: '#ffebee', color: '#c0392b', filter: 'rejected' },
+    {
+      label: 'Total Claims',
+      val: total,
+      icon: 'bi-folder2-open',
+      accent: '#667eea',
+      iconBg: '#ede9fe',
+      iconColor: '#5b21b6',
+      filter: '',
+    },
+    {
+      label: 'Approved / Paid',
+      val: approved,
+      icon: 'bi-check-circle-fill',
+      accent: '#10b981',
+      iconBg: '#d1fae5',
+      iconColor: '#065f46',
+      filter: 'approved',
+    },
+    {
+      label: 'In Progress',
+      val: pending,
+      icon: 'bi-hourglass-split',
+      accent: '#f59e0b',
+      iconBg: '#fef3c7',
+      iconColor: '#92400e',
+      filter: 'pending',
+    },
+    {
+      label: 'Rejected',
+      val: rejected,
+      icon: 'bi-x-circle-fill',
+      accent: '#ef4444',
+      iconBg: '#fee2e2',
+      iconColor: '#991b1b',
+      filter: 'rejected',
+    },
   ];
 
   return (
     <Row className="g-3 mb-4">
       {stats.map((s) => (
         <Col xs={6} lg={3} key={s.label}>
-          <Card
-            className="border-0 shadow-sm h-100"
-            style={{ cursor: 'pointer', transition: 'all .2s', borderRadius: 12 }}
-            onClick={() => navigate(`/claims${s.filter ? `?status=${s.filter}` : ''}`)}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = ''; }}
+          <div
+            onClick={() => navigate(`/policyholder/claims${s.filter ? `?status=${s.filter}` : ''}`)}
+            style={{
+              cursor: 'pointer',
+              borderRadius: 16,
+              background: 'white',
+              padding: '20px 20px 16px',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.07)',
+              borderLeft: `4px solid ${s.accent}`,
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              userSelect: 'none',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = `0 12px 28px rgba(0,0,0,0.12)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.07)';
+            }}
           >
-            <Card.Body className="d-flex align-items-center gap-3 py-3">
+            {/* Icon + label row */}
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: '#64748b' }}>
+                {s.label}
+              </div>
               <div
-                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                style={{ width: 52, height: 52, backgroundColor: s.bg }}
+                style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: s.iconBg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
               >
-                <i className={`${s.icon} fs-4`} style={{ color: s.color }}></i>
+                <i className={`bi ${s.icon}`} style={{ color: s.iconColor, fontSize: '1rem' }}></i>
               </div>
-              <div>
-                <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.6rem', color: s.color }}>{s.val}</div>
-                <div className="text-muted small mt-1">{s.label}</div>
-              </div>
-            </Card.Body>
-          </Card>
+            </div>
+
+            {/* Count */}
+            <div style={{ fontSize: '2.4rem', fontWeight: 900, lineHeight: 1, color: s.accent, letterSpacing: '-1px' }}>
+              {s.val}
+            </div>
+
+            {/* Footer link */}
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+              View details <i className="bi bi-arrow-right" style={{ fontSize: '0.65rem', color: s.accent }}></i>
+            </div>
+          </div>
         </Col>
       ))}
     </Row>

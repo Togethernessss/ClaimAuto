@@ -1,103 +1,127 @@
-import { Card, Row, Col, Badge } from 'react-bootstrap';
-import {
-  formatDate,
-  formatCompactCurrency,
-} from '../../data/policyholderDashboardData';
+import { Row, Col } from 'react-bootstrap';
+import { formatDate, formatCompactCurrency } from '../../data/policyholderDashboardData';
 
 /**
  * Policy Hero Card — top-of-dashboard summary of the Policyholder's plan.
- * Receives the mapped policy object from dashboardService.js
- * + the count of enrolled family members.
+ * Props unchanged: { policy, memberCount }
  */
 export default function PolicyOverviewCard({ policy, memberCount }) {
   if (!policy) return null;
 
-  // Status badge color
-  const statusVariant =
-    policy.status === 'Active'    ? 'success' :
-    policy.status === 'Expired'   ? 'danger'  :
-    policy.status === 'Suspended' ? 'warning' :
-                                    'secondary';
+  // Status colour — logic unchanged
+  const statusGlow =
+    policy.status === 'Active'    ? '#10b981' :
+    policy.status === 'Expired'   ? '#ef4444' :
+    policy.status === 'Suspended' ? '#f59e0b' :
+                                    '#6b7280';
 
   return (
-    <Card
-      className="border-0 shadow-sm mb-3"
+    <div
+      className="mb-3 position-relative overflow-hidden"
       style={{
-        borderRadius: 14,
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: 18,
+        background: 'linear-gradient(135deg, #0f0c29 0%, #302b63 55%, #24243e 100%)',
+        padding: '28px 24px',
         color: 'white',
+        boxShadow: '0 10px 40px rgba(15,12,41,0.45)',
       }}
     >
-      <Card.Body className="p-4">
+      {/* Background radial glow orbs */}
+      <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 70%)', top: -120, right: -60, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)', bottom: -80, left: -20, pointerEvents: 'none' }} />
 
-        {/* ── Header row: plan name + status badge ─────────────────── */}
-        <div className="d-flex justify-content-between align-items-start mb-3">
-          <div>
-            <div className="d-flex align-items-center gap-2 mb-1">
-              <i className="bi bi-shield-check fs-3"></i>
-              <h4 className="fw-bold mb-0">{policy.planName}</h4>
-            </div>
-            <code className="small opacity-75">{policy.planCode}</code>
-          </div>
-
-          <Badge
-            bg={statusVariant}
-            className="px-3 py-2 rounded-pill"
-            style={{ fontSize: '0.85rem' }}
+      {/* ── Header row ─────────────────────────────────────────────── */}
+      <div className="d-flex justify-content-between align-items-start mb-4" style={{ position: 'relative' }}>
+        <div className="d-flex align-items-center gap-3">
+          <div
+            style={{
+              width: 42, height: 42, borderRadius: 12,
+              background: 'rgba(99,102,241,0.22)',
+              border: '1px solid rgba(99,102,241,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >
-            {policy.status}
-          </Badge>
+            <i className="bi bi-shield-check" style={{ color: '#a5b4fc', fontSize: '1.1rem' }}></i>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.65rem', opacity: 0.55, letterSpacing: '1.8px', textTransform: 'uppercase', marginBottom: 3 }}>
+              Active Policy
+            </div>
+            <h5 className="fw-bold mb-0" style={{ fontSize: '1.05rem', lineHeight: 1.25 }}>{policy.planName}</h5>
+            <code style={{ fontSize: '0.68rem', opacity: 0.45, letterSpacing: '1px' }}>{policy.planCode}</code>
+          </div>
         </div>
 
-        {/* ── Coverage highlight (big white inset card) ────────────── */}
+        {/* Status pill */}
         <div
-          className="bg-white text-dark p-3 mb-3"
-          style={{ borderRadius: 10 }}
+          className="px-3 py-1 rounded-pill fw-bold"
+          style={{
+            background: `${statusGlow}22`,
+            border: `1px solid ${statusGlow}55`,
+            color: statusGlow,
+            fontSize: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
         >
-          <div className="small text-muted mb-1">
-            <i className="bi bi-piggy-bank-fill me-1"></i>
-            Total Annual Coverage
-          </div>
-          <div className="fs-2 fw-bold text-primary">
-            {formatCompactCurrency(policy.coverageAmount)}
-          </div>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusGlow, display: 'inline-block', flexShrink: 0 }} />
+          {policy.status}
         </div>
+      </div>
 
-        {/* ── 4-cell detail grid ──────────────────────────────────── */}
-        <Row className="g-3">
+      {/* ── Coverage hero number ────────────────────────────────────── */}
+      <div
+        className="text-center mb-4 py-4"
+        style={{
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          position: 'relative',
+        }}
+      >
+        <div style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '2.5px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Total Annual Coverage
+        </div>
+        <div
+          style={{
+            fontSize: '2.6rem',
+            fontWeight: 900,
+            lineHeight: 1,
+            background: 'linear-gradient(135deg, #a5b4fc 0%, #c4b5fd 50%, #f9a8d4 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '-1px',
+          }}
+        >
+          {formatCompactCurrency(policy.coverageAmount)}
+        </div>
+      </div>
 
-          <Col xs={6} md={3}>
-            <div className="small opacity-75 mb-1">
-              <i className="bi bi-cash-coin me-1"></i> Deductible
-            </div>
-            <div className="fw-semibold">
-              {formatCompactCurrency(policy.deductibleAmount)}
+      {/* ── Stats grid ─────────────────────────────────────────────── */}
+      <Row className="g-2" style={{ position: 'relative' }}>
+        {[
+          { icon: 'bi-cash-coin',       label: 'Deductible',   value: formatCompactCurrency(policy.deductibleAmount) },
+          { icon: 'bi-calendar-range',  label: 'Valid From',   value: formatDate(policy.effectiveFrom) },
+          { icon: 'bi-calendar-check',  label: 'Valid Until',  value: formatDate(policy.effectiveTo) },
+          { icon: 'bi-people-fill',     label: 'Members',      value: `${memberCount} enrolled` },
+        ].map((item) => (
+          <Col xs={6} md={3} key={item.label}>
+            <div
+              className="text-center p-2 rounded-3"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.07)',
+              }}
+            >
+              <div style={{ fontSize: '0.62rem', opacity: 0.5, marginBottom: 4, letterSpacing: '0.5px' }}>
+                <i className={`bi ${item.icon} me-1`}></i>{item.label}
+              </div>
+              <div className="fw-semibold" style={{ fontSize: '0.82rem' }}>{item.value}</div>
             </div>
           </Col>
-
-          <Col xs={6} md={3}>
-            <div className="small opacity-75 mb-1">
-              <i className="bi bi-calendar-range me-1"></i> Effective
-            </div>
-            <div className="fw-semibold small">
-              {formatDate(policy.effectiveFrom)}
-              <br />
-              → {formatDate(policy.effectiveTo)}
-            </div>
-          </Col>
-
-          <Col xs={6} md={3}>
-            <div className="small opacity-75 mb-1">
-              <i className="bi bi-people-fill me-1"></i> Members
-            </div>
-            <div className="fw-semibold">
-              {memberCount} enrolled
-            </div>
-          </Col>
-
-        </Row>
-
-      </Card.Body>
-    </Card>
+        ))}
+      </Row>
+    </div>
   );
 }
