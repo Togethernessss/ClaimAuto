@@ -153,8 +153,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(s => s.OrganizationID == userOrgId.Value);
             return await query.ToListAsync();
         }
-<<<<<<< Updated upstream
-=======
 
         // ────────────────────────────────────────────────────────────────
         //  APPEAL DOCUMENTS — individual uploaded files
@@ -219,6 +217,5 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             return await query.FirstOrDefaultAsync();
         }
->>>>>>> Stashed changes
     }
 }

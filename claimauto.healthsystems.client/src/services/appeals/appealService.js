@@ -35,8 +35,14 @@ export async function withdrawAppeal(id) {
 }
 
 // ── DECIDE AN APPEAL — Admin/Staff only ─────────────────
-export async function decideAppeal(id, outcome) {
-    const res = await api.put(`/api/appeals/${id}/decide`, { outcome });
+// `partialPayableAmount` and `partialReason` are required ONLY when outcome === 'PartiallyUpheld'.
+// They are ignored by the backend for Upheld / Overturned.
+export async function decideAppeal(id, outcome, partialPayableAmount = null, partialReason = null) {
+    const res = await api.put(`/api/appeals/${id}/decide`, {
+        outcome,
+        partialPayableAmount,
+        partialReason,
+    });
     return res.data;
 }
 
@@ -49,6 +55,41 @@ export async function downloadAppealPdf(appealId) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `Appeal-APL-${appealId}-Documents.pdf`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+// ── GET DOCUMENT METADATA LIST ──────────────────────────
+// Returns array of { documentID, appealID, fileName, contentType, fileSize, uploadedAt }
+export async function getAppealDocuments(appealId) {
+    const res = await api.get(`/api/appeals/${appealId}/documents`);
+    return res.data;
+}
+
+// ── VIEW DOCUMENT INLINE ────────────────────────────────
+// Opens the file in a new browser tab (inline disposition).
+// Uses an authenticated blob fetch so the JWT header is included.
+export async function viewAppealDocument(appealId, docId) {
+    const res = await api.get(
+        `/api/appeals/${appealId}/documents/${docId}/view`,
+        { responseType: 'blob' }
+    );
+    const url = window.URL.createObjectURL(res.data);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    // Revoke after 60s to let the tab fully load
+    setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+}
+
+// ── DOWNLOAD ONE DOCUMENT WITH ORIGINAL FILENAME ────────
+export async function downloadAppealDocument(appealId, docId, fileName) {
+    const res = await api.get(
+        `/api/appeals/${appealId}/documents/${docId}/download`,
+        { responseType: 'blob' }
+    );
+    const url = window.URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName || `appeal-${appealId}-doc-${docId}`;
     a.click();
     window.URL.revokeObjectURL(url);
 }
