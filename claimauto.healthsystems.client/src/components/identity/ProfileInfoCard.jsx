@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Row, Col, Badge, Button, Form, Spinner, Alert } from 'react-bootstrap';
+import { Card, Row, Col, Badge, Button, Form, Spinner, Alert, InputGroup } from 'react-bootstrap';
 import { updateUser } from '../../services/identity/userService';
 import { UpdateUserDto } from '../../models/identity/UpdateUserDto';
 import { useAuth } from '../../security/AuthContext';
@@ -18,6 +18,30 @@ export default function ProfileInfoCard({ user }) {
     department: user?.department || '',
   });
 
+  // ── Phone validation state ────────────────────────────────────
+  const [phoneError,   setPhoneError]   = useState(null);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+
+  const validatePhone = (value) => {
+    if (!value || value.trim() === '') return null; // optional field
+    const stripped = value.replace(/[\s\-().+]/g, '');
+    if (!/^\d+$/.test(stripped))  return 'Phone number must contain digits only.';
+    if (stripped.length !== 10)   return 'Phone number must be exactly 10 digits.';
+    if (!/^[6-9]/.test(stripped)) return 'Indian mobile numbers must start with 6, 7, 8, or 9.';
+    return null;
+  };
+
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    setForm((f) => ({ ...f, phone: value }));
+    if (phoneTouched) setPhoneError(validatePhone(value));
+  };
+
+  const handlePhoneBlur = () => {
+    setPhoneTouched(true);
+    setPhoneError(validatePhone(form.phone));
+  };
+
   if (!user) return null;
 
   const roleBadgeBg = {
@@ -32,13 +56,27 @@ export default function ProfileInfoCard({ user }) {
     setForm({ name: user.name || '', phone: user.phone || '', department: user.department || '' });
     setError(null);
     setSuccess(null);
+    setPhoneError(null);
+    setPhoneTouched(false);
     setEditing(true);
   };
 
-  const handleCancel = () => { setEditing(false); setError(null); };
+  const handleCancel = () => {
+    setEditing(false);
+    setError(null);
+    setPhoneError(null);
+    setPhoneTouched(false);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
+
+    // Force-touch phone validation before sending to API
+    const phoneErr = validatePhone(form.phone);
+    setPhoneTouched(true);
+    setPhoneError(phoneErr);
+    if (phoneErr) return; // block save with inline error shown
+
     setError(null); setSuccess(null); setSaving(true);
     try {
       const dto = new UpdateUserDto({
@@ -167,15 +205,64 @@ export default function ProfileInfoCard({ user }) {
               </FieldBox>
             </Col>
 
-            {/* Phone — editable */}
+            {/* Phone — editable with Indian mobile validation */}
             <Col md={6}>
               <FieldBox icon="bi-telephone-fill" label="Phone Number" editing={editing}>
                 {editing ? (
-                  <Form.Control type="tel" placeholder="e.g. 9876543210" value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    disabled={saving} className="rounded-3 border-0 bg-transparent p-0"
-                    style={{ outline: 'none', boxShadow: 'none', fontSize: 14, color: '#1e1b4b', fontWeight: 600 }}
-                  />
+                  <>
+                    <InputGroup size="sm">
+                      <InputGroup.Text
+                        style={{
+                          background: '#f3e8ff',
+                          color: '#7c3aed',
+                          border: `1px solid ${phoneTouched && phoneError ? '#dc2626' : '#a78bfa'}`,
+                          borderRight: 'none',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          borderRadius: '6px 0 0 6px',
+                        }}
+                      >
+                        +91
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="tel"
+                        placeholder="9876543210"
+                        value={form.phone}
+                        onChange={handlePhoneChange}
+                        onBlur={handlePhoneBlur}
+                        maxLength={15}
+                        disabled={saving}
+                        isInvalid={phoneTouched && !!phoneError}
+                        isValid={phoneTouched && !phoneError && !!form.phone}
+                        style={{
+                          fontSize: 13,
+                          color: '#1e1b4b',
+                          fontWeight: 600,
+                          borderRadius: '0 6px 6px 0',
+                        }}
+                      />
+                    </InputGroup>
+                    {/* Inline error */}
+                    {phoneTouched && phoneError && (
+                      <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: 5 }}>
+                        <i className="bi bi-exclamation-circle-fill me-1"></i>
+                        {phoneError}
+                      </div>
+                    )}
+                    {/* Inline success */}
+                    {phoneTouched && !phoneError && form.phone && (
+                      <div style={{ fontSize: '0.7rem', color: '#16a34a', marginTop: 5 }}>
+                        <i className="bi bi-check-circle-fill me-1"></i>
+                        Valid Indian mobile number
+                      </div>
+                    )}
+                    {/* Hint for empty (optional) */}
+                    {!form.phone && (
+                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 4 }}>
+                        Optional — 10 digits, starting with 6–9
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span style={{ color: user.phone ? '#1e1b4b' : '#9ca3af', fontWeight: 600, fontSize: 14 }}>
                     {user.phone || '—'}

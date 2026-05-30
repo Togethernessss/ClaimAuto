@@ -28,6 +28,24 @@ import ClaimDetailModal from './components/ClaimDetailModal';
 import UpdateStatusModal from './components/UpdateStatusModal';
 import DeleteClaimModal from './components/DeleteClaimModal';
 import { useSearchParams } from 'react-router-dom';
+import { toast, addToast } from '../../../services/toastService';
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 15;
+
+function getPageNumbers(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current]);
+  if (current > 1) pages.add(current - 1);
+  if (current < total) pages.add(current + 1);
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+  const result = [];
+  for (let i = 0; i < sorted.length; i++) {
+    result.push(sorted[i]);
+    if (i < sorted.length - 1 && sorted[i + 1] - sorted[i] > 1) result.push('...');
+  }
+  return result;
+}
 
 // ── Policyholder segment definitions ─────────────────────────────────────────
 const SEGMENTS = [
@@ -88,7 +106,17 @@ export default function Claims() {
         return ['approved', 'inprogress', 'rejected'].includes(s) ? s : 'all';
     });
 
+    const [currentPage, setCurrentPage] = useState(1);
+
     const handleSegmentChange = (key) => setSegmentFilter(key);
+
+    // ── Summary card click → filter by status ────────────────────────────────
+    const handleSummaryCardClick = (statusVal) => {
+        // Toggle off if same card clicked again
+        setStatusFilter((prev) => (prev === statusVal ? 'All' : statusVal));
+        // For Policyholder, also reset segment so the filter applies to all claims
+        if (isPolicyholder) setSegmentFilter('all');
+    };
 
     const getSegmentCount = (seg) =>
         seg.statuses
@@ -170,6 +198,8 @@ export default function Claims() {
         return () => clearTimeout(t);
     }, [successMsg]);
 
+    useEffect(() => { setCurrentPage(1); }, [search, statusFilter, priorityFilter, segmentFilter]);
+
     // ── FILTERED LIST ─────────────────────────────────────────────────────────
     const activeSeg = SEGMENTS.find((s) => s.key === segmentFilter);
     const filtered = claims.filter((c) => {
@@ -188,6 +218,12 @@ export default function Claims() {
 
     const hasFilters = !!search || statusFilter !== 'All' || priorityFilter !== 'All' || segmentFilter !== 'all';
 
+    const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safeePage   = Math.min(currentPage, totalPages);
+    const startIdx    = (safeePage - 1) * PAGE_SIZE;
+    const endIdx      = Math.min(startIdx + PAGE_SIZE, filtered.length);
+    const pagedClaims = filtered.slice(startIdx, endIdx);
+
     // ── HOSPITAL SUBMIT HANDLERS ──────────────────────────────────────────────
     const handleSubmitClaim = async (formData, lines, documents) => {
         setSubmitError(null);
@@ -200,15 +236,39 @@ export default function Claims() {
             setShowSubmit(false);
             await loadClaims();
 
-            setSuccessMsg(
-                `Claim CLM-${claimId} submitted. ` +
-                `Insurance staff will verify your documents before processing.`
-            );
+            const submitMsg = `Claim CLM-${claimId} submitted. Insurance staff will verify your documents before processing.`;
+            setSuccessMsg(submitMsg);
+            toast.success(`Claim CLM-${claimId} submitted successfully!`, 'Claim Submitted');
+
+            // ── Hospital: remind about the 1-hour document edit window ──────
+            if (isHospital) {
+                addToast({
+                    type:     'info',
+                    title:    '⏱ Document Edit Window Open',
+                    message:  `You have 1 hour to upload, replace, or delete documents for CLM-${claimId}. Open the claim → Documents tab to make changes before the window closes.`,
+                    duration: 9000,
+                });
+            }
         } catch (err) {
-            const msg = err.response?.data?.message
-                || err.response?.data
-                || 'Failed to submit claim.';
-            setSubmitError(typeof msg === 'string' ? msg : 'Failed to submit claim.');
+            const status = err.response?.status;
+            const body   = err.response?.data;
+
+            // Normalise message from string body, ProblemDetails JSON, or fallback
+            const extractMsg = (b) => {
+                if (typeof b === 'string') return b.replace(/^"|"$/g, '').trim(); // strip stray JSON quotes
+                if (b && typeof b === 'object') return b.message || b.detail || b.title || null;
+                return null;
+            };
+
+            let msg;
+            if (status === 409) {
+                // Backend returns a plain-string body: "A claim with ExternalClaimRef '...' already exists."
+                msg = extractMsg(body)
+                    || 'A claim with this External Reference number already exists. Please enter a unique External Claim Ref and try again.';
+            } else {
+                msg = extractMsg(body) || 'Failed to submit claim.';
+            }
+            setSubmitError(msg);
         } finally {
             setSubmitLoading(false);
         }
@@ -223,15 +283,14 @@ export default function Claims() {
             const claimId = result?.claim?.claimID ?? result?.claimID;
             setShowReimbursement(false);
             await loadClaims();
-            setSuccessMsg(
-                `Reimbursement CLM-${claimId} submitted. ` +
-                `Attach your bills to speed up processing.`
-            );
+            const reimbMsg = `Reimbursement CLM-${claimId} submitted. Attach your bills to speed up processing.`;
+            setSuccessMsg(reimbMsg);
+            toast.success(`Reimbursement CLM-${claimId} submitted successfully!`, 'Reimbursement Submitted');
         } catch (err) {
-            const msg = err.response?.data?.message
-                || err.response?.data
-                || 'Failed to submit reimbursement.';
-            setReimbursementError(typeof msg === 'string' ? msg : 'Failed to submit reimbursement.');
+            const body = err.response?.data;
+            const extracted = (typeof body === 'string' ? body.replace(/^"|"$/g, '').trim() : null)
+                || body?.message || body?.detail || null;
+            setReimbursementError(extracted || 'Failed to submit reimbursement.');
         } finally {
             setReimbursementLoading(false);
         }
@@ -364,7 +423,9 @@ export default function Claims() {
             setDetailClaim(null);
             setProceedError(null);
             await loadClaims();
-            setSuccessMsg(msg ?? `Claim CLM-${claimId} has been rejected.`);
+            const rejectMsg = msg ?? `Claim CLM-${claimId} has been rejected.`;
+            setSuccessMsg(rejectMsg);
+            toast.warning(`Claim CLM-${claimId} rejected.`, 'Claim Rejected');
         } catch (err) {
             const errMsg = err.response?.data?.message
                 || err.response?.data
@@ -390,6 +451,7 @@ export default function Claims() {
             setShowUpdate(false);
             await loadClaims();
             setSuccessMsg(`Claim CLM-${updateTarget.claimID} updated successfully.`);
+            toast.success(`Claim CLM-${updateTarget.claimID} status updated.`, 'Status Updated');
         } catch (err) {
             const msg = err.response?.data?.message
                 || err.response?.data
@@ -415,6 +477,7 @@ export default function Claims() {
             setShowDelete(false);
             await loadClaims();
             setSuccessMsg(`Claim CLM-${deleteTarget.claimID} deleted successfully.`);
+            toast.info(`Claim CLM-${deleteTarget.claimID} has been deleted.`, 'Claim Deleted');
         } catch (err) {
             const msg = err.response?.data?.message
                 || err.response?.data
@@ -448,89 +511,105 @@ export default function Claims() {
 
             {/* ── Segment control — Policyholder only ─────────────────────────── */}
             {isPolicyholder && (
-                <div style={{ marginBottom: 20 }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            background: '#f1f5f9',
-                            borderRadius: 14,
-                            padding: 5,
-                            gap: 4,
-                        }}
-                    >
-                        {SEGMENTS.map((seg) => {
-                            const count = getSegmentCount(seg);
-                            const isActive = segmentFilter === seg.key;
-                            return (
-                                <button
-                                    key={seg.key}
-                                    onClick={() => handleSegmentChange(seg.key)}
-                                    style={{
-                                        flex: 1,
-                                        border: 'none',
-                                        borderRadius: 10,
-                                        padding: '14px 8px 12px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        background: isActive ? 'white' : 'transparent',
-                                        boxShadow: isActive ? '0 2px 12px rgba(0,0,0,0.09)' : 'none',
-                                        textAlign: 'center',
-                                        outline: 'none',
-                                    }}
-                                >
-                                    {/* Icon + Label */}
-                                    <div
-                                        style={{
-                                            fontSize: '0.62rem',
-                                            fontWeight: 700,
-                                            letterSpacing: '0.6px',
-                                            textTransform: 'uppercase',
-                                            color: isActive ? seg.color : '#94a3b8',
-                                            marginBottom: 8,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: 4,
-                                        }}
-                                    >
-                                        <i className={`bi ${seg.icon}`} style={{ fontSize: '0.8rem' }}></i>
-                                        <span style={{ display: window.innerWidth < 576 ? 'none' : 'inline' }}>
-                                            {seg.label}
-                                        </span>
+                <div
+                    style={{
+                        background:   'white',
+                        borderRadius: 16,
+                        boxShadow:    '0 2px 16px rgba(0,0,0,0.07)',
+                        marginBottom: 20,
+                        padding:      6,
+                        display:      'flex',
+                        gap:          6,
+                    }}
+                >
+                    {SEGMENTS.map((seg) => {
+                        const count    = getSegmentCount(seg);
+                        const isActive = segmentFilter === seg.key;
+                        return (
+                            <button
+                                key={seg.key}
+                                onClick={() => handleSegmentChange(seg.key)}
+                                style={{
+                                    flex:         1,
+                                    border:       isActive ? `1.5px solid ${seg.color}22` : '1.5px solid transparent',
+                                    borderRadius: 12,
+                                    padding:      '13px 8px 11px',
+                                    cursor:       'pointer',
+                                    transition:   'all 0.2s ease',
+                                    background:   isActive ? `${seg.color}0f` : 'transparent',
+                                    boxShadow:    isActive ? `0 0 0 3px ${seg.color}18` : 'none',
+                                    textAlign:    'center',
+                                    outline:      'none',
+                                }}
+                            >
+                                {/* Icon badge */}
+                                <div style={{
+                                    display:        'flex',
+                                    justifyContent: 'center',
+                                    marginBottom:   8,
+                                }}>
+                                    <div style={{
+                                        width:          30, height: 30,
+                                        borderRadius:   9,
+                                        background:     isActive ? `${seg.color}18` : '#f1f5f9',
+                                        display:        'flex',
+                                        alignItems:     'center',
+                                        justifyContent: 'center',
+                                        transition:     'background 0.2s',
+                                    }}>
+                                        <i
+                                            className={`bi ${seg.icon}`}
+                                            style={{
+                                                fontSize: '0.85rem',
+                                                color:    isActive ? seg.color : '#94a3b8',
+                                                transition: 'color 0.2s',
+                                            }}
+                                        ></i>
                                     </div>
+                                </div>
 
-                                    {/* Count */}
-                                    <div
-                                        style={{
-                                            fontSize: '1.9rem',
-                                            fontWeight: 900,
-                                            lineHeight: 1,
-                                            color: isActive ? seg.color : '#64748b',
-                                            letterSpacing: '-1px',
-                                        }}
-                                    >
-                                        {loading ? (
-                                            <span style={{ fontSize: '1rem', opacity: 0.4 }}>—</span>
-                                        ) : count}
-                                    </div>
+                                {/* Count */}
+                                <div style={{
+                                    fontSize:      '1.75rem',
+                                    fontWeight:    800,
+                                    lineHeight:    1,
+                                    color:         isActive ? seg.color : '#94a3b8',
+                                    letterSpacing: '-1px',
+                                    transition:    'color 0.2s',
+                                    marginBottom:  5,
+                                }}>
+                                    {loading
+                                        ? <span style={{ fontSize: '1rem', opacity: 0.4 }}>—</span>
+                                        : count
+                                    }
+                                </div>
 
-                                    {/* Active indicator bar */}
-                                    <div
-                                        style={{
-                                            height: 3,
-                                            borderRadius: 2,
-                                            marginTop: 10,
-                                            marginLeft: 'auto',
-                                            marginRight: 'auto',
-                                            width: isActive ? '40%' : '0%',
-                                            background: seg.color,
-                                            transition: 'width 0.25s ease',
-                                        }}
-                                    />
-                                </button>
-                            );
-                        })}
-                    </div>
+                                {/* Label */}
+                                <div style={{
+                                    fontSize:      '0.6rem',
+                                    fontWeight:    700,
+                                    letterSpacing: '0.5px',
+                                    textTransform: 'uppercase',
+                                    color:         isActive ? seg.color : '#94a3b8',
+                                    transition:    'color 0.2s',
+                                }}>
+                                    {seg.label}
+                                </div>
+
+                                {/* Bottom accent line */}
+                                <div style={{
+                                    height:      3,
+                                    borderRadius: 2,
+                                    marginTop:   8,
+                                    width:       isActive ? '50%' : '0%',
+                                    marginLeft:  'auto',
+                                    marginRight: 'auto',
+                                    background:  seg.color,
+                                    transition:  'width 0.25s ease',
+                                }} />
+                            </button>
+                        );
+                    })}
                 </div>
             )}
 
@@ -552,14 +631,18 @@ export default function Claims() {
                 onSegmentReset={() => setSegmentFilter('all')}
             />
 
-            {/* Summary stat cards */}
+            {/* Summary stat cards — clickable to filter */}
             {!loading && !error && claims.length > 0 && (
-                <ClaimsSummary claims={claims} />
+                <ClaimsSummary
+                    claims={claims}
+                    activeStatus={statusFilter}
+                    onCardClick={handleSummaryCardClick}
+                />
             )}
 
             {/* Main table */}
             <ClaimsTable
-                claims={filtered}
+                claims={pagedClaims}
                 loading={loading}
                 error={error}
                 isAdmin={isAdmin}
@@ -572,6 +655,36 @@ export default function Claims() {
                 onUpdateStatus={openUpdate}
                 onDelete={openDelete}
             />
+
+            {!loading && !error && totalPages > 1 && (
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mt-3 px-1">
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Page <strong>{safeePage}</strong> of <strong>{totalPages}</strong>
+                  {' '}·{' '}
+                  <strong>{filtered.length}</strong> total record{filtered.length !== 1 ? 's' : ''}
+                </div>
+                <div className="d-flex align-items-center gap-1">
+                  <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={safeePage === 1}
+                    style={{ padding: '5px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: safeePage === 1 ? '#f8fafc' : 'white', color: safeePage === 1 ? '#cbd5e1' : '#475569', fontSize: '0.82rem', fontWeight: 600, cursor: safeePage === 1 ? 'not-allowed' : 'pointer', transition: 'all 0.15s ease' }}>
+                    <i className="bi bi-chevron-left me-1"></i>Prev
+                  </button>
+                  {getPageNumbers(safeePage, totalPages).map((p, i) =>
+                    p === '...' ? (
+                      <span key={`ellipsis-${i}`} style={{ padding: '5px 4px', color: '#94a3b8', fontSize: '0.82rem' }}>…</span>
+                    ) : (
+                      <button key={p} onClick={() => setCurrentPage(p)}
+                        style={{ width: 36, height: 34, borderRadius: 8, border: safeePage === p ? 'none' : '1px solid #e2e8f0', background: safeePage === p ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white', color: safeePage === p ? 'white' : '#475569', fontSize: '0.82rem', fontWeight: safeePage === p ? 700 : 500, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: safeePage === p ? '0 2px 8px rgba(102,126,234,0.35)' : 'none' }}>
+                        {p}
+                      </button>
+                    )
+                  )}
+                  <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={safeePage === totalPages}
+                    style={{ padding: '5px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: safeePage === totalPages ? '#f8fafc' : 'white', color: safeePage === totalPages ? '#cbd5e1' : '#475569', fontSize: '0.82rem', fontWeight: 600, cursor: safeePage === totalPages ? 'not-allowed' : 'pointer', transition: 'all 0.15s ease' }}>
+                    Next<i className="bi bi-chevron-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ── MODALS ───────────────────────────────────────────────────────── */}
 

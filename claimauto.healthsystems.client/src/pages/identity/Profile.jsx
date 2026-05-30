@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Button, Badge, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
+import { getMyMember } from '../../services/members/memberService';
 import ProfileInfoCard      from '../../components/identity/ProfileInfoCard';
 import MfaCard              from '../../components/identity/MfaCard';
 import AccountInfoCard      from '../../components/identity/AccountInfoCard';
@@ -43,6 +44,12 @@ export default function Profile() {
     top: 0, left: 0,
   });
 
+  // ── Policyholder Insurance Member Card state ──────────────────
+  const [myMember,      setMyMember]      = useState(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError,   setMemberError]   = useState(null);
+  const [copiedMember,  setCopiedMember]  = useState(false);
+
   useEffect(() => {
     setPhoto(
       storageKey
@@ -50,6 +57,22 @@ export default function Profile() {
         : null
     );
   }, [storageKey]);
+
+  // ── Fetch insurance member record (Policyholder only) ─────────
+  useEffect(() => {
+    if (user?.role !== 'Policyholder') return;
+    setMemberLoading(true);
+    getMyMember()
+      .then((data) => setMyMember(data))
+      .catch((err) => {
+        if (err.response?.status === 404) {
+          setMyMember(null); // not enrolled yet — not an error
+        } else {
+          setMemberError('Could not load insurance details.');
+        }
+      })
+      .finally(() => setMemberLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Close dropdown on outside click ──────────────────────────
   // Excludes both avatar div AND dropdown div
@@ -65,6 +88,16 @@ export default function Profile() {
     return () =>
       document.removeEventListener('mousedown', handleOutside);
   }, [showOptions]);
+
+  function copyMemberNumber() {
+    if (!myMember?.memberNumber) return;
+    navigator.clipboard.writeText(myMember.memberNumber)
+      .then(() => {
+        setCopiedMember(true);
+        setTimeout(() => setCopiedMember(false), 2000);
+      })
+      .catch(() => {});
+  }
 
   function openOptions() {
     if (avatarRef.current) {
@@ -549,6 +582,244 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* ── Insurance Member Card (Policyholder only) ─────────── */}
+      {user.role === 'Policyholder' && (
+        <div className="mb-4">
+          {/* Section label */}
+          <div className="mb-3">
+            <h5 className="fw-bold mb-0" style={{ color: '#1e1b4b' }}>
+              <i className="bi bi-credit-card-2-front-fill me-2"
+                style={{ color: '#667eea' }}></i>
+              Insurance Member Card
+            </h5>
+            <small className="text-muted">
+              Your digital health insurance ID — share your Member ID when visiting a hospital
+            </small>
+          </div>
+
+          {/* Loading */}
+          {memberLoading && (
+            <div
+              className="text-center py-4 rounded-4"
+              style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}
+            >
+              <Spinner animation="border" size="sm" style={{ color: '#667eea' }} />
+              <div className="mt-2 small text-muted">Loading your insurance details…</div>
+            </div>
+          )}
+
+          {/* Error */}
+          {!memberLoading && memberError && (
+            <div
+              className="p-4 rounded-4 d-flex align-items-center gap-2"
+              style={{ background: '#fef2f2', border: '1px solid #fecaca' }}
+            >
+              <i className="bi bi-exclamation-triangle-fill"
+                style={{ color: '#dc2626', fontSize: 18 }}></i>
+              <span style={{ color: '#991b1b', fontSize: 14 }}>{memberError}</span>
+            </div>
+          )}
+
+          {/* Not yet enrolled */}
+          {!memberLoading && !memberError && !myMember && (
+            <div
+              className="text-center py-5 rounded-4"
+              style={{
+                background: 'white',
+                border: '2px dashed #e5e7eb',
+                boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{ fontSize: 44, color: '#c4b5fd', marginBottom: 12 }}>
+                <i className="bi bi-credit-card"></i>
+              </div>
+              <div className="fw-semibold" style={{ color: '#4c1d95', fontSize: 15 }}>
+                Not yet enrolled
+              </div>
+              <div className="text-muted small mt-1">
+                Your insurance staff hasn&apos;t enrolled you under a policy yet.<br />
+                Contact your insurance provider to receive your Member ID.
+              </div>
+            </div>
+          )}
+
+          {/* Insurance card */}
+          {!memberLoading && !memberError && myMember && (
+            <div
+              style={{
+                borderRadius: 20,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '24px 28px',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 12px 40px rgba(102,126,234,0.38)',
+                maxWidth: 560,
+              }}
+            >
+              {/* Decorative orbs */}
+              <div style={{
+                position: 'absolute', width: 220, height: 220,
+                borderRadius: '50%', background: 'rgba(255,255,255,0.05)',
+                top: -70, right: -50, pointerEvents: 'none',
+              }} />
+              <div style={{
+                position: 'absolute', width: 130, height: 130,
+                borderRadius: '50%', background: 'rgba(255,255,255,0.04)',
+                bottom: -40, left: '55%', pointerEvents: 'none',
+              }} />
+
+              {/* ── Top row: chip + org + status badge ────────── */}
+              <div
+                className="d-flex align-items-start justify-content-between mb-4"
+                style={{ position: 'relative' }}
+              >
+                <div className="d-flex align-items-center gap-2">
+                  {/* SIM chip visual */}
+                  <div style={{
+                    width: 36, height: 28, borderRadius: 5,
+                    background: 'rgba(255,255,255,0.22)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    flexShrink: 0,
+                  }} />
+                  <div>
+                    <div style={{
+                      color: 'rgba(255,255,255,0.65)',
+                      fontSize: 10, fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.9px',
+                    }}>
+                      {user.organizationName || 'ClaimAuto Health'}
+                    </div>
+                    <div style={{ color: 'white', fontSize: 12, fontWeight: 700 }}>
+                      Health Insurance
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status pill */}
+                <div style={{
+                  background: myMember.status === 'Active'
+                    ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)',
+                  border: `1px solid ${myMember.status === 'Active'
+                    ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)'}`,
+                  borderRadius: 20, padding: '3px 11px',
+                  fontSize: 11, fontWeight: 700,
+                  color: myMember.status === 'Active' ? '#6ee7b7' : '#fca5a5',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <i className={`bi ${myMember.status === 'Active'
+                    ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}`}></i>
+                  {myMember.status}
+                </div>
+              </div>
+
+              {/* ── Member name ───────────────────────────────── */}
+              <div style={{ position: 'relative', marginBottom: 18 }}>
+                <div style={{
+                  color: 'rgba(255,255,255,0.6)',
+                  fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 3,
+                }}>
+                  Insured Member
+                </div>
+                <div style={{ color: 'white', fontSize: 20, fontWeight: 700, letterSpacing: '0.3px' }}>
+                  {myMember.name}
+                </div>
+              </div>
+
+              {/* ── Member ID number ──────────────────────────── */}
+              <div style={{ position: 'relative', marginBottom: 20 }}>
+                <div style={{
+                  color: 'rgba(255,255,255,0.6)',
+                  fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 8,
+                }}>
+                  Member ID Number
+                </div>
+                <div className="d-flex align-items-center gap-3 flex-wrap">
+                  <span style={{
+                    color: 'white', fontSize: 22, fontWeight: 800,
+                    letterSpacing: '2.5px', fontFamily: 'monospace',
+                  }}>
+                    {myMember.memberNumber}
+                  </span>
+                  <button
+                    onClick={copyMemberNumber}
+                    title="Copy member number to clipboard"
+                    style={{
+                      background: copiedMember
+                        ? 'rgba(16,185,129,0.28)' : 'rgba(255,255,255,0.18)',
+                      border: `1px solid ${copiedMember
+                        ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.3)'}`,
+                      borderRadius: 8, color: 'white',
+                      fontSize: 12, fontWeight: 600,
+                      padding: '5px 14px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      transition: 'all 0.2s', backdropFilter: 'blur(4px)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!copiedMember)
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.28)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!copiedMember)
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
+                    }}
+                  >
+                    <i className={`bi ${copiedMember ? 'bi-check2' : 'bi-clipboard'}`}></i>
+                    {copiedMember ? 'Copied!' : 'Copy ID'}
+                  </button>
+                </div>
+                <div style={{
+                  color: 'rgba(255,255,255,0.48)', fontSize: 11, marginTop: 7,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}>
+                  <i className="bi bi-info-circle"></i>
+                  Share this ID with your hospital when seeking treatment
+                </div>
+              </div>
+
+              {/* ── Bottom row: policy + coverage ─────────────── */}
+              <div style={{
+                position: 'relative',
+                borderTop: '1px solid rgba(255,255,255,0.18)',
+                paddingTop: 16,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 16,
+              }}>
+                <div>
+                  <div style={{
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: 10, fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 4,
+                  }}>
+                    Policy Plan
+                  </div>
+                  <div style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>
+                    {myMember.policyName || '—'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: 10, fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 4,
+                  }}>
+                    Coverage Period
+                  </div>
+                  <div style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>
+                    {fmtCardDate(myMember.coverageStart)}
+                    {' — '}
+                    {fmtCardDate(myMember.coverageEnd)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Section title ─────────────────────────────────────── */}
       <div className="mb-3">
         <h5 className="fw-bold mb-0"
@@ -581,6 +852,14 @@ export default function Profile() {
 
     </Container>
   );
+}
+
+// ── Formats an ISO date string as "Jan 2024" for the insurance card ──
+function fmtCardDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short',
+  });
 }
 
 function menuItem(borderTop = 'none') {

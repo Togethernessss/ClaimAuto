@@ -1,6 +1,6 @@
-import { Card, Alert, Button, Spinner } from 'react-bootstrap';
+// src/pages/shared/Notifications/components/NotificationsList.jsx
+import { Spinner } from 'react-bootstrap';
 
-// ── UTC fix: add Z if missing so browser treats as UTC ────────
 function timeAgo(iso) {
   const utcIso = iso && !iso.endsWith('Z') ? iso + 'Z' : iso;
   const diff   = Math.floor((Date.now() - new Date(utcIso)) / 1000);
@@ -13,36 +13,19 @@ function timeAgo(iso) {
   });
 }
 
-function categoryStyle(cat) {
-  switch (cat) {
-    case 'Payment':   return { bg: '#d1f2eb', color: '#085041' };
-    case 'Appeal':    return { bg: '#e3f2fd', color: '#0C447C' };
-    case 'Exception': return { bg: '#fdecea', color: '#b71c1c' };
-    default:          return { bg: '#e2e3e5', color: '#41464b' };
-  }
-}
+const CATEGORY_STYLES = {
+  Payment:   { bg: '#d1fae5', color: '#065f46', icon: 'bi-cash-coin', dot: '#10b981' },
+  Appeal:    { bg: '#dbeafe', color: '#1e40af', icon: 'bi-chat-left-text', dot: '#3b82f6' },
+  Exception: { bg: '#fee2e2', color: '#991b1b', icon: 'bi-exclamation-triangle', dot: '#ef4444' },
+  default:   { bg: '#f3f4f6', color: '#374151', icon: 'bi-bell', dot: '#9ca3af' },
+};
 
-function severityStyle(sev) {
-  switch (sev) {
-    case 'Info':     return { bg: '#e3f2fd', color: '#0C447C' };
-    case 'Warning':  return { bg: '#fff3e0', color: '#e65100' };
-    case 'Critical': return { bg: '#fdecea', color: '#b71c1c' };
-    default:         return { bg: '#e2e3e5', color: '#41464b' };
-  }
-}
-
-function statusStyle(status) {
-  switch (status) {
-    case 'Unread':
-      return { bg: '#f3f0ff', dot: '#667eea', solid: true };
-    case 'Read':
-      return { bg: 'white', dot: 'transparent', solid: false };
-    case 'Dismissed':
-      return { bg: 'white', dot: 'transparent', solid: false };
-    default:
-      return { bg: 'white', dot: 'transparent', solid: false };
-  }
-}
+const SEVERITY_STYLES = {
+  Info:     { bg: '#dbeafe', color: '#1e40af', icon: 'bi-info-circle-fill' },
+  Warning:  { bg: '#fef3c7', color: '#92400e', icon: 'bi-exclamation-triangle-fill' },
+  Critical: { bg: '#fee2e2', color: '#991b1b', icon: 'bi-exclamation-octagon-fill' },
+  default:  { bg: '#f3f4f6', color: '#6b7280', icon: 'bi-bell-fill' },
+};
 
 export default function NotificationsList({
   notifications,
@@ -54,213 +37,237 @@ export default function NotificationsList({
   onDismiss,
   onDelete,
 }) {
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 12px',
+        }}>
+          <Spinner animation="border" variant="light" size="sm" />
+        </div>
+        <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>Loading notifications…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: '#fff5f5', border: '1px solid #fca5a5',
+        borderRadius: 12, padding: '14px 18px',
+      }}>
+        <i className="bi bi-exclamation-triangle-fill text-danger fs-5 flex-shrink-0"></i>
+        <div style={{ flex: 1, color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>
+        <button onClick={onRetry} style={{
+          background: '#fee2e2', border: '1px solid #fca5a5',
+          color: '#dc2626', borderRadius: 20, padding: '4px 14px',
+          fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+        }}>
+          <i className="bi bi-arrow-clockwise me-1"></i>Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (notifications.length === 0) {
+    return (
+      <div style={{
+        background: 'white', borderRadius: 14,
+        boxShadow: '0 2px 16px rgba(118,75,162,0.08)',
+        padding: '48px 24px', textAlign: 'center',
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #f3f0ff, #faf5ff)',
+          border: '2px solid #ede9fe',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+        }}>
+          <i className="bi bi-bell-slash" style={{ fontSize: '1.6rem', color: '#7c3aed' }}></i>
+        </div>
+        <div style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>No notifications found</div>
+        <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>You're all caught up! Nothing to show here.</div>
+      </div>
+    );
+  }
+
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
+    <div style={{
+      borderRadius: 14, overflow: 'hidden',
+      boxShadow: '0 2px 16px rgba(118,75,162,0.08)',
+      background: 'white',
+    }}>
+      {/* Gradient header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '10px 18px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ color: 'white', fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          <i className="bi bi-bell-fill me-2"></i>Notifications
+        </span>
+        <span style={{
+          background: 'rgba(255,255,255,0.2)', color: 'white',
+          fontSize: '0.7rem', fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+        }}>
+          {notifications.length} item{notifications.length !== 1 ? 's' : ''}
+        </span>
+      </div>
 
-        {loading && (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <div className="mt-2 text-muted small">
-              Loading notifications...
+      {/* Notification items */}
+      {notifications.map((n, index) => {
+        const cs  = CATEGORY_STYLES[n.category]  || CATEGORY_STYLES.default;
+        const svs = SEVERITY_STYLES[n.severity]  || SEVERITY_STYLES.default;
+        const isLoading   = actionLoading === n.notificationID;
+        const isDismissed = n.status === 'Dismissed';
+        const isUnread    = n.status === 'Unread';
+
+        return (
+          <div
+            key={n.notificationID}
+            style={{
+              padding: '14px 18px',
+              borderBottom: index < notifications.length - 1 ? '1px solid #f3f0ff' : 'none',
+              background: isUnread ? '#faf9ff' : 'white',
+              display: 'flex', gap: 14, alignItems: 'flex-start',
+              opacity: isDismissed ? 0.65 : 1,
+              transition: 'background 0.12s',
+              borderLeft: isUnread ? '3px solid #7c3aed' : '3px solid transparent',
+            }}
+          >
+            {/* Category icon badge */}
+            <div style={{
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: cs.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <i className={`bi ${cs.icon}`} style={{ color: cs.color, fontSize: '0.9rem' }}></i>
             </div>
-          </div>
-        )}
 
-        {!loading && error && (
-          <div className="p-4">
-            <Alert
-              variant="danger"
-              className="d-flex align-items-center mb-0"
-            >
-              <i className="bi bi-exclamation-triangle-fill me-2">
-              </i>
-              {error}
-              <Button
-                variant="link" size="sm"
-                className="ms-auto p-0 text-danger"
-                onClick={onRetry}
-              >
-                <i className="bi bi-arrow-clockwise me-1"></i>
-                Retry
-              </Button>
-            </Alert>
-          </div>
-        )}
+            {/* Content */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: '0.85rem', lineHeight: 1.5,
+                fontWeight: isUnread ? 600 : 400,
+                color: isDismissed ? '#9ca3af' : '#1f2937',
+                textDecoration: isDismissed ? 'line-through' : 'none',
+              }}>
+                {n.message}
+              </div>
 
-        {!loading && !error && notifications.length === 0 && (
-          <div className="text-center py-5">
-            <i className="bi bi-bell-slash"
-              style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-            <div className="fw-semibold text-muted mt-3">
-              No notifications found
-            </div>
-            <div className="small text-muted mt-1">
-              You're all caught up!
-            </div>
-          </div>
-        )}
-
-        {!loading && !error && notifications.length > 0 && (
-          <div>
-            {notifications.map((n, index) => {
-              const ss  = statusStyle(n.status);
-              const cs  = categoryStyle(n.category);
-              const svs = severityStyle(n.severity);
-              const isLoading    = actionLoading === n.notificationID;
-              const isDismissed  = n.status === 'Dismissed';
-
-              return (
-                <div
-                  key={n.notificationID}
-                  style={{
-                    padding: '14px 16px',
-                    borderBottom:
-                      index < notifications.length - 1
-                        ? '0.5px solid #f0f0f0' : 'none',
-                    background: ss.bg,
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                    opacity: isDismissed ? 0.7 : 1,
-                  }}
-                >
-                  {/* Status dot */}
-                  <div style={{
-                    width: 8, height: 8,
-                    borderRadius: '50%',
-                    background: ss.solid
-                      ? ss.dot : 'transparent',
-                    border: ss.solid
-                      ? 'none' : '1.5px solid #9e9e9e',
-                    flexShrink: 0, marginTop: 5,
-                  }}></div>
-
-                  {/* Content */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: 13,
-                      fontWeight:
-                        n.status === 'Unread' ? 500 : 400,
-                      color: isDismissed
-                        ? '#9e9e9e' : '#1e2a3a',
-                      textDecoration: isDismissed
-                        ? 'line-through' : 'none',
-                      lineHeight: 1.5,
-                    }}>
-                      {n.message}
-                    </div>
-                    {n.claimID && (
-                      <div style={{
-                        fontSize: 11,
-                        color: '#6c757d',
-                        marginTop: 2,
-                      }}>
-                        Claim #{n.claimID}
-                      </div>
-                    )}
-                    <div style={{
-                      display: 'flex', gap: 6,
-                      marginTop: 6, flexWrap: 'wrap',
-                      alignItems: 'center',
-                    }}>
-                      <span style={{
-                        fontSize: 11, padding: '1px 7px',
-                        borderRadius: 20, fontWeight: 500,
-                        background: cs.bg, color: cs.color,
-                      }}>
-                        {n.category}
-                      </span>
-                      <span style={{
-                        fontSize: 11, padding: '1px 7px',
-                        borderRadius: 20, fontWeight: 500,
-                        background: svs.bg, color: svs.color,
-                      }}>
-                        {n.severity}
-                      </span>
-                      <span style={{
-                        fontSize: 11, color: '#6c757d',
-                      }}>
-                        {timeAgo(n.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{
-                    display: 'flex', gap: 6,
-                    flexShrink: 0,
-                    alignItems: 'flex-start',
-                    flexWrap: 'wrap',
-                  }}>
-                    {isLoading ? (
-                      <Spinner
-                        animation="border"
-                        size="sm"
-                        variant="primary"
-                      />
-                    ) : (
-                      <>
-                        {n.status === 'Unread' && (
-                          <button
-                            onClick={() =>
-                              onMarkRead(n.notificationID)}
-                            style={{
-                              fontSize: 11,
-                              padding: '3px 10px',
-                              borderRadius: 4,
-                              cursor: 'pointer',
-                              background: '#e8f0fe',
-                              border: '0.5px solid #4285f4',
-                              color: '#1a56db',
-                            }}
-                          >
-                            Mark read
-                          </button>
-                        )}
-                        {(n.status === 'Unread' ||
-                          n.status === 'Read') && (
-                          <button
-                            onClick={() =>
-                              onDismiss(n.notificationID)}
-                            style={{
-                              fontSize: 11,
-                              padding: '3px 10px',
-                              borderRadius: 4,
-                              cursor: 'pointer',
-                              background: '#fff3e0',
-                              border: '0.5px solid #e65100',
-                              color: '#e65100',
-                            }}
-                          >
-                            Dismiss
-                          </button>
-                        )}
-                        <button
-                          onClick={() =>
-                            onDelete(n.notificationID)}
-                          style={{
-                            fontSize: 11,
-                            padding: '3px 10px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            background: '#fdecea',
-                            border: '0.5px solid #e53935',
-                            color: '#b71c1c',
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
+              {n.claimID && (
+                <div style={{ fontSize: '0.73rem', color: '#7c3aed', marginTop: 3, fontWeight: 500 }}>
+                  <i className="bi bi-folder2 me-1"></i>Claim #{n.claimID}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
 
-      </Card.Body>
-    </Card>
+              <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Category pill */}
+                <span style={{
+                  fontSize: '0.7rem', padding: '2px 8px', borderRadius: 999,
+                  fontWeight: 600, background: cs.bg, color: cs.color,
+                }}>
+                  {n.category}
+                </span>
+                {/* Severity pill */}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: '0.7rem', padding: '2px 8px', borderRadius: 999,
+                  fontWeight: 600, background: svs.bg, color: svs.color,
+                }}>
+                  <i className={`bi ${svs.icon}`} style={{ fontSize: '0.62rem' }}></i>
+                  {n.severity}
+                </span>
+                {/* Time */}
+                <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                  <i className="bi bi-clock me-1" style={{ fontSize: '0.62rem' }}></i>
+                  {timeAgo(n.createdAt)}
+                </span>
+                {/* Unread dot */}
+                {isUnread && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
+                    Unread
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 5, flexShrink: 0, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {isLoading ? (
+                <Spinner animation="border" size="sm" style={{ color: '#7c3aed' }} />
+              ) : (
+                <>
+                  {isUnread && (
+                    <button
+                      onClick={() => onMarkRead(n.notificationID)}
+                      style={{
+                        fontSize: '0.73rem', padding: '3px 10px', borderRadius: 6,
+                        cursor: 'pointer', border: 'none',
+                        background: '#ede9fe', color: '#5b21b6', fontWeight: 600,
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#7c3aed'; e.currentTarget.style.color = 'white'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#5b21b6'; }}
+                    >
+                      <i className="bi bi-check2 me-1"></i>Read
+                    </button>
+                  )}
+                  {(isUnread || n.status === 'Read') && !isDismissed && (
+                    <button
+                      onClick={() => onDismiss(n.notificationID)}
+                      style={{
+                        fontSize: '0.73rem', padding: '3px 10px', borderRadius: 6,
+                        cursor: 'pointer', border: 'none',
+                        background: '#fef3c7', color: '#92400e', fontWeight: 600,
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#f59e0b'; e.currentTarget.style.color = 'white'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fef3c7'; e.currentTarget.style.color = '#92400e'; }}
+                    >
+                      Dismiss
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onDelete(n.notificationID)}
+                    style={{
+                      fontSize: '0.73rem', padding: '3px 10px', borderRadius: 6,
+                      cursor: 'pointer', border: 'none',
+                      background: '#fee2e2', color: '#991b1b', fontWeight: 600,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#991b1b'; }}
+                  >
+                    <i className="bi bi-trash3"></i>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Footer */}
+      <div style={{
+        padding: '10px 18px', borderTop: '1px solid #f3f0ff',
+        background: '#faf9ff',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+          <i className="bi bi-clock-history me-1"></i>Sorted by newest first
+        </span>
+      </div>
+    </div>
   );
 }

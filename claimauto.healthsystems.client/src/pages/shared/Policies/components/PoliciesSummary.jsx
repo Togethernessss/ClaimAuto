@@ -1,51 +1,54 @@
-import { Row, Col, Card } from 'react-bootstrap';
+// src/pages/shared/Policies/components/PoliciesSummary.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Redesigned accent-border stat cards — matches the ClaimsSummary visual style.
+// All computed values identical to the original; only the visual presentation changed.
+// Hidden for Hospital role (controlled by parent Policies.jsx).
+// ─────────────────────────────────────────────────────────────────────────────
 
-// The 4 summary stat cards at the top of the page.
-// Total Policies | Active | Expired | Total Enrolled Members
-// Hidden for Hospital role.
-
-// Card definitions — defined outside component so they're not recreated
 const STAT_CARDS = [
   {
-    key:   'total',
-    label: 'Total Policies',
-    icon:  'bi-shield-check',
-    bg:    '#e3f2fd',
-    color: '#1565c0',
+    key:    'total',
+    label:  'Total Policies',
+    icon:   'bi-shield-check',
+    bg:     '#ede9fe',
+    color:  '#7c3aed',
+    border: '#7c3aed',
   },
   {
-    key:   'active',
-    label: 'Active',
-    icon:  'bi-check-circle',
-    bg:    '#d1f2eb',
-    color: '#2e7d32',
+    key:    'active',
+    label:  'Active',
+    icon:   'bi-check-circle-fill',
+    bg:     '#d1fae5',
+    color:  '#065f46',
+    border: '#10b981',
   },
   {
-    key:   'expired',
-    label: 'Expired',
-    icon:  'bi-calendar-x',
-    bg:    '#f5f5f5',
-    color: '#757575',
+    key:    'expired',
+    label:  'Expired',
+    icon:   'bi-calendar-x-fill',
+    bg:     '#f3f4f6',
+    color:  '#4b5563',
+    border: '#9ca3af',
   },
   {
-    key:   'suspended',
-    label: 'Suspended',
-    icon:  'bi-pause-circle',
-    bg:    '#fff8e1',
-    color: '#f9a825',
+    key:    'suspended',
+    label:  'Suspended',
+    icon:   'bi-pause-circle-fill',
+    bg:     '#fef3c7',
+    color:  '#92400e',
+    border: '#f59e0b',
   },
-
   {
-    key:   'enrolled',
-    label: 'Total Enrolled',
-    icon:  'bi-people-fill',
-    bg:    '#fff3e0',
-    color: '#e65100',
+    key:    'enrolled',
+    label:  'Total Enrolled',
+    icon:   'bi-people-fill',
+    bg:     '#fff7ed',
+    color:  '#c2410c',
+    border: '#f97316',
   },
 ];
 
 export default function PoliciesSummary({ policies }) {
-  // Calculate values from the policies array
   const values = {
     total:     policies.length,
     active:    policies.filter((p) => p.status === 'Active').length,
@@ -60,30 +63,50 @@ export default function PoliciesSummary({ policies }) {
         {STAT_CARDS.map((card) => (
           <div
             key={card.key}
-            className="flex-grow-1"
-            style={{ minWidth: 120, flex: '1 1 0' }}
+            style={{
+              minWidth:   148,
+              flex:       '1 1 0',
+              background: 'white',
+              borderRadius: 14,
+              padding:    '14px 16px',
+              borderLeft: `4px solid ${card.border}`,
+              boxShadow:  '0 2px 8px rgba(0,0,0,0.06)',
+              transition: 'box-shadow 0.15s, transform 0.15s',
+              cursor:     'default',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
-            <Card className="border-0 shadow-sm h-100">
-              <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 38, height: 38, backgroundColor: card.bg }}
-                >
-                  <i
-                    className={`${card.icon}`}
-                    style={{ color: card.color, fontSize: '1rem' }}
-                  ></i>
-                </div>
-                <div>
-                  <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>
-                    {values[card.key]}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {card.label}
-                  </div>
-                </div>
-              </Card.Body>
-            </Card>
+            {/* Icon */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                background:    card.bg,
+                borderRadius:  8,
+                width:         32,
+                height:        32,
+                display:       'flex',
+                alignItems:    'center',
+                justifyContent:'center',
+              }}>
+                <i className={`bi ${card.icon}`} style={{ color: card.color, fontSize: 14 }}></i>
+              </div>
+            </div>
+
+            {/* Value */}
+            <div style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1.1, color: '#1f2937' }}>
+              {values[card.key]}
+            </div>
+
+            {/* Label */}
+            <div style={{ fontSize: '0.72rem', color: '#6b7280', marginTop: 3 }}>
+              {card.label}
+            </div>
           </div>
         ))}
       </div>

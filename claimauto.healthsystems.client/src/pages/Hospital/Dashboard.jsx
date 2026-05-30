@@ -33,6 +33,7 @@ export default function HospitalDashboard() {
   const [approvedClaims,  setApprovedClaims]  = useState(null);
   const [pendingClaims,   setPendingClaims]   = useState(null);
   const [deniedClaims,    setDeniedClaims]    = useState(null);
+  const [recentClaims,    setRecentClaims]    = useState([]);   // ← NEW
   const [statsLoading,    setStatsLoading]    = useState(true);
   const [statsError,      setStatsError]      = useState(false);
 
@@ -86,6 +87,13 @@ export default function HospitalDashboard() {
         setDeniedClaims(
           claims.filter(c => c.status === 'Rejected').length
         );
+        // Most recent 3 claims for the Recent Submissions panel
+        const sorted = [...claims].sort((a, b) => {
+          const tA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+          const tB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+          return tB - tA;
+        });
+        setRecentClaims(sorted.slice(0, 3));
       } catch {
         setStatsError(true);
       } finally {
@@ -104,6 +112,20 @@ export default function HospitalDashboard() {
   const unacknowledged = remittances
     .filter(r => r.status !== 'Acknowledged')
     .slice(0, 10);
+
+  // Styling for claim status pills in Recent Submissions
+  function claimStatusStyle(status) {
+    switch (status) {
+      case 'Submitted':               return { bg: '#dbeafe', color: '#1d4ed8', label: 'Submitted' };
+      case 'DocsVerificationPending': return { bg: '#e0f2fe', color: '#0369a1', label: 'Docs Pending' };
+      case 'UnderReview':             return { bg: '#fef9c3', color: '#854d0e', label: 'Under Review' };
+      case 'Adjudicating':            return { bg: '#ede9fe', color: '#5b21b6', label: 'Adjudicating' };
+      case 'Approved':                return { bg: '#d1fae5', color: '#065f46', label: 'Approved' };
+      case 'Paid':                    return { bg: '#d1fae5', color: '#064e3b', label: 'Paid' };
+      case 'Rejected':                return { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' };
+      default:                        return { bg: '#f3f4f6', color: '#374151', label: status || '—' };
+    }
+  }
 
   function statusStyle(status) {
     switch (status) {
@@ -495,26 +517,105 @@ export default function HospitalDashboard() {
               title="Recent Submissions"
               subtitle="Your latest claims"
             >
-              <div className="text-center py-5">
-                <i className="bi bi-file-earmark-plus"
-                  style={{ fontSize: 48,
-                    color: '#dfe4ea' }}></i>
-                <div className="fw-semibold text-muted mt-3">
-                  No claims submitted yet
+              {statsLoading ? (
+                <div className="text-center py-4">
+                  <Spinner animation="border" size="sm" variant="primary" />
+                  <div className="text-muted small mt-2">Loading claims…</div>
                 </div>
-                <div className="small text-muted mt-1 mb-3">
-                  Click "New Claim" to file your first claim.
+              ) : recentClaims.length === 0 ? (
+                <div className="text-center py-5">
+                  <i className="bi bi-file-earmark-plus"
+                    style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+                  <div className="fw-semibold text-muted mt-3">
+                    No claims submitted yet
+                  </div>
+                  <div className="small text-muted mt-1 mb-3">
+                    Click "Submit a Claim" to file your first claim.
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => navigate('/hospital/claims')}
+                  >
+                    <i className="bi bi-plus-lg me-1"></i>
+                    Submit a Claim
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() =>
-                    navigate('/hospital/claims')}
-                >
-                  <i className="bi bi-plus-lg me-1"></i>
-                  Submit a Claim
-                </Button>
-              </div>
+              ) : (
+                <>
+                  <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    {recentClaims.map((c, idx) => {
+                      const ss = claimStatusStyle(c.status);
+                      return (
+                        <div
+                          key={c.claimID}
+                          onClick={() => navigate('/hospital/claims')}
+                          style={{
+                            padding: '11px 16px',
+                            borderBottom:
+                              idx < recentClaims.length - 1
+                                ? '1px solid #f0f0f0' : 'none',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) =>
+                            e.currentTarget.style.background = '#f8f9fa'}
+                          onMouseLeave={(e) =>
+                            e.currentTarget.style.background = 'white'}
+                        >
+                          <div className="d-flex align-items-start justify-content-between gap-2">
+                            <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                              <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <span className="font-monospace fw-bold"
+                                  style={{ fontSize: 12, color: '#4c1d95' }}>
+                                  CLM-{c.claimID}
+                                </span>
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700,
+                                  padding: '1px 7px', borderRadius: 20,
+                                  background: ss.bg, color: ss.color,
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {ss.label}
+                                </span>
+                              </div>
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className="fw-semibold"
+                                  style={{ fontSize: 12, color: '#764ba2' }}>
+                                  ₹{Number(c.totalBilledAmount ?? 0)
+                                      .toLocaleString('en-IN')}
+                                </span>
+                                {c.claimType && (
+                                  <span className="text-muted"
+                                    style={{ fontSize: 11 }}>
+                                    · {c.claimType}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-muted"
+                                style={{ fontSize: 11, marginTop: 2 }}>
+                                {formatDate(c.submittedAt)}
+                              </div>
+                            </div>
+                            <i className="bi bi-chevron-right text-muted"
+                              style={{ fontSize: 12, marginTop: 3, flexShrink: 0 }}></i>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ padding: '8px 16px', borderTop: '1px solid #f0f0f0' }}>
+                    <button
+                      className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
+                      style={{ color: '#1a56db', fontSize: 12 }}
+                      onClick={() => navigate('/hospital/claims')}
+                    >
+                      View all claims
+                      <i className="bi bi-arrow-right ms-1"></i>
+                    </button>
+                  </div>
+                </>
+              )}
             </DashboardPanel>
           </Col>
 

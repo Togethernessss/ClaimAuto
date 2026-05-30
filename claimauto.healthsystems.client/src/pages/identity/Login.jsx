@@ -4,6 +4,7 @@ import { Form, Button, Alert, Spinner, InputGroup } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
 import { getDashboardPath } from '../../security/permissions';
 import { login as loginApi } from '../../services/identity/authService';
+import { toast } from '../../services/toastService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -33,6 +34,9 @@ export default function Login() {
         navigate('/verify-mfa', { state: { mfaToken: data.mfaToken } });
       } else {
         login(data.token, data.user);
+        // Fire welcome toast — ToastContainer in App.jsx picks it up after navigation
+        const firstName = data.user?.name?.split(' ')[0] ?? 'back';
+        toast.success(`Welcome back, ${firstName}! You are now signed in.`, 'Login Successful');
         if (data.user.mustChangePassword) {
           navigate('/force-change-password', { replace: true });
         } else {

@@ -1,26 +1,78 @@
 // src/pages/shared/Claims/components/ClaimsSummary.jsx
-import { Card } from 'react-bootstrap';
 import { formatCurrency } from '../utils/claimHelpers';
 
+// Maps stat-card key → the status value it filters to
+const CARD_STATUS_MAP = {
+  total:            'All',
+  docsVerification: 'DocsVerificationPending',
+  underReview:      'UnderReview',
+  approved:         'Approved',
+  paid:             'Paid',
+  rejected:         'Rejected',
+};
+
 const STAT_CARDS = [
-  { key: 'docsVerification', label: 'Docs Verification', icon: 'bi-file-earmark-check', bg: '#e0f7fa', color: '#00838f' },
-  { key: 'underReview',      label: 'Under Review',      icon: 'bi-eye',                bg: '#fff3e0', color: '#e65100' },
-  { key: 'approved',         label: 'Approved',           icon: 'bi-check-circle',       bg: '#e3f2fd', color: '#1565c0' },
-  { key: 'paid',             label: 'Paid',               icon: 'bi-check-circle-fill',  bg: '#d1f2eb', color: '#2e7d32' },
-  { key: 'rejected',         label: 'Rejected',           icon: 'bi-x-circle-fill',      bg: '#ffebee', color: '#c62828' },
+  {
+    key:    'total',
+    label:  'Total Claims',
+    icon:   'bi-folder2-open',
+    accent: '#667eea',
+    bg:     '#f5f3ff',
+  },
+  {
+    key:    'docsVerification',
+    label:  'Docs Pending',
+    icon:   'bi-file-earmark-check-fill',
+    accent: '#0ea5e9',
+    bg:     '#f0f9ff',
+  },
+  {
+    key:    'underReview',
+    label:  'Under Review',
+    icon:   'bi-eye-fill',
+    accent: '#f59e0b',
+    bg:     '#fffbeb',
+  },
+  {
+    key:    'approved',
+    label:  'Approved',
+    icon:   'bi-check-circle-fill',
+    accent: '#3b82f6',
+    bg:     '#eff6ff',
+  },
+  {
+    key:    'paid',
+    label:  'Paid',
+    icon:   'bi-patch-check-fill',
+    accent: '#10b981',
+    bg:     '#f0fdf4',
+  },
+  {
+    key:    'rejected',
+    label:  'Rejected',
+    icon:   'bi-x-circle-fill',
+    accent: '#ef4444',
+    bg:     '#fef2f2',
+  },
 ];
 
-export default function ClaimsSummary({ claims }) {
-  const totalAmount = claims.reduce((s, c) => s + (c.totalBilledAmount ?? 0), 0);
+/**
+ * @param {object} props
+ * @param {Array}    props.claims       Full (unfiltered) claims list.
+ * @param {string}   [props.activeStatus]  Current statusFilter value so the matching card is highlighted.
+ * @param {Function} [props.onCardClick]   Called with the status string when a card is clicked.
+ */
+export default function ClaimsSummary({ claims, activeStatus, onCardClick }) {
+  // ── Only count Approved + Paid towards the approved amount ───────────────
+  const approvedAmount = claims
+    .filter((c) => c.status === 'Approved' || c.status === 'Paid')
+    .reduce((s, c) => s + (c.totalBilledAmount ?? 0), 0);
 
   const values = {
-    // DocsVerificationPending = awaiting staff document review (new entry state)
+    total:            claims.length,
     docsVerification: claims.filter((c) => c.status === 'DocsVerificationPending').length,
-    // UnderReview = fraud score ≥ 70 OR routed to manual adjudication queue
     underReview:      claims.filter((c) => c.status === 'UnderReview').length,
-    // Approved = adjudication Paid/Partial, payment created but not yet executed
     approved:         claims.filter((c) => c.status === 'Approved').length,
-    // Paid = payment fully executed, claim settled
     paid:             claims.filter((c) => c.status === 'Paid').length,
     rejected:         claims.filter((c) => c.status === 'Rejected').length,
   };
@@ -28,62 +80,204 @@ export default function ClaimsSummary({ claims }) {
   return (
     <div className="mb-4">
       <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-        <div className="d-flex gap-3 mb-3" style={{ minWidth: 'fit-content' }}>
+        <div style={{ display: 'flex', gap: 12, minWidth: 'fit-content' }}>
 
-          {/* Total */}
-          <div className="flex-grow-1" style={{ minWidth: 120, flex: '1 1 0' }}>
-            <Card className="border-0 shadow-sm h-100">
-              <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 38, height: 38, backgroundColor: '#e3f2fd' }}
-                >
-                  <i className="bi-folder2" style={{ color: '#1565c0', fontSize: '1rem' }}></i>
-                </div>
-                <div>
-                  <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>{claims.length}</div>
-                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>Total Claims</div>
-                </div>
-              </Card.Body>
-            </Card>
-          </div>
+          {/* ── Per-status stat cards ──────────────────────────────── */}
+          {STAT_CARDS.map((card) => {
+            const statusVal = CARD_STATUS_MAP[card.key];
+            const isActive  = activeStatus === statusVal;
+            const clickable = !!onCardClick;
 
-          {/* Status cards */}
-          {STAT_CARDS.map((card) => (
-            <div key={card.key} className="flex-grow-1" style={{ minWidth: 120, flex: '1 1 0' }}>
-              <Card className="border-0 shadow-sm h-100">
-                <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-                  <div
-                    className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                    style={{ width: 38, height: 38, backgroundColor: card.bg }}
-                  >
-                    <i className={card.icon} style={{ color: card.color, fontSize: '1rem' }}></i>
+            return (
+              <div
+                key={card.key}
+                onClick={() => onCardClick?.(statusVal)}
+                title={clickable ? `Filter by ${card.label}` : undefined}
+                style={{
+                  flex:         '1 1 0',
+                  minWidth:     110,
+                  background:   'white',
+                  borderRadius: 14,
+                  borderLeft:   `4px solid ${card.accent}`,
+                  padding:      '14px 16px',
+                  boxShadow:    isActive
+                    ? `0 0 0 3px ${card.accent}40, 0 4px 18px rgba(0,0,0,0.1)`
+                    : '0 2px 12px rgba(0,0,0,0.06)',
+                  transition:   'box-shadow 0.18s, transform 0.18s',
+                  cursor:       clickable ? 'pointer' : 'default',
+                  position:     'relative',
+                  overflow:     'hidden',
+                  outline:      isActive ? `2px solid ${card.accent}` : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (!clickable) return;
+                  e.currentTarget.style.boxShadow = `0 6px 22px rgba(0,0,0,0.11)`;
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!clickable) return;
+                  e.currentTarget.style.boxShadow = isActive
+                    ? `0 0 0 3px ${card.accent}40, 0 4px 18px rgba(0,0,0,0.1)`
+                    : '0 2px 12px rgba(0,0,0,0.06)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                {/* Faint tinted background blob */}
+                <div style={{
+                  position:     'absolute',
+                  top: -12, right: -12,
+                  width:        56, height: 56,
+                  borderRadius: '50%',
+                  background:   card.bg,
+                  pointerEvents: 'none',
+                }} />
+
+                {/* Active ring indicator */}
+                {isActive && (
+                  <div style={{
+                    position:   'absolute',
+                    top: 8, right: 10,
+                    fontSize:   9,
+                    fontWeight: 700,
+                    color:      card.accent,
+                    background: card.bg,
+                    borderRadius: 20,
+                    padding:    '1px 7px',
+                    letterSpacing: '0.4px',
+                    textTransform: 'uppercase',
+                  }}>
+                    Active
                   </div>
-                  <div>
-                    <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>{values[card.key]}</div>
-                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>{card.label}</div>
+                )}
+
+                {/* Icon badge */}
+                <div style={{
+                  width:          32, height: 32,
+                  borderRadius:   9,
+                  background:     card.bg,
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  marginBottom:   10,
+                }}>
+                  <i className={`bi ${card.icon}`}
+                    style={{ color: card.accent, fontSize: '0.88rem' }}></i>
+                </div>
+
+                {/* Count */}
+                <div style={{
+                  fontSize:      '1.6rem',
+                  fontWeight:    800,
+                  lineHeight:    1,
+                  color:         card.accent,
+                  letterSpacing: '-0.5px',
+                  marginBottom:  4,
+                }}>
+                  {values[card.key]}
+                </div>
+
+                {/* Label */}
+                <div style={{
+                  fontSize:      '0.7rem',
+                  fontWeight:    600,
+                  color:         '#64748b',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
+                  {card.label}
+                </div>
+
+                {/* Clickable hint */}
+                {clickable && (
+                  <div style={{
+                    fontSize:   '0.65rem',
+                    color:      '#94a3b8',
+                    marginTop:  3,
+                  }}>
+                    Click to filter
                   </div>
-                </Card.Body>
-              </Card>
+                )}
+              </div>
+            );
+          })}
+
+          {/* ── Approved Amount card (was "Total Billed" — now only Approved+Paid) ── */}
+          <div
+            style={{
+              flex:         '1 1 0',
+              minWidth:     130,
+              background:   'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 14,
+              padding:      '14px 16px',
+              boxShadow:    '0 4px 18px rgba(102,126,234,0.35)',
+              transition:   'box-shadow 0.18s, transform 0.18s',
+              cursor:       'default',
+              position:     'relative',
+              overflow:     'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 8px 28px rgba(102,126,234,0.45)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 18px rgba(102,126,234,0.35)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            {/* Orbs */}
+            <div style={{
+              position: 'absolute', pointerEvents: 'none',
+              width: 70, height: 70, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)',
+              top: -20, right: -10,
+            }} />
+
+            {/* Icon */}
+            <div style={{
+              width:          32, height: 32,
+              borderRadius:   9,
+              background:     'rgba(255,255,255,0.18)',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              marginBottom:   10,
+            }}>
+              <i className="bi bi-cash-coin"
+                style={{ color: 'white', fontSize: '0.88rem' }}></i>
             </div>
-          ))}
 
-          {/* Total billed */}
-          <div className="flex-grow-1" style={{ minWidth: 140, flex: '1 1 0' }}>
-            <Card className="border-0 shadow-sm h-100">
-              <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 38, height: 38, backgroundColor: '#e8f5e9' }}
-                >
-                  <i className="bi-cash-coin" style={{ color: '#2e7d32', fontSize: '1rem' }}></i>
-                </div>
-                <div>
-                  <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1rem' }}>{formatCurrency(totalAmount)}</div>
-                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>Total Billed</div>
-                </div>
-              </Card.Body>
-            </Card>
+            {/* Amount */}
+            <div style={{
+              fontSize:      '1.1rem',
+              fontWeight:    800,
+              lineHeight:    1,
+              color:         'white',
+              letterSpacing: '-0.3px',
+              marginBottom:  4,
+              whiteSpace:    'nowrap',
+            }}>
+              {formatCurrency(approvedAmount)}
+            </div>
+
+            {/* Label */}
+            <div style={{
+              fontSize:      '0.7rem',
+              fontWeight:    600,
+              color:         'rgba(255,255,255,0.72)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              Approved Amount
+            </div>
+
+            {/* Sub-note */}
+            <div style={{
+              fontSize:   '0.64rem',
+              color:      'rgba(255,255,255,0.5)',
+              marginTop:  3,
+            }}>
+              Approved &amp; Paid only
+            </div>
           </div>
 
         </div>
