@@ -163,8 +163,23 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         {
             if (docs == null || docs.Count == 0) return;
             foreach (var d in docs) d.AppealID = appealId;
-            _context.AppealDocuments.AddRange(docs);
-            await _context.SaveChangesAsync();
+
+            try
+            {
+                _context.AppealDocuments.AddRange(docs);
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+                foreach (var doc in docs)
+                {
+                    var entry = _context.Entry(doc);
+                    if (entry.State != EntityState.Detached)
+                        entry.State = EntityState.Detached;
+                }
+
+                throw;
+            }
         }
 
         /// <summary>Returns metadata (no FileData) for every original file uploaded with an appeal.</summary>
