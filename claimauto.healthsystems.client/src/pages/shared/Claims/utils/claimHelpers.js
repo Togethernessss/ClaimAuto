@@ -106,8 +106,7 @@ export function lineStatusVariant(status) {
 
 export function adjDecisionVariant(decision) {
   switch (decision) {
-    case 'Approved':      return 'success';   // frontend/claim addition — new flow uses Approved
-    case 'Paid':          return 'success';
+    case 'Approved':      return 'success';
     case 'Partial':       return 'info';
     case 'Denied':        return 'danger';
     case 'PendingReview': return 'warning';
@@ -144,10 +143,6 @@ export const DOC_TYPES = [
   'Invoice', 'MedicalRecord', 'LabReport', 'Prescription', 'DischargeSummary',
 ];
 
-export function simulateFileURI(claimId, docType, fileName) {
-  const ext = fileName?.split('.').pop() || 'pdf';
-  return `uploads/claim-${claimId}-${docType.toLowerCase()}-${Date.now()}.${ext}`;
-}
 
 export async function computeSHA256(file) {
   const buffer = await file.arrayBuffer();

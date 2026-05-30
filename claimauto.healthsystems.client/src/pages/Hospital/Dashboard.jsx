@@ -119,7 +119,6 @@ export default function HospitalDashboard() {
       case 'Submitted':               return { bg: '#dbeafe', color: '#1d4ed8', label: 'Submitted' };
       case 'DocsVerificationPending': return { bg: '#e0f2fe', color: '#0369a1', label: 'Docs Pending' };
       case 'UnderReview':             return { bg: '#fef9c3', color: '#854d0e', label: 'Under Review' };
-      case 'Adjudicating':            return { bg: '#ede9fe', color: '#5b21b6', label: 'Adjudicating' };
       case 'Approved':                return { bg: '#d1fae5', color: '#065f46', label: 'Approved' };
       case 'Paid':                    return { bg: '#d1fae5', color: '#064e3b', label: 'Paid' };
       case 'Rejected':                return { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' };

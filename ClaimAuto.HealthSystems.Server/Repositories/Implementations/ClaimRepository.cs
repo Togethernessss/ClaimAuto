@@ -206,14 +206,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (member == null) return null;
 
             // Validate each line's service date falls within the member's coverage period
+            // and that no two lines share the same ServiceCode + ServiceDate (duplicate billing)
             if (dto.Lines != null)
             {
+                var lineKeys = new HashSet<string>();
                 foreach (var line in dto.Lines)
                 {
                     if (line.ServiceDate.Date < member.CoverageStart.Date)
                         return null;
                     if (member.CoverageEnd.HasValue && line.ServiceDate.Date > member.CoverageEnd.Value.Date)
                         return null;
+
+                    var key = $"{line.ServiceCode.Trim().ToUpper()}_{line.ServiceDate:yyyy-MM-dd}";
+                    if (!lineKeys.Add(key))
+                        return null;  // duplicate service code + date within this claim
                 }
             }
 
@@ -425,15 +431,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 _db.AuditLogs.Add(audit);
                 await _db.SaveChangesAsync();
 
-                // ── Notify provider when their claim is rejected by staff ────────────
+                // ── Notify provider when their claim is rejected ─────────────────────
+                // Look up caller's role so the message correctly says "administrator"
+                // vs "insurance staff" depending on who performed the rejection.
                 if (claim.Status == ClaimStatus.Rejected)
                 {
+                    var callerRole = await _db.Users
+                        .Where(u => u.UserID == updatedByUserId)
+                        .Select(u => u.Role)
+                        .FirstOrDefaultAsync();
+
+                    var rejectedBy = callerRole == UserRole.Admin
+                        ? "an administrator"
+                        : "insurance staff";
+
                     _db.Notifications.Add(new Notification
                     {
                         UserID = claim.ProviderID,
                         ClaimID = claim.ClaimID,
-                        Message = $"Your claim CLM-{claim.ClaimID} has been rejected by insurance staff. " +
-                                         $"If you believe this is incorrect, you may file an appeal.",
+                        Message = $"Your claim CLM-{claim.ClaimID} has been rejected by {rejectedBy}. " +
+                                  $"If you believe this is incorrect, you may file an appeal.",
                         Category = NotificationCategory.Exception,
                         Severity = NotificationSeverity.Warning,
                         Status = NotificationStatus.Unread,
@@ -483,6 +500,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     return "notallowed";
                 if (claim.ProviderID != deletedByUserId)
                     return "notfound";  // don't reveal cross-provider existence
+                if ((DateTime.UtcNow - claim.SubmittedAt).TotalHours > 1)
+                    return "windowexpired";  // 1-hour edit window has closed
             }
             else
             {

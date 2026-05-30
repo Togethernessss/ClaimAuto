@@ -68,7 +68,7 @@ const SEGMENTS = [
         label: 'In Progress',
         icon: 'bi-hourglass-split',
         color: '#f59e0b',
-        statuses: ['Pending', 'UnderReview', 'Submitted', 'Adjudicating'],
+        statuses: ['Submitted', 'DocsVerificationPending', 'UnderReview'],
     },
     {
         key: 'rejected',

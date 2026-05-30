@@ -53,7 +53,7 @@ export function claimStatusVariant(status) {
   switch (status) {
     case 'Approved': case 'Paid':            return 'success';
     case 'Pending':  case 'Submitted':       return 'warning';
-    case 'UnderReview': case 'Adjudicating': return 'info';
+    case 'UnderReview': case 'DocsVerificationPending': return 'info';
     case 'Rejected':                          return 'danger';
     default:                                  return 'secondary';
   }

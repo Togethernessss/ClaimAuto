@@ -12,9 +12,10 @@ import {
   claimTypeVariant, claimTypeIcon,
   docStatusVariant, lineStatusVariant,
   adjDecisionVariant, DOC_TYPES,
-  simulateFileURI, computeSHA256,
+  computeSHA256,
 } from '../utils/claimHelpers';
 import RejectClaimModal from './RejectClaimModal';
+import api from '../../../../api/axiosClient';
 
 // ── Claim timeline stages (Policyholder view) ────────────────────────────────
 const TIMELINE_STAGES = [
@@ -61,20 +62,19 @@ function getStageState(stageKey, claimStatus) {
     case 'submitted':
       return 'done';
     case 'docs_verification':
-      if (['UnderReview', 'Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (['UnderReview', ...terminal].includes(claimStatus)) return 'done';
       if (claimStatus === 'DocsVerificationPending') return 'active';
       return 'pending';
     case 'under_review':
-      if (['Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (terminal.includes(claimStatus)) return 'done';
       if (claimStatus === 'UnderReview') return 'active';
       return 'pending';
     case 'adjudication':
       if (terminal.includes(claimStatus)) return 'done';
-      if (claimStatus === 'Adjudicating') return 'active';
+      // No intermediate status exists — adjudication is instantaneous
       return 'pending';
     case 'decision':
       if (terminal.includes(claimStatus)) return 'done';
-      if (claimStatus === 'Adjudicating') return 'active';
       return 'pending';
     default:
       return 'pending';
@@ -232,6 +232,18 @@ export default function ClaimDetailModal({
     onUploadDocument(claim.claimID, file, docType);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  // ── Secure file preview — fetches via JWT so [Authorize] is respected ─────
+  const handlePreviewFile = async (fileURI) => {
+    try {
+      const response = await api.get(fileURI, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(response.data);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch {
+      // file unavailable — silently ignore (user will see new tab fail to open)
+    }
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -658,7 +670,7 @@ export default function ClaimDetailModal({
                                     size="sm" className="p-1" style={{ lineHeight: 1 }}
                                     title={isRealUrl ? 'Open file' : 'View details'}
                                     onClick={() => {
-                                      if (isRealUrl) window.open(doc.fileURI, '_blank');
+                                      if (isRealUrl) handlePreviewFile(doc.fileURI);
                                       else setPreviewDocId(isExpanded ? null : doc.docID);
                                     }}
                                   >

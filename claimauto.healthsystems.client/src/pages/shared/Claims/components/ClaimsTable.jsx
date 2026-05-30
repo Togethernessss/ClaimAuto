@@ -11,7 +11,6 @@ const STATUS_STYLE = {
   Submitted:               { bg: '#dbeafe', color: '#1d4ed8', dot: '#3b82f6' },
   DocsVerificationPending: { bg: '#e0f2fe', color: '#0369a1', dot: '#0ea5e9' },
   UnderReview:             { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
-  Adjudicating:            { bg: '#ede9fe', color: '#5b21b6', dot: '#8b5cf6' },
   Approved:                { bg: '#d1fae5', color: '#065f46', dot: '#10b981' },
   Paid:                    { bg: '#d1fae5', color: '#064e3b', dot: '#059669' },
   Rejected:                { bg: '#fee2e2', color: '#991b1b', dot: '#ef4444' },

@@ -12,7 +12,6 @@
     public enum DocStatus { Pending, Verified, Rejected }
     public enum MemberStatus { Active, Inactive, Suspended }
     public enum PolicyStatus { Active, Expired, Suspended }
-    public enum RuleType { Coverage, Payment, Validation }
     public enum RuleStatus { Active, Inactive, Draft }
     // NOTE: "Approved" (formerly "Paid") = adjudication decided to approve for payment.
     // The actual payment status lives in PaymentStatus on the Payment record.

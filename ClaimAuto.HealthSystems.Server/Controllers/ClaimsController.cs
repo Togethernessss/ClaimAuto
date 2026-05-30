@@ -161,10 +161,12 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             {
                 "ok"         => Ok($"Claim {id} has been deleted successfully."),
                 "notfound"   => NotFound($"Claim with ID {id} was not found."),
-                "notallowed" => BadRequest(
+                "notallowed"    => BadRequest(
                     isHospital
                         ? $"Cannot delete Claim {id}. Hospitals can only delete their own Submitted claims."
                         : $"Cannot delete Claim {id}. Only Submitted or Rejected claims can be deleted."),
+                "windowexpired" => BadRequest(
+                    $"Cannot delete Claim {id}. The 1-hour edit window has expired. Contact Insurance Staff to make changes."),
                 _ => StatusCode(500, "Unexpected error during deletion.")
             };
         }
