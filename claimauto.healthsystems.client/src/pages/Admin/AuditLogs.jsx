@@ -32,6 +32,38 @@ function getPageNumbers(current, total) {
   return result;
 }
 
+function toAuditLogDownload(log) {
+  return {
+    auditID: log.auditID,
+    userID: log.userID,
+    userName: log.userName,
+    action: log.action,
+    resourceType: log.resourceType,
+    resourceID: log.resourceID,
+    resourceLabel: log.resourceLabel,
+    details: log.parsedDetails,
+    detailsJSON: log.detailsJSON,
+    timestamp: log.timestamp?.toISOString?.() ?? null,
+    absoluteTime: log.absoluteTime,
+  };
+}
+
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+function filenameStamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
 export default function AuditLogs() {
   const [logs,          setLogs]          = useState([]);
   const [loading,       setLoading]       = useState(false);
@@ -160,6 +192,15 @@ export default function AuditLogs() {
   const startIdx   = (safeePage - 1) * PAGE_SIZE;
   const endIdx     = Math.min(startIdx + PAGE_SIZE, nameFiltered.length);
   const pagedLogs  = nameFiltered.slice(startIdx, endIdx);
+
+  function handleDownloadLogs() {
+    downloadJson(`ClaimAuto-AuditLogs-${filenameStamp()}.json`, {
+      exportedAt: new Date().toISOString(),
+      count: nameFiltered.length,
+      filters: activeFilters,
+      logs: nameFiltered.map(toAuditLogDownload),
+    });
+  }
 
   return (
     <Container fluid>
@@ -392,6 +433,36 @@ export default function AuditLogs() {
 
           {/* Right: action buttons */}
           <div className="d-flex gap-2">
+            <button
+              onClick={handleDownloadLogs}
+              disabled={loading || nameFiltered.length === 0}
+              style={{
+                padding:      '7px 16px',
+                borderRadius: 10,
+                border:       '1.5px solid rgba(255,255,255,0.35)',
+                background:   'rgba(255,255,255,0.18)',
+                color:        'white',
+                fontSize:     '0.82rem',
+                fontWeight:   600,
+                cursor:       loading || nameFiltered.length === 0 ? 'not-allowed' : 'pointer',
+                display:      'flex',
+                alignItems:   'center',
+                gap:          6,
+                backdropFilter: 'blur(8px)',
+                opacity:      loading || nameFiltered.length === 0 ? 0.55 : 1,
+                transition:   'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!loading && nameFiltered.length > 0) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.28)';
+                }
+              }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; }}
+            >
+              <i className="bi bi-download"></i>
+              Download Logs
+            </button>
+
             <button
               onClick={openPkgCard}
               style={{

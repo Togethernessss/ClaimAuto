@@ -283,6 +283,18 @@ export default function ClaimDetailModal({
                 </span>
               </div>
 
+              {/* ── Scrollable tab bar: ensures Timeline tab is always reachable ── */}
+              <style>{`
+                .cdm-tabs .nav.nav-tabs {
+                  flex-wrap: nowrap;
+                  overflow-x: auto;
+                  scrollbar-width: none;
+                  -ms-overflow-style: none;
+                  padding-bottom: 1px;
+                }
+                .cdm-tabs .nav.nav-tabs::-webkit-scrollbar { display: none; }
+              `}</style>
+              <div className="cdm-tabs">
               <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
 
                 {/* ── TAB 1: INFO ─────────────────────────────────── */}
@@ -1154,6 +1166,7 @@ export default function ClaimDetailModal({
                 )}
 
               </Tabs>
+              </div>{/* /cdm-tabs */}
             </>
           )}
         </Modal.Body>

@@ -206,7 +206,8 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasFilter("[ExternalClaimRef] IS NOT NULL");
 
             mb.Entity<Member>()
-                .HasIndex(m => m.MemberNumber).IsUnique();
+                .HasIndex(m => m.MemberNumber)
+                .HasFilter("[MemberNumber] IS NOT NULL");
 
             mb.Entity<Policy>()
                 .HasIndex(p => p.PlanCode).IsUnique();

@@ -28,9 +28,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             var userId = GetLoggedInUserId();
             var userRole = GetLoggedInUserRole();
 
-            if (userRole == "Policyholder" && userId.HasValue)
+            if (userRole == "Policyholder")
             {
-                var policies = await _policyRepo.GetPoliciesForPolicyholderAsync(userId.Value);
+                if (!userId.HasValue)
+                    return Unauthorized("Invalid token — user ID claim missing.");
+
+                var policies = await _policyRepo.GetPoliciesForPolicyholderAsync(
+                    userId.Value,
+                    GetLoggedInUserOrgId(),
+                    activeOnly: true);
                 return Ok(policies);
             }
 
@@ -40,11 +46,25 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,InsuranceStaff")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Policyholder")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllPolicies()
         {
+            var userId = GetLoggedInUserId();
+            var userRole = GetLoggedInUserRole();
             var userOrgId = GetLoggedInUserOrgId();
+
+            if (userRole == "Policyholder")
+            {
+                if (!userId.HasValue)
+                    return Unauthorized("Invalid token — user ID claim missing.");
+
+                var ownPolicies = await _policyRepo.GetPoliciesForPolicyholderAsync(
+                    userId.Value,
+                    userOrgId);
+                return Ok(ownPolicies);
+            }
+
             var policies = await _policyRepo.GetAllPoliciesAsync(userOrgId);
             return Ok(policies);
         }

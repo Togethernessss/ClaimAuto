@@ -1,4 +1,4 @@
-import { Card, Table, Button, Alert, Spinner } from 'react-bootstrap';
+import { Button, Alert, Spinner } from 'react-bootstrap';
 import { formatCurrency, formatDate, formatPaymentId, statusStyle } from '../utils/paymentHelpers';
 
 function StatusBadge({ status, referenceNumber }) {
@@ -6,9 +6,15 @@ function StatusBadge({ status, referenceNumber }) {
   return (
     <div>
       <span style={{
-        background: s.bg, color: s.text,
-        padding: '3px 10px', borderRadius: 6,
-        fontSize: 12, fontWeight: 600,
+        background: s.bg,
+        color: s.text,
+        padding: '5px 10px',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        minHeight: 26,
       }}>
         {status === 'OnHold' ? 'On Hold' : status}
       </span>
@@ -16,6 +22,137 @@ function StatusBadge({ status, referenceNumber }) {
         <div className="text-muted font-monospace mt-1" style={{ fontSize: 10 }}>
           Ref: {referenceNumber}
         </div>
+      )}
+    </div>
+  );
+}
+
+function DetailBlock({ label, children, align = 'left' }) {
+  return (
+    <div style={{ minWidth: 0, textAlign: align }}>
+      <div style={{
+        color: '#94a3b8',
+        fontSize: 10,
+        fontWeight: 800,
+        textTransform: 'uppercase',
+        letterSpacing: 0,
+        marginBottom: 5,
+      }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ActionButton({ children, variant, disabled, onClick }) {
+  const palette = {
+    authorize: { bg: '#e8f0fe', border: '#4285f4', text: '#1a56db' },
+    execute: { bg: '#d1e7dd', border: '#0a7a43', text: '#0a3622' },
+    hold: { bg: '#fdecea', border: '#e53935', text: '#b71c1c' },
+    resume: { bg: '#d1f2eb', border: '#138a72', text: '#115e59' },
+  }[variant];
+
+  return (
+    <Button
+      size="sm"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        minWidth: 112,
+        borderRadius: 8,
+        fontWeight: 700,
+        fontSize: '0.78rem',
+        background: palette.bg,
+        border: `1.5px solid ${palette.border}`,
+        color: palette.text,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        padding: '6px 10px',
+      }}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function PaymentActions({
+  payment,
+  actionLoading,
+  onAuthorize,
+  onOpenExecute,
+  onOpenHold,
+  onOpenResume,
+}) {
+  const isBusy = actionLoading === payment.paymentID;
+
+  return (
+    <div className="d-flex flex-wrap justify-content-end gap-2">
+      {payment.status === 'Pending' && (
+        <ActionButton
+          variant="authorize"
+          disabled={isBusy}
+          onClick={() => onAuthorize(payment.paymentID)}
+        >
+          {isBusy ? (
+            <Spinner animation="border" size="sm" />
+          ) : (
+            <>
+              <i className="bi bi-check2"></i>
+              Authorize
+            </>
+          )}
+        </ActionButton>
+      )}
+
+      {payment.status === 'Authorized' && (
+        <ActionButton
+          variant="execute"
+          disabled={isBusy}
+          onClick={() => onOpenExecute(payment.paymentID)}
+        >
+          <i className="bi bi-send"></i>
+          Execute
+        </ActionButton>
+      )}
+
+      {(payment.status === 'Pending' || payment.status === 'Authorized') && (
+        <ActionButton
+          variant="hold"
+          disabled={isBusy}
+          onClick={() => onOpenHold(payment)}
+        >
+          <i className="bi bi-pause-circle"></i>
+          Hold
+        </ActionButton>
+      )}
+
+      {payment.status === 'OnHold' && (
+        <ActionButton
+          variant="resume"
+          disabled={isBusy}
+          onClick={() => onOpenResume(payment)}
+        >
+          <i className="bi bi-play-circle"></i>
+          Resume
+        </ActionButton>
+      )}
+
+      {payment.status === 'Executed' && (
+        <span style={{
+          fontSize: '0.78rem',
+          color: '#64748b',
+          fontWeight: 700,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          minHeight: 32,
+        }}>
+          <i className="bi bi-check-circle-fill text-success"></i>
+          Completed
+        </span>
       )}
     </div>
   );
@@ -32,190 +169,156 @@ export default function PaymentsTable({
   onOpenHold,
   onOpenResume,
 }) {
+  if (loading) {
+    return (
+      <div className="text-center py-5 bg-white" style={{ borderRadius: 8 }}>
+        <Spinner animation="border" variant="primary" />
+        <div className="mt-2 text-muted small">Loading payments...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white p-4" style={{ borderRadius: 8 }}>
+        <Alert variant="danger" className="d-flex align-items-center mb-0">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+          <Button variant="link" size="sm" className="ms-auto p-0 text-danger" onClick={onRetry}>
+            <i className="bi bi-arrow-clockwise me-1"></i>
+            Retry
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (payments.length === 0) {
+    return (
+      <div className="text-center py-5 bg-white" style={{ borderRadius: 8, border: '1px solid #e5e7eb' }}>
+        <i className="bi bi-credit-card" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
+        <div className="fw-semibold text-muted mt-3">No payments found</div>
+        <div className="small text-muted mt-1">
+          Payments are created after claim adjudication.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
-
-        {loading && (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <div className="mt-2 text-muted small">Loading payments...</div>
+    <div style={{
+      background: '#fff',
+      borderRadius: 8,
+      border: '1px solid #e5e7eb',
+      boxShadow: '0 8px 24px rgba(15,23,42,0.06)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        padding: '14px 18px',
+        borderBottom: '1px solid #eef2f7',
+        background: '#fbfdff',
+      }}>
+        <div>
+          <div style={{ fontWeight: 800, color: '#1f2937', fontSize: 15 }}>
+            Payment Queue
           </div>
-        )}
-
-        {!loading && error && (
-          <div className="p-4">
-            <Alert variant="danger" className="d-flex align-items-center mb-0">
-              <i className="bi bi-exclamation-triangle-fill me-2"></i>
-              {error}
-              <Button variant="link" size="sm" className="ms-auto p-0 text-danger" onClick={onRetry}>
-                <i className="bi bi-arrow-clockwise me-1"></i> Retry
-              </Button>
-            </Alert>
+          <div style={{ color: '#64748b', fontSize: 12 }}>
+            {payments.length} payment{payments.length !== 1 ? 's' : ''} in this view
           </div>
-        )}
+        </div>
+        <span style={{
+          background: '#eef2ff',
+          color: '#4338ca',
+          borderRadius: 999,
+          padding: '4px 10px',
+          fontSize: 12,
+          fontWeight: 800,
+        }}>
+          Latest first
+        </span>
+      </div>
 
-        {!loading && !error && payments.length === 0 && (
-          <div className="text-center py-5">
-            <i className="bi bi-credit-card" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-            <div className="fw-semibold text-muted mt-3">No payments found</div>
-            <div className="small text-muted mt-1">
-              Payments are created after claim adjudication.
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 980 }}>
+          {payments.map((p, idx) => (
+            <div
+              key={p.paymentID}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.15fr 1.15fr 0.95fr 0.9fr 0.9fr 1.25fr',
+                gap: 18,
+                alignItems: 'center',
+                padding: '16px 18px',
+                borderTop: idx === 0 ? 'none' : '1px solid #f1f5f9',
+                background: idx % 2 === 0 ? '#ffffff' : '#fbfdff',
+              }}
+            >
+              <DetailBlock label="Payment">
+                <div className="font-monospace" style={{ fontWeight: 800, color: '#111827', fontSize: 14 }}>
+                  {formatPaymentId(p.paymentID)}
+                </div>
+                <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                  {formatDate(p.createdAt)}
+                </div>
+              </DetailBlock>
+
+              <DetailBlock label="Payee">
+                <div style={{ fontWeight: 800, color: '#111827', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.payeeName}
+                </div>
+                <div className="font-monospace" style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                  Claim #{p.claimID}
+                </div>
+              </DetailBlock>
+
+              <DetailBlock label="Amount">
+                <div style={{ fontWeight: 800, color: '#111827', fontSize: 15 }}>
+                  {formatCurrency(p.amount)}
+                </div>
+                <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                  {p.currency}
+                </div>
+              </DetailBlock>
+
+              <DetailBlock label="Method">
+                <span style={{
+                  background: '#f3f0ff',
+                  color: '#764ba2',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                }}>
+                  {p.paymentMethod}
+                </span>
+                <div style={{ color: '#64748b', fontSize: 12, marginTop: 7 }}>
+                  {formatDate(p.scheduledAt)}
+                </div>
+              </DetailBlock>
+
+              <DetailBlock label="Status">
+                <StatusBadge status={p.status} referenceNumber={p.referenceNumber} />
+              </DetailBlock>
+
+              <DetailBlock label="Actions" align="right">
+                <PaymentActions
+                  payment={p}
+                  actionLoading={actionLoading}
+                  onAuthorize={onAuthorize}
+                  onOpenExecute={onOpenExecute}
+                  onOpenHold={onOpenHold}
+                  onOpenResume={onOpenResume}
+                />
+              </DetailBlock>
             </div>
-          </div>
-        )}
-
-        {!loading && !error && payments.length > 0 && (
-          <div className="table-responsive">
-            <Table hover className="mb-0 align-middle">
-              <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <tr>
-                  <th className="ps-4 py-3 text-muted small fw-semibold text-uppercase">Payment</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Claim</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Payee</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Amount</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Method</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Scheduled</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Status</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase text-end pe-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p) => (
-                  <tr key={p.paymentID}>
-
-                    <td className="ps-4 py-3">
-                      <div className="fw-semibold font-monospace" style={{ fontSize: 13 }}>
-                        {formatPaymentId(p.paymentID)}
-                      </div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>
-                        {formatDate(p.createdAt)}
-                      </div>
-                    </td>
-
-                    <td className="py-3">
-                      <span className="font-monospace text-muted" style={{ fontSize: 12 }}>
-                        Claim #{p.claimID}
-                      </span>
-                    </td>
-
-                    <td className="py-3">
-                      <div className="fw-semibold" style={{ fontSize: 13 }}>{p.payeeName}</div>
-                    </td>
-
-                    <td className="py-3">
-                      <div className="fw-semibold">{formatCurrency(p.amount)}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>{p.currency}</div>
-                    </td>
-
-                    <td className="py-3">
-                      <span style={{
-                        background: '#f3f0ff', color: '#764ba2',
-                        padding: '2px 8px', borderRadius: 4,
-                        fontSize: 12, fontWeight: 500,
-                      }}>
-                        {p.paymentMethod}
-                      </span>
-                    </td>
-
-                    <td className="py-3 text-muted" style={{ fontSize: 12 }}>
-                      {formatDate(p.scheduledAt)}
-                    </td>
-
-                    <td className="py-3">
-                      <StatusBadge status={p.status} referenceNumber={p.referenceNumber} />
-                    </td>
-
-                    <td className="py-3 pe-4">
-                      <div className="d-flex flex-column align-items-end gap-1">
-
-                        {p.status === 'Pending' && (
-                          <Button size="sm"
-                            disabled={actionLoading === p.paymentID}
-                            onClick={() => onAuthorize(p.paymentID)}
-                            style={{
-                              width: 110, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                              background: '#e8f0fe', border: '1.5px solid #4285f4', color: '#1a56db',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              gap: 5, padding: '5px 0',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = '#4285f4'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = '#e8f0fe'; e.currentTarget.style.color = '#1a56db'; }}
-                          >
-                            {actionLoading === p.paymentID
-                              ? <Spinner animation="border" size="sm" />
-                              : <><i className="bi bi-check2 me-1"></i>Authorize</>}
-                          </Button>
-                        )}
-
-                        {p.status === 'Authorized' && (
-                          <Button size="sm"
-                            disabled={actionLoading === p.paymentID}
-                            onClick={() => onOpenExecute(p.paymentID)}
-                            style={{
-                              width: 110, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                              background: '#d1e7dd', border: '1.5px solid #0a3622', color: '#0a3622',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              gap: 5, padding: '5px 0',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = '#0a3622'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = '#d1e7dd'; e.currentTarget.style.color = '#0a3622'; }}
-                          >
-                            <i className="bi bi-send me-1"></i>Execute
-                          </Button>
-                        )}
-
-                        {(p.status === 'Pending' || p.status === 'Authorized') && (
-                          <Button size="sm"
-                            disabled={actionLoading === p.paymentID}
-                            onClick={() => onOpenHold(p)}
-                            style={{
-                              width: 110, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                              background: '#fdecea', border: '1.5px solid #e53935', color: '#b71c1c',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              gap: 5, padding: '5px 0',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = '#e53935'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = '#fdecea'; e.currentTarget.style.color = '#b71c1c'; }}
-                          >
-                            <i className="bi bi-pause-circle me-1"></i>Hold
-                          </Button>
-                        )}
-
-                        {p.status === 'OnHold' && (
-                          <Button size="sm"
-                            disabled={actionLoading === p.paymentID}
-                            onClick={() => onOpenResume(p)}
-                            style={{
-                              width: 110, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                              background: '#d1f2eb', border: '1.5px solid #1b5e20', color: '#1b5e20',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              gap: 5, padding: '5px 0',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = '#1b5e20'; e.currentTarget.style.color = '#fff'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = '#d1f2eb'; e.currentTarget.style.color = '#1b5e20'; }}
-                          >
-                            <i className="bi bi-play-circle me-1"></i>Resume
-                          </Button>
-                        )}
-
-                        {p.status === 'Executed' && (
-                          <span style={{ fontSize: '0.78rem', color: '#9e9e9e', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <i className="bi bi-check-circle-fill text-success"></i> Completed
-                          </span>
-                        )}
-
-                      </div>
-                    </td>
-
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
-
-      </Card.Body>
-    </Card>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
