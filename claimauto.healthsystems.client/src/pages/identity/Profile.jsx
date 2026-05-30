@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Badge, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
-import { getMyMember } from '../../services/members/memberService';
+import { getMyMemberEnrollments } from '../../services/members/memberService';
 import ProfileInfoCard      from '../../components/identity/ProfileInfoCard';
 import MfaCard              from '../../components/identity/MfaCard';
 import AccountInfoCard      from '../../components/identity/AccountInfoCard';
@@ -46,6 +46,7 @@ export default function Profile() {
 
   // ── Policyholder Insurance Member Card state ──────────────────
   const [myMember,      setMyMember]      = useState(null);
+  const [myMembers,     setMyMembers]     = useState([]);
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberError,   setMemberError]   = useState(null);
   const [copiedMember,  setCopiedMember]  = useState(false);
@@ -62,11 +63,16 @@ export default function Profile() {
   useEffect(() => {
     if (user?.role !== 'Policyholder') return;
     setMemberLoading(true);
-    getMyMember()
-      .then((data) => setMyMember(data))
+    getMyMemberEnrollments()
+      .then((data) => {
+        const enrollments = Array.isArray(data) ? data : [];
+        setMyMembers(enrollments);
+        setMyMember(enrollments[0] ?? null);
+      })
       .catch((err) => {
         if (err.response?.status === 404) {
-          setMyMember(null); // not enrolled yet — not an error
+          setMyMembers([]);
+          setMyMember(null); // not enrolled yet - not an error
         } else {
           setMemberError('Could not load insurance details.');
         }
@@ -653,7 +659,7 @@ export default function Profile() {
                 position: 'relative',
                 overflow: 'hidden',
                 boxShadow: '0 12px 40px rgba(102,126,234,0.38)',
-                maxWidth: 560,
+                maxWidth: 720,
               }}
             >
               {/* Decorative orbs */}
@@ -797,7 +803,9 @@ export default function Profile() {
                     Policy Plan
                   </div>
                   <div style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>
-                    {myMember.policyName || '—'}
+                    {myMembers.length > 1
+                      ? `${myMembers.length} linked policies`
+                      : (myMember.policyName || '-')}
                   </div>
                 </div>
                 <div>
@@ -814,6 +822,59 @@ export default function Profile() {
                     {fmtCardDate(myMember.coverageEnd)}
                   </div>
                 </div>
+              </div>
+              {myMembers.length > 1 && (
+                <div
+                  style={{
+                    marginTop: 14,
+                    borderTop: '1px solid rgba(255,255,255,0.14)',
+                    paddingTop: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  {myMembers.map((enrollment) => (
+                    <div
+                      key={enrollment.memberID}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
+                      <span style={{
+                        color: 'rgba(255,255,255,0.86)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}>
+                        {enrollment.policyName || 'Policy'}
+                      </span>
+                      <span style={{
+                        color: 'rgba(255,255,255,0.62)',
+                        fontSize: 11,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {fmtCardDate(enrollment.coverageStart)}
+                        {' - '}
+                        {fmtCardDate(enrollment.coverageEnd)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* ── Multi-enrollment info note ───────────── */}
+              <div style={{
+                marginTop: 14,
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+                background: 'rgba(255,255,255,0.08)',
+                borderRadius: 10, padding: '8px 12px',
+              }}>
+                <i className="bi bi-info-circle-fill" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 1, flexShrink: 0 }}></i>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                  The same Member ID is used across your linked policy enrollments. Check the <strong style={{ color: 'rgba(255,255,255,0.9)' }}>Policies</strong> page for full coverage details.
+                </span>
               </div>
             </div>
           )}
@@ -834,19 +895,26 @@ export default function Profile() {
       </div>
 
       {/* ── Cards Grid ────────────────────────────────────────── */}
+      {/* Row 1: Profile info alongside Security Overview — balanced heights */}
       <Row className="g-4">
         <Col lg={7}>
-          <div className="d-flex flex-column gap-3">
-            <ProfileInfoCard user={user} />
-            <SecurityOverviewCard user={user} />
-          </div>
+          <ProfileInfoCard user={user} />
         </Col>
         <Col lg={5}>
-          <div className="d-flex flex-column gap-3">
-            <ChangePasswordCard />
-            <MfaCard user={user} />
-            <AccountInfoCard user={user} />
-          </div>
+          <SecurityOverviewCard user={user} />
+        </Col>
+      </Row>
+
+      {/* Row 2: Three security-action cards in equal columns */}
+      <Row className="g-4 mt-0">
+        <Col md={4}>
+          <ChangePasswordCard />
+        </Col>
+        <Col md={4}>
+          <MfaCard user={user} />
+        </Col>
+        <Col md={4}>
+          <AccountInfoCard user={user} />
         </Col>
       </Row>
 

@@ -95,16 +95,14 @@ export default function Payments() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAllPayments(
-        statusFilter !== 'All' ? statusFilter : null
-      );
+      const data = await getAllPayments();
       setPayments(data);
     } catch {
       setError('Failed to load payments.');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
 
@@ -126,12 +124,13 @@ export default function Payments() {
 
   // ── Filtered list ─────────────────────────────────────────────
   const filtered = payments.filter((p) => {
-    if (!search) return true;
     const q = search.toLowerCase();
-    return (
+    const matchSearch = !search || (
       String(p.paymentID).includes(q) ||
       p.payeeName?.toLowerCase().includes(q)
     );
+    const matchStatus = statusFilter === 'All' || p.status === statusFilter;
+    return matchSearch && matchStatus;
   });
 
   const totalPages    = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -269,17 +268,19 @@ export default function Payments() {
   return (
     <Container fluid className="p-0">
 
-      <PaymentsHeader
-        successMsg={successMsg}
-        errorMsg={errorMsg}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onCreateClick={() => {
-          setCreateForm(EMPTY_CREATE);
-          setCreateError(null);
-          setShowCreate(true);
-        }}
-      />
+      <div className="px-4 pt-4">
+        <PaymentsHeader
+          successMsg={successMsg}
+          errorMsg={errorMsg}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onCreateClick={() => {
+            setCreateForm(EMPTY_CREATE);
+            setCreateError(null);
+            setShowCreate(true);
+          }}
+        />
+      </div>
 
       <div className="px-4 pb-4 pt-4">
 
@@ -297,7 +298,11 @@ export default function Payments() {
             />
 
             {!loading && !error && (
-              <PaymentsSummary payments={payments} />
+              <PaymentsSummary
+                payments={payments}
+                activeStatus={statusFilter}
+                onCardClick={setStatusFilter}
+              />
             )}
 
             <PaymentsTable

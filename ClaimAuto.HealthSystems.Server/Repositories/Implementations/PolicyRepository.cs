@@ -448,23 +448,40 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             };
         }
 
-        public async Task<List<PolicyResponseDto>> GetPoliciesForPolicyholderAsync(int policyholderUserId)
+        public async Task<List<PolicyResponseDto>> GetPoliciesForPolicyholderAsync(
+            int policyholderUserId,
+            int? userOrgId = null,
+            bool activeOnly = false)
         {
-            // Get PolicyIDs from members that belong to this policyholder
-            var policyIds = await _db.Members
-                .Where(m => m.PolicyholderUserID == policyholderUserId
-                         && m.Status == MemberStatus.Active)
-                .Select(m => m.PolicyID)
-                .Distinct()
-                .ToListAsync();
+            var today = DateTime.UtcNow;
 
-            return await _db.Policies
-                .Where(p => policyIds.Contains(p.PolicyID)
-                         && p.Status == PolicyStatus.Active)
+            var memberQuery = _db.Members
+                .Where(m => m.PolicyholderUserID == policyholderUserId);
+
+            if (activeOnly)
+                memberQuery = memberQuery.Where(m => m.Status == MemberStatus.Active);
+
+            var policyIds = memberQuery.Select(m => m.PolicyID).Distinct();
+
+            var policyQuery = _db.Policies
+                .Where(p => policyIds.Contains(p.PolicyID));
+
+            if (userOrgId.HasValue)
+                policyQuery = policyQuery.Where(p => p.OrganizationID == userOrgId.Value);
+
+            if (activeOnly)
+            {
+                policyQuery = policyQuery.Where(p =>
+                    p.Status == PolicyStatus.Active &&
+                    p.EffectiveFrom <= today &&
+                    (p.EffectiveTo == null || p.EffectiveTo >= today));
+            }
+
+            return await policyQuery
                 .Select(p => new PolicyResponseDto
                 {
                     PolicyID = p.PolicyID,
-                    PlanCode = p.PlanCode,
+                    PlanCode = p.PlanCode ?? string.Empty,
                     PlanName = p.PlanName,
                     CoverageRulesJSON = p.CoverageRulesJSON,
                     SumInsured = p.SumInsured,
@@ -472,7 +489,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     EffectiveFrom = p.EffectiveFrom,
                     EffectiveTo = p.EffectiveTo,
                     Status = p.Status.ToString(),
-                    MemberCount = p.Members.Count,
+                    MemberCount = _db.Members.Count(m => m.PolicyID == p.PolicyID),
                 })
                 .ToListAsync();
         }

@@ -12,7 +12,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         Task<PolicyResponseDto?> UpdatePolicyAsync(int policyId, UpdatePolicyDto dto, int updatedByUserId);
         Task<string> DeactivatePolicyAsync(int policyId, int deactivatedByUserId);
         Task<object> AutoExpirePoliciesAsync();
-        // Returns only policies that have members belonging to this policyholder
-        Task<List<PolicyResponseDto>> GetPoliciesForPolicyholderAsync(int policyholderUserId);
+        // Returns policies that have members belonging to this policyholder.
+        Task<List<PolicyResponseDto>> GetPoliciesForPolicyholderAsync(int policyholderUserId, int? userOrgId = null, bool activeOnly = false);
     }
 }

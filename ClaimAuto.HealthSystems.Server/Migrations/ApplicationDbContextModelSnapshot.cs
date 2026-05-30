@@ -687,7 +687,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("MemberID");
 
                     b.HasIndex("MemberNumber")
-                        .IsUnique()
                         .HasFilter("[MemberNumber] IS NOT NULL");
 
                     b.HasIndex("OrganizationID");

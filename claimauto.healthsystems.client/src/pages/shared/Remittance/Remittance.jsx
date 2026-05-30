@@ -144,10 +144,12 @@ export default function Remittance() {
   return (
     <Container fluid className="p-0">
 
-      <RemittanceHeader
-        successMsg={successMsg}
-        errorMsg={errorMsg}
-      />
+      <div className="px-4 pt-4">
+        <RemittanceHeader
+          successMsg={successMsg}
+          errorMsg={errorMsg}
+        />
+      </div>
 
       <div className="px-4 pb-4">
 
