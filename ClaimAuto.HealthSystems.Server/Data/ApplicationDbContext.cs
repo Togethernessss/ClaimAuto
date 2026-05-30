@@ -40,6 +40,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
 
         // Module 7
         public DbSet<Appeal> Appeals { get; set; }
+        public DbSet<AppealDocument> AppealDocuments { get; set; }
         public DbSet<Subrogation> Subrogations { get; set; }
 
         // Module 8
@@ -109,6 +110,25 @@ namespace ClaimAuto.HealthSystems.Server.Data
                 .HasForeignKey(a => a.OrganizationID)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // ── AppealDocument: belongs to one Appeal, cascade-delete with appeal ──
+            mb.Entity<AppealDocument>()
+                .HasOne(d => d.Appeal)
+                .WithMany()
+                .HasForeignKey(d => d.AppealID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<AppealDocument>()
+                .HasOne(d => d.Organization)
+                .WithMany()
+                .HasForeignKey(d => d.OrganizationID)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Force varbinary(max) so large PDFs / images fit
+            mb.Entity<AppealDocument>()
+                .Property(d => d.FileData)
+                .HasColumnType("varbinary(max)");
 
             mb.Entity<Notification>()
     .HasOne(n => n.Organization)

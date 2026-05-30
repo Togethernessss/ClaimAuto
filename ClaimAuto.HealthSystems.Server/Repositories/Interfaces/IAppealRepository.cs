@@ -19,5 +19,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         // ── SaaS FIX: now accepts userOrgId for tenant scoping ──
         Task<List<Subrogation>> GetSubrogationsAsync(int? userOrgId = null);
+
+        // ── AppealDocuments — individual uploaded files ─────────────────────
+        Task SaveAppealDocumentsAsync(int appealId, List<AppealDocument> docs);
+        Task<List<AppealDocument>> GetAppealDocumentsAsync(int appealId, int? userOrgId = null);
+        Task<AppealDocument?> GetAppealDocumentByIdAsync(int appealId, int docId, int? userOrgId = null);
     }
 }
