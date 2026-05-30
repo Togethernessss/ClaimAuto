@@ -21,6 +21,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly INotificationRepository _notifRepo;
         private readonly IAppealPdfRepository _pdfService;
         private readonly IAdjudicationRepository _adjRepo;
+        private readonly IOrganizationRepository _orgRepo;
         private readonly ILogger<AppealsController> _logger;
 
         public AppealsController(
@@ -30,6 +31,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             INotificationRepository notifRepo,
             IAppealPdfRepository pdfService,
             IAdjudicationRepository adjRepo,
+            IOrganizationRepository orgRepo,
             ILogger<AppealsController> logger)
         {
             _appealRepo = appealRepo;
@@ -38,6 +40,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _notifRepo = notifRepo;
             _pdfService = pdfService;
             _adjRepo = adjRepo;
+            _orgRepo = orgRepo;
             _logger = logger;
         }
 
@@ -169,11 +172,35 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             int userId = GetCurrentUserId();
             var userOrgId = GetLoggedInUserOrgId();
 
-            // ── Store uploaded file names in DocumentsJSON ──
-            string? documentsJSON = null;
+            // ════════════════════════════════════════════════════════════
+            //  Pre-read all uploaded files into memory ONCE.
+            //  IFormFile streams can only be consumed once. We need the
+            //  bytes for BOTH AppealDocument storage AND PDF compilation,
+            //  so we cache them up front and reuse them everywhere.
+            // ════════════════════════════════════════════════════════════
+            var cachedFiles = new List<(string Name, string ContentType, byte[] Data)>();
             if (files != null && files.Count > 0)
             {
-                var fileNames = files.Select(f => f.FileName).ToList();
+                foreach (var file in files)
+                {
+                    if (file.Length == 0) continue;
+                    using var ms = new MemoryStream();
+                    await file.CopyToAsync(ms);
+                    cachedFiles.Add((
+                        Name: file.FileName,
+                        ContentType: string.IsNullOrEmpty(file.ContentType)
+                            ? "application/octet-stream"
+                            : file.ContentType,
+                        Data: ms.ToArray()
+                    ));
+                }
+            }
+
+            // ── Store uploaded file names in DocumentsJSON (legacy compat) ──
+            string? documentsJSON = null;
+            if (cachedFiles.Count > 0)
+            {
+                var fileNames = cachedFiles.Select(f => f.Name).ToList();
                 documentsJSON = System.Text.Json.JsonSerializer.Serialize(fileNames);
             }
 
@@ -191,16 +218,88 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
             var created = await _appealRepo.FileAppealAsync(appeal);
 
-            // ── Compile uploaded documents into a single PDF via QuestPDF ──
-            if (files != null && files.Count > 0)
+            // ── Persist each original file as an AppealDocument row ──
+            if (cachedFiles.Count > 0)
+            {
+                try
+                {
+                    var docs = cachedFiles.Select(cf => new AppealDocument
+                    {
+                        AppealID       = created.AppealID,
+                        FileName       = cf.Name,
+                        ContentType    = cf.ContentType,
+                        FileSize       = cf.Data.Length,
+                        FileData       = cf.Data,
+                        UploadedAt     = DateTime.UtcNow,
+                        OrganizationID = userOrgId,
+                    }).ToList();
+
+                    await _appealRepo.SaveAppealDocumentsAsync(created.AppealID, docs);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Saving AppealDocuments failed for Appeal {AppealID}. Appeal was saved without original files.",
+                        created.AppealID);
+                    // Non-fatal — appeal is still filed, individual files just missing
+                }
+            }
+
+            // ── Compile uploaded documents into a single audit-ready PDF ──
+            // Re-wrap cached bytes as IFormFile so we don't have to change the PDF service.
+            if (cachedFiles.Count > 0)
             {
                 try
                 {
                     var filer = await _userRepo.GetUserByIdAsync(userId);
+
+                    // Org name is best-effort — failure here shouldn't block PDF generation.
+                    string? orgName = null;
+                    if (userOrgId.HasValue)
+                    {
+                        try
+                        {
+                            var org = await _orgRepo.GetByIdAsync(userOrgId.Value);
+                            orgName = org?.Name;
+                        }
+                        catch { /* leave orgName null — PDF falls back to brand */ }
+                    }
+
+                    // Compose the richer context the PDF renderer needs.
+                    var pdfContext = new AppealPdfContext(
+                        FilerName:           filer?.Name ?? "Unknown",
+                        FilerRole:           filer?.Role.ToString(),
+                        ClaimReference:      !string.IsNullOrWhiteSpace(claim.ExternalClaimRef)
+                                                ? claim.ExternalClaimRef
+                                                : $"CLM-{claim.ClaimID}",
+                        MemberName:          claim.MemberName,
+                        ProviderName:        claim.ProviderName,
+                        ClaimTypeDisplay:    claim.ClaimType,
+                        ClaimAmount:         claim.TotalBilledAmount,
+                        ClaimStatusDisplay:  claim.Status,
+                        OrganizationName:    orgName
+                    );
+
+                    var pdfInputFiles = cachedFiles.Select(cf =>
+                    {
+                        var stream = new MemoryStream(cf.Data);
+                        var ff = new Microsoft.AspNetCore.Http.FormFile(
+                            baseStream: stream,
+                            baseStreamOffset: 0,
+                            length: cf.Data.Length,
+                            name: "files",
+                            fileName: cf.Name)
+                        {
+                            Headers = new HeaderDictionary(),
+                            ContentType = cf.ContentType,
+                        };
+                        return (IFormFile)ff;
+                    }).ToList();
+
                     created.AppealFilePDF = _pdfService.CompileDocumentsPdf(
                         created,
-                        filer?.Name ?? "Unknown",
-                        files.ToList());
+                        pdfContext,
+                        pdfInputFiles);
                     await _appealRepo.UpdateAppealAsync(created);
                 }
                 catch (Exception ex)
@@ -293,6 +392,98 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
 
         // ═══════════════════════════════════════════════════════════════
+        //  GET /api/appeals/{id}/documents — list original uploaded files
+        // ═══════════════════════════════════════════════════════════════
+        /// <summary>Returns metadata for every original file uploaded with this appeal.</summary>
+        [HttpGet("{id}/documents")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetAppealDocuments(int id)
+        {
+            var userOrgId = GetLoggedInUserOrgId();
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, userOrgId);
+            if (appeal == null)
+                return NotFound(new { message = $"Appeal {id} not found." });
+
+            string role = GetCurrentUserRole();
+            if (!IsStaffRole(role) && appeal.FiledBy != GetCurrentUserId())
+                return Forbid();
+
+            var docs = await _appealRepo.GetAppealDocumentsAsync(id, userOrgId);
+
+            var response = docs.Select(d => new AppealDocumentResponseDto
+            {
+                DocumentID  = d.DocumentID,
+                AppealID    = d.AppealID,
+                FileName    = d.FileName,
+                ContentType = d.ContentType,
+                FileSize    = d.FileSize,
+                UploadedAt  = d.UploadedAt,
+            }).ToList();
+
+            return Ok(response);
+        }
+
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/appeals/{id}/documents/{docId}/view — inline preview
+        // ═══════════════════════════════════════════════════════════════
+        /// <summary>Streams a single original file for inline browser viewing.</summary>
+        [HttpGet("{id}/documents/{docId}/view")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ViewAppealDocument(int id, int docId)
+        {
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, userOrgId);
+            if (appeal == null)
+                return NotFound(new { message = $"Appeal {id} not found." });
+
+            string role = GetCurrentUserRole();
+            if (!IsStaffRole(role) && appeal.FiledBy != GetCurrentUserId())
+                return Forbid();
+
+            var doc = await _appealRepo.GetAppealDocumentByIdAsync(id, docId, userOrgId);
+            if (doc == null || doc.FileData == null || doc.FileData.Length == 0)
+                return NotFound(new { message = $"Document {docId} not found." });
+
+            Response.Headers["Content-Disposition"] = $"inline; filename=\"{doc.FileName}\"";
+            return File(doc.FileData, doc.ContentType);
+        }
+
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/appeals/{id}/documents/{docId}/download — file save
+        // ═══════════════════════════════════════════════════════════════
+        /// <summary>Downloads a single original file with its original filename.</summary>
+        [HttpGet("{id}/documents/{docId}/download")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DownloadAppealDocument(int id, int docId)
+        {
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var appeal = await _appealRepo.GetAppealByIdAsync(id, userOrgId);
+            if (appeal == null)
+                return NotFound(new { message = $"Appeal {id} not found." });
+
+            string role = GetCurrentUserRole();
+            if (!IsStaffRole(role) && appeal.FiledBy != GetCurrentUserId())
+                return Forbid();
+
+            var doc = await _appealRepo.GetAppealDocumentByIdAsync(id, docId, userOrgId);
+            if (doc == null || doc.FileData == null || doc.FileData.Length == 0)
+                return NotFound(new { message = $"Document {docId} not found." });
+
+            return File(doc.FileData, doc.ContentType, doc.FileName);
+        }
+
+
+        // ═══════════════════════════════════════════════════════════════
         //  PUT /api/appeals/{id}/decide — Admin/Staff decide an appeal
         // ═══════════════════════════════════════════════════════════════
         /// <summary>Records a decision. If Overturned, the linked claim resets to Submitted.</summary>
@@ -379,6 +570,87 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                         });
                     }
                 }
+            }
+            else if (parsedOutcome == AppealOutcome.PartiallyUpheld)
+            {
+                // ── Validate the partial-payable inputs ──────────────────────
+                if (!dto.PartialPayableAmount.HasValue || dto.PartialPayableAmount.Value <= 0)
+                    return BadRequest(new
+                    {
+                        message = "PartialPayableAmount is required and must be greater than 0 " +
+                                  "when Outcome is PartiallyUpheld."
+                    });
+
+                if (string.IsNullOrWhiteSpace(dto.PartialReason) || dto.PartialReason.Trim().Length < 10)
+                    return BadRequest(new
+                    {
+                        message = "PartialReason is required (minimum 10 characters) for an audit trail " +
+                                  "when Outcome is PartiallyUpheld."
+                    });
+
+                // Load the claim to check the cap and to capture original billed amount for the notification.
+                var claimDto = await _claimRepo.GetClaimByIdAsync(appeal.ClaimID, orgId);
+                if (claimDto == null)
+                    return NotFound(new { message = $"Linked claim CLM-{appeal.ClaimID} not found." });
+
+                if (dto.PartialPayableAmount.Value > claimDto.TotalBilledAmount)
+                    return BadRequest(new
+                    {
+                        message = $"PartialPayableAmount (₹{dto.PartialPayableAmount.Value:N2}) cannot exceed " +
+                                  $"the original billed amount (₹{claimDto.TotalBilledAmount:N2})."
+                    });
+
+                // ── Use manual adjudication path ─────────────────────────────
+                // ManualAdjudicateAsync creates the AdjudicationRecord, updates Claim+Lines status,
+                // auto-creates the Payment (Pending), and writes the audit log. Reusing it keeps the
+                // single source of truth for "what happens when a claim is partially approved".
+                var manualDto = new ManualAdjudicateDto
+                {
+                    ClaimID       = appeal.ClaimID,
+                    Decision      = "Partial",
+                    PayableAmount = dto.PartialPayableAmount.Value,
+                    Notes         = $"Appeal APL-{appeal.AppealID} partially upheld. " +
+                                    $"Original billed: ₹{claimDto.TotalBilledAmount:N2}, " +
+                                    $"approved: ₹{dto.PartialPayableAmount.Value:N2}. " +
+                                    $"Reason: {dto.PartialReason!.Trim()}",
+                };
+
+                try
+                {
+                    await _adjRepo.ManualAdjudicateAsync(manualDto, deciderId, orgId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Manual adjudication after PartiallyUpheld appeal failed for Claim {ClaimID}.",
+                        appeal.ClaimID);
+                    return StatusCode(500, new
+                    {
+                        message = "The appeal was decided, but creating the partial payment failed. " +
+                                  "Please re-process this claim manually."
+                    });
+                }
+
+                // ── Notify the filer with the actual numbers ─────────────────
+                var percentApproved = claimDto.TotalBilledAmount > 0
+                    ? (double)(dto.PartialPayableAmount.Value / claimDto.TotalBilledAmount) * 100
+                    : 0;
+
+                await _notifRepo.CreateAsync(new Notification
+                {
+                    UserID = appeal.FiledBy,
+                    ClaimID = appeal.ClaimID,
+                    Message = $"Your appeal for CLM-{appeal.ClaimID} has been Partially Upheld. " +
+                              $"₹{dto.PartialPayableAmount.Value:N2} of ₹{claimDto.TotalBilledAmount:N2} " +
+                              $"({percentApproved:F0}%) will be paid. " +
+                              $"Reason: {dto.PartialReason!.Trim()}. " +
+                              $"Payment is now pending staff authorization.",
+                    Category = NotificationCategory.Appeal,
+                    Severity = NotificationSeverity.Info,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = orgId,
+                });
             }
             else // Upheld — rejection stands
             {
