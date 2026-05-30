@@ -12,7 +12,7 @@ const ROLE_CHIP = {
   Policyholder:   { label: 'Member',  color: '#6ee7b7', bg: 'rgba(16,185,129,0.18)' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed = false }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeAppealCount, setActiveAppealCount] = useState(0);
@@ -48,14 +48,15 @@ export default function Sidebar() {
   return (
     <aside
       style={{
-        width:      '100%',
-        minHeight:  '100%',
-        background: 'linear-gradient(180deg, #1e1b4b 0%, #1a1535 55%, #16103c 100%)',
-        display:    'flex',
+        width:         '100%',
+        minHeight:     '100%',
+        background:    'linear-gradient(180deg, #1e1b4b 0%, #1a1535 55%, #16103c 100%)',
+        display:       'flex',
         flexDirection: 'column',
-        padding:    '18px 12px 14px',
-        position:   'relative',
-        overflow:   'hidden',
+        padding:       collapsed ? '18px 8px 14px' : '18px 12px 14px',
+        position:      'relative',
+        overflow:      'hidden',
+        transition:    'padding 0.3s ease',
       }}
     >
       {/* ── Scoped styles ──────────────────────────────────────────── */}
@@ -73,6 +74,7 @@ export default function Sidebar() {
           text-decoration: none;
           transition:      all 0.18s ease;
           cursor:          pointer;
+          position:        relative;
         }
         .snl:hover {
           background: rgba(255,255,255,0.07);
@@ -100,6 +102,18 @@ export default function Sidebar() {
         .snl .sni i        { font-size: 13px; color: rgba(255,255,255,0.45); transition: color 0.18s; }
         .snl:hover .sni i  { color: rgba(255,255,255,0.85); }
         .snl.active .sni i { color: white; }
+
+        /* ── Collapsed state overrides ─────────────────────────── */
+        .snl-collapsed {
+          justify-content: center;
+          padding:         9px 4px;
+          gap:             0;
+        }
+        .snl-collapsed .sni {
+          width:  36px;
+          height: 36px;
+        }
+        .snl-collapsed .sni i { font-size: 15px; }
       `}</style>
 
       {/* ── Decorative orbs ──────────────────────────────────────── */}
@@ -118,57 +132,66 @@ export default function Sidebar() {
 
       {/* ── User mini-profile ────────────────────────────────────── */}
       <div style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           10,
-        padding:       '8px 10px 14px',
-        borderBottom:  '1px solid rgba(255,255,255,0.08)',
-        marginBottom:  12,
-        position:      'relative',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        gap:            collapsed ? 0 : 10,
+        padding:        `8px 10px ${collapsed ? 10 : 14}px`,
+        borderBottom:   '1px solid rgba(255,255,255,0.08)',
+        marginBottom:   12,
+        position:       'relative',
+        transition:     'all 0.3s ease',
       }}>
         {/* Avatar circle */}
-        <div style={{
-          width:      38, height: 38,
-          borderRadius: '50%',
-          flexShrink:  0,
-          background:  'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
-          display:     'flex',
-          alignItems:  'center',
-          justifyContent: 'center',
-          fontSize:    13,
-          fontWeight:  800,
-          color:       'white',
-          boxShadow:   '0 3px 10px rgba(102,126,234,0.55)',
-          border:      '2px solid rgba(255,255,255,0.15)',
-          letterSpacing: 0.5,
-        }}>
+        <div
+          title={collapsed ? (user.name || user.email) : undefined}
+          style={{
+            width:          38, height: 38,
+            borderRadius:   '50%',
+            flexShrink:     0,
+            background:     'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            fontSize:       13,
+            fontWeight:     800,
+            color:          'white',
+            boxShadow:      '0 3px 10px rgba(102,126,234,0.55)',
+            border:         '2px solid rgba(255,255,255,0.15)',
+            letterSpacing:  0.5,
+            cursor:         collapsed ? 'default' : 'auto',
+          }}>
           {initials}
         </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div style={{
-            color:         'white',
-            fontWeight:    600,
-            fontSize:      13,
-            whiteSpace:    'nowrap',
-            overflow:      'hidden',
-            textOverflow:  'ellipsis',
-          }}>
-            {user.name || user.email}
+
+        {/* Name + role — hidden when collapsed */}
+        {!collapsed && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{
+              color:        'white',
+              fontWeight:   600,
+              fontSize:     13,
+              whiteSpace:   'nowrap',
+              overflow:     'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {user.name || user.email}
+            </div>
+            <span style={{
+              display:      'inline-block',
+              marginTop:    3,
+              background:   chip.bg,
+              color:        chip.color,
+              fontSize:     10,
+              fontWeight:   700,
+              padding:      '1px 9px',
+              borderRadius: 20,
+              letterSpacing: '0.3px',
+            }}>
+              {chip.label}
+            </span>
           </div>
-          <span style={{
-            display:      'inline-block',
-            marginTop:    3,
-            background:   chip.bg,
-            color:        chip.color,
-            fontSize:     10,
-            fontWeight:   700,
-            padding:      '1px 9px',
-            borderRadius: 20,
-            letterSpacing: '0.3px',
-          }}>
-            {chip.label}
-          </span>
-        </div>
+        )}
       </div>
 
       {/* ── Menu items ───────────────────────────────────────────── */}
@@ -178,30 +201,52 @@ export default function Sidebar() {
             key={item.key}
             to={item.path}
             end={item.path === '/'}
-            className={({ isActive }) => `snl${isActive ? ' active' : ''}`}
+            className={({ isActive }) =>
+              `snl${collapsed ? ' snl-collapsed' : ''}${isActive ? ' active' : ''}`
+            }
+            title={collapsed ? item.label : undefined}
           >
             <span className="sni">
               <i className={item.icon}></i>
             </span>
 
-            <span style={{ flex: 1 }}>{item.label}</span>
+            {/* Label + badge — hidden when collapsed */}
+            {!collapsed && (
+              <>
+                <span style={{ flex: 1 }}>{item.label}</span>
 
-            {/* Appeal badge */}
-            {item.key === 'appeals' && activeAppealCount > 0 && isStaff && (
+                {item.key === 'appeals' && activeAppealCount > 0 && isStaff && (
+                  <span style={{
+                    background:   '#ef4444',
+                    color:        'white',
+                    fontSize:     10,
+                    fontWeight:   700,
+                    borderRadius: 20,
+                    padding:      '1px 7px',
+                    minWidth:     20,
+                    textAlign:    'center',
+                    boxShadow:    '0 2px 6px rgba(239,68,68,0.45)',
+                    flexShrink:   0,
+                  }}>
+                    {activeAppealCount > 99 ? '99+' : activeAppealCount}
+                  </span>
+                )}
+              </>
+            )}
+
+            {/* Collapsed: tiny red dot indicator for appeals badge */}
+            {collapsed && item.key === 'appeals' && activeAppealCount > 0 && isStaff && (
               <span style={{
+                position:     'absolute',
+                top:          4,
+                right:        4,
+                width:        8,
+                height:       8,
+                borderRadius: '50%',
                 background:   '#ef4444',
-                color:        'white',
-                fontSize:     10,
-                fontWeight:   700,
-                borderRadius: 20,
-                padding:      '1px 7px',
-                minWidth:     20,
-                textAlign:    'center',
-                boxShadow:    '0 2px 6px rgba(239,68,68,0.45)',
-                flexShrink:   0,
-              }}>
-                {activeAppealCount > 99 ? '99+' : activeAppealCount}
-              </span>
+                border:       '1.5px solid #1a1535',
+                boxShadow:    '0 0 4px rgba(239,68,68,0.6)',
+              }} />
             )}
           </NavLink>
         ))}
@@ -209,20 +254,21 @@ export default function Sidebar() {
 
       {/* ── Divider ──────────────────────────────────────────────── */}
       <div style={{
-        borderTop:  '1px solid rgba(255,255,255,0.08)',
-        margin:     '10px 4px 8px',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        margin:    '10px 4px 8px',
       }} />
 
       {/* ── Logout button ────────────────────────────────────────── */}
       <button
         onClick={handleLogout}
+        title={collapsed ? 'Logout' : undefined}
         style={{
           display:         'flex',
           alignItems:      'center',
           justifyContent:  'center',
-          gap:             8,
+          gap:             collapsed ? 0 : 8,
           width:           '100%',
-          padding:         '9px 12px',
+          padding:         collapsed ? '9px 4px' : '9px 12px',
           borderRadius:    12,
           border:          '1px solid rgba(239,68,68,0.28)',
           background:      'rgba(239,68,68,0.08)',
@@ -234,29 +280,31 @@ export default function Sidebar() {
           marginBottom:    8,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background   = 'rgba(239,68,68,0.2)';
-          e.currentTarget.style.color        = '#fca5a5';
-          e.currentTarget.style.borderColor  = 'rgba(239,68,68,0.5)';
+          e.currentTarget.style.background  = 'rgba(239,68,68,0.2)';
+          e.currentTarget.style.color       = '#fca5a5';
+          e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background   = 'rgba(239,68,68,0.08)';
-          e.currentTarget.style.color        = '#f87171';
-          e.currentTarget.style.borderColor  = 'rgba(239,68,68,0.28)';
+          e.currentTarget.style.background  = 'rgba(239,68,68,0.08)';
+          e.currentTarget.style.color       = '#f87171';
+          e.currentTarget.style.borderColor = 'rgba(239,68,68,0.28)';
         }}
       >
-        <i className="bi bi-box-arrow-right" style={{ fontSize: 14 }}></i>
-        Logout
+        <i className="bi bi-box-arrow-right" style={{ fontSize: collapsed ? 16 : 14 }}></i>
+        {!collapsed && 'Logout'}
       </button>
 
-      {/* ── Footer ───────────────────────────────────────────────── */}
-      <div style={{
-        textAlign:     'center',
-        fontSize:      10,
-        color:         'rgba(255,255,255,0.18)',
-        letterSpacing: '0.4px',
-      }}>
-        ClaimAuto &nbsp;·&nbsp; {menu.length} page{menu.length !== 1 ? 's' : ''}
-      </div>
+      {/* ── Footer — hidden when collapsed ───────────────────────── */}
+      {!collapsed && (
+        <div style={{
+          textAlign:     'center',
+          fontSize:      10,
+          color:         'rgba(255,255,255,0.18)',
+          letterSpacing: '0.4px',
+        }}>
+          ClaimAuto &nbsp;·&nbsp; {menu.length} page{menu.length !== 1 ? 's' : ''}
+        </div>
+      )}
     </aside>
   );
 }

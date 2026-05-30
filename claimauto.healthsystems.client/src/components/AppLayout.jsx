@@ -253,15 +253,14 @@ export default function AppLayout() {
         <div style={{
           position:     'fixed',
           top: 60, left: 0, bottom: 0,
-          width:        250,
+          width:        sidebarOpen ? 250 : 72,
           overflowY:    'auto',
           overflowX:    'hidden',
           zIndex:       1020,
-          transform:    sidebarOpen ? 'translateX(0)' : 'translateX(-250px)',
-          transition:   'transform 0.3s ease',
+          transition:   'width 0.3s ease',
           borderRadius: '0 22px 22px 0',
         }}>
-          <Sidebar />
+          <Sidebar collapsed={!sidebarOpen} />
         </div>
 
         <main
@@ -269,7 +268,7 @@ export default function AppLayout() {
           style={{
             position:        'absolute',
             top:             60,
-            left:            sidebarOpen ? 250 : 0,
+            left:            sidebarOpen ? 250 : 72,
             right:           0,
             bottom:          0,
             padding:         '16px 0 0 0',
