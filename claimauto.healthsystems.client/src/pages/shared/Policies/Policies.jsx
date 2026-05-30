@@ -10,6 +10,7 @@ import {
   deactivatePolicy,
   checkExpiredPolicies,
 } from '../../../services/policies/policyService';
+import { getMyMemberEnrollments } from '../../../services/members/memberService';
 import {
   CreatePolicyDto,
   UpdatePolicyDto,
@@ -88,16 +89,35 @@ export default function Policies() {
   const [showDetail,   setShowDetail]   = useState(false);
   const [detailPolicy, setDetailPolicy] = useState(null);
 
+  // ── POLICYHOLDER MEMBER ENROLLMENT ───────────────────────────────────────
+  const [myMember,      setMyMember]      = useState(null);
+  const [myMembers,     setMyMembers]     = useState([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isPolicyholder) return;
+    setMemberLoading(true);
+    getMyMemberEnrollments()
+      .then((data) => {
+        const enrollments = Array.isArray(data) ? data : [];
+        setMyMembers(enrollments);
+        setMyMember(enrollments[0] ?? null);
+      })
+      .catch(() => {
+        setMyMembers([]);
+        setMyMember(null);
+      })
+      .finally(() => setMemberLoading(false));
+  }, [isPolicyholder]);
+
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   const loadPolicies = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const isPolicyholder = canAccess(user?.role, ['Policyholder']);
-
-      const data = isHospital || isPolicyholder
-        ? await getActivePolicies()   // Hospital + Policyholder → /api/policies/active
-        : await getAllPolicies();      // Admin + Staff → /api/policies (all statuses)
+      const data = isHospital
+        ? await getActivePolicies()
+        : await getAllPolicies();
       setPolicies(data);
     } catch (err) {
       const msg = err.response?.data?.message
@@ -107,7 +127,7 @@ export default function Policies() {
     } finally {
       setLoading(false);
     }
-  }, [isHospital, isPolicyholder]);
+  }, [isHospital]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
@@ -313,7 +333,82 @@ export default function Policies() {
 
       {/* Summary cards — hidden for Hospital */}
       {!isHospital && !loading && !error && (
-        <PoliciesSummary policies={policies} />
+        <PoliciesSummary
+          policies={policies}
+          activeStatus={statusFilter}
+          onCardClick={setStatusFilter}
+        />
+      )}
+
+      {/* ── Policyholder enrollment info banner ──────────────── */}
+      {isPolicyholder && !memberLoading && myMember && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+          border: '1.5px solid #c4b5fd',
+          borderRadius: 14, padding: '14px 18px', marginBottom: 16,
+        }}>
+          {/* Icon */}
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(102,126,234,0.3)',
+          }}>
+            <i className="bi bi-credit-card-2-front-fill" style={{ color: 'white', fontSize: 18 }}></i>
+          </div>
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: '#4c1d95', fontSize: '0.88rem', marginBottom: 2 }}>
+              Your Policy Enrollments
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+              Showing <strong style={{ color: '#4c1d95' }}>{policies.length}</strong>{' '}
+              linked polic{policies.length === 1 ? 'y' : 'ies'} for your profile
+              {myMember.memberNumber && (
+                <> · Member ID: <span style={{
+                  fontFamily: 'monospace', fontWeight: 700,
+                  background: '#ede9fe', color: '#6d28d9',
+                  padding: '1px 7px', borderRadius: 5, fontSize: '0.78rem',
+                }}>{myMember.memberNumber}</span></>
+              )}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 3 }}>
+              <i className="bi bi-info-circle me-1"></i>
+              The same Member ID is used across your {myMembers.length || policies.length} linked policy enrollment{(myMembers.length || policies.length) === 1 ? '' : 's'}.
+            </div>
+          </div>
+          {/* Status badge */}
+          {myMember.status && (
+            <span style={{
+              flexShrink: 0,
+              background: myMember.status === 'Active' ? '#d1fae5' : '#f3f4f6',
+              color: myMember.status === 'Active' ? '#065f46' : '#6b7280',
+              fontWeight: 700, fontSize: '0.72rem',
+              padding: '4px 12px', borderRadius: 20,
+              border: `1px solid ${myMember.status === 'Active' ? '#a7f3d0' : '#e5e7eb'}`,
+            }}>
+              {myMember.status}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Policyholder not enrolled yet banner ─────────────── */}
+      {isPolicyholder && !memberLoading && !myMember && !loading && policies.length === 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: '#fffbeb', border: '1.5px solid #fde68a',
+          borderRadius: 14, padding: '12px 18px', marginBottom: 16,
+        }}>
+          <i className="bi bi-exclamation-triangle-fill" style={{ color: '#d97706', fontSize: 16, flexShrink: 0 }}></i>
+          <div>
+            <div style={{ fontWeight: 600, color: '#92400e', fontSize: '0.83rem' }}>Not yet enrolled</div>
+            <div style={{ fontSize: '0.75rem', color: '#78350f', marginTop: 1 }}>
+              You have not been enrolled under any policy. Contact your insurance provider to get your Member ID.
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Main data table */}

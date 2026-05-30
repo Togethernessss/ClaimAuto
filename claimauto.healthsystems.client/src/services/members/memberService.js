@@ -3,7 +3,7 @@ import api from '../../api/axiosClient';
 // ── GET ALL MEMBERS ───────────────────────────────────────────────────────
 // Backend:  GET /api/members
 // Filters:  ?policyId=1  ?status=Active
-// Who uses: Admin, InsuranceStaff
+// Who uses: Admin, InsuranceStaff, Policyholder (role-scoped by API)
 
 export async function getAllMembers(policyId = null, status = null) {
   const params = {};
@@ -79,6 +79,22 @@ export async function getMyMember() {
 // Who uses: Hospital — finds a patient before submitting a claim
 export async function lookupMemberByNumber(memberNumber) {
   const response = await api.get('/api/members/lookup', {
+    params: { memberNumber },
+  });
+  return response.data;
+}
+
+// Backend:  GET /api/members
+// Returns:  Every enrollment linked to the current Policyholder user
+export async function getMyMemberEnrollments() {
+  const response = await api.get('/api/members');
+  return response.data;
+}
+
+// Backend:  GET /api/members/lookup-all?memberNumber=MEM-000042
+// Returns:  Every enrollment sharing the same member card number
+export async function lookupMemberEnrollmentsByNumber(memberNumber) {
+  const response = await api.get('/api/members/lookup-all', {
     params: { memberNumber },
   });
   return response.data;

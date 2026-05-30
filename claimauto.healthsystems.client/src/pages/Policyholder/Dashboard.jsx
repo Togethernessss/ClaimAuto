@@ -81,6 +81,15 @@ export default function PolicyholderDashboard() {
 
   // ── Derivations — unchanged ───────────────────────────────────────
   const { policy, claims, notifications, appeals, member, payments } = data;
+  const policyList = Array.isArray(data.policies) && data.policies.length > 0
+    ? data.policies
+    : (policy ? [policy] : []);
+  const memberList = Array.isArray(data.members) && data.members.length > 0
+    ? data.members
+    : (member ? [member] : []);
+  const coveragePolicy = policyList.length > 1
+    ? buildCombinedCoveragePolicy(policyList)
+    : policy;
   const activeAppeal  = findActiveAppeal(appeals);
   const unreadCount   = notifications.filter((n) => n.status === 'Unread').length;
   const pendingClaims = claims.filter((c) => ['Pending', 'UnderReview', 'Submitted'].includes(c.status)).length;
@@ -110,10 +119,14 @@ export default function PolicyholderDashboard() {
         {/* ── TOP SECTION: Policy hero (left) + Coverage (right) ───── */}
         <Row className="g-3 mb-1">
           <Col lg={7}>
-            <PolicyOverviewCard policy={policy} memberCount={member ? 1 : 0} />
+            {policyList.length > 1 ? (
+              <ActivePoliciesPanel policies={policyList} members={memberList} />
+            ) : (
+              <PolicyOverviewCard policy={policy} memberCount={member ? 1 : 0} />
+            )}
           </Col>
           <Col lg={5}>
-            <CoverageUtilization policy={policy} claims={claims} />
+            <CoverageUtilization policy={coveragePolicy} claims={claims} />
           </Col>
         </Row>
 
@@ -163,4 +176,119 @@ export default function PolicyholderDashboard() {
       </Container>
     </div>
   );
+}
+
+function buildCombinedCoveragePolicy(policies) {
+  if (!policies.length) return null;
+
+  return {
+    ...policies[0],
+    planName: `${policies.length} Active Policies`,
+    planCode: 'Combined Coverage',
+    coverageAmount: policies.reduce((sum, p) => sum + Number(p.coverageAmount ?? 0), 0),
+    deductibleAmount: policies.reduce((sum, p) => sum + Number(p.deductibleAmount ?? 0), 0),
+    status: policies.every((p) => p.status === 'Active') ? 'Active' : 'Mixed',
+  };
+}
+
+function ActivePoliciesPanel({ policies, members }) {
+  if (!policies.length) return null;
+
+  return (
+    <div
+      className="mb-3"
+      style={{
+        background: 'white',
+        borderRadius: 18,
+        boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        className="d-flex align-items-center justify-content-between px-4 py-3"
+        style={{ borderBottom: '1px solid #f1f5f9' }}
+      >
+        <div className="d-flex align-items-center gap-2">
+          <div
+            style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <i className="bi bi-shield-check text-white" style={{ fontSize: '0.95rem' }}></i>
+          </div>
+          <div>
+            <div className="fw-bold" style={{ color: '#1e293b', fontSize: '0.98rem' }}>
+              Your Active Policies
+            </div>
+            <div style={{ color: '#64748b', fontSize: '0.76rem' }}>
+              {policies.length} linked policies under the same Member ID
+            </div>
+          </div>
+        </div>
+        <span
+          className="rounded-pill fw-bold"
+          style={{
+            background: '#ecfdf5',
+            color: '#047857',
+            border: '1px solid #a7f3d0',
+            padding: '5px 12px',
+            fontSize: '0.72rem',
+          }}
+        >
+          {policies.length} active
+        </span>
+      </div>
+
+      <div className="px-4 py-3 d-flex flex-column gap-2">
+        {policies.map((policy) => {
+          const enrollment = members.find((m) => m.policyID === policy.policyID);
+          return (
+            <div
+              key={policy.policyID}
+              className="d-flex align-items-center justify-content-between gap-3 py-2"
+              style={{ borderBottom: '1px solid #f8fafc' }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.92rem' }}>
+                  {policy.planName}
+                </div>
+                <div style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                  {policy.planCode || 'Policy'} | Member ID {enrollment?.memberNumber || '-'}
+                </div>
+              </div>
+              <div className="text-end" style={{ flexShrink: 0 }}>
+                <div className="fw-bold" style={{ color: '#4f46e5', fontSize: '0.9rem' }}>
+                  {formatPolicyAmount(policy.coverageAmount)}
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
+                  {formatPolicyDate(enrollment?.coverageStart ?? policy.effectiveFrom)}
+                  {' - '}
+                  {formatPolicyDate(enrollment?.coverageEnd ?? policy.effectiveTo)}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatPolicyAmount(amount) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Number(amount ?? 0));
+}
+
+function formatPolicyDate(value) {
+  if (!value) return 'Open-ended';
+  return new Date(value).toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }

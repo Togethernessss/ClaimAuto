@@ -41,5 +41,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Allows Hospital to find a patient by member card number before submitting a claim.
         // Returns null if not found or doesn't belong to this org.
         Task<MemberResponseDto?> GetMemberByNumberAsync(string memberNumber, int? userOrgId = null);
+
+        // Used by: GET /api/members/lookup-all?memberNumber=MEM-000042
+        // Returns every policy enrollment sharing the same member card number.
+        Task<List<MemberResponseDto>> GetMembersByNumberAsync(string memberNumber, int? userOrgId = null);
     }
 }

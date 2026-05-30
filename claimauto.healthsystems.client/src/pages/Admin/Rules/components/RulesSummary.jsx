@@ -1,11 +1,38 @@
 // src/pages/Admin/Rules/components/RulesSummary.jsx
-import { Card } from 'react-bootstrap';
 
 const STAT_CARDS = [
-  { key: 'total',    label: 'Total Rules',  icon: 'bi-gear',              bg: '#e3f2fd', color: '#1565c0' },
-  { key: 'active',   label: 'Active',       icon: 'bi-check-circle-fill', bg: '#d1f2eb', color: '#085041' },
-  { key: 'draft',    label: 'Draft',        icon: 'bi-pencil-fill',       bg: '#fff3e0', color: '#e65100' },
-  { key: 'inactive', label: 'Inactive',     icon: 'bi-pause-circle-fill', bg: '#f5f5f5', color: '#757575' },
+  {
+    key: 'total',
+    label: 'Total Rules',
+    icon: 'bi-gear',
+    accentColor: '#764ba2',
+    iconBg: '#f3e8ff',
+    iconColor: '#6d28d9',
+  },
+  {
+    key: 'active',
+    label: 'Active',
+    icon: 'bi-check-circle-fill',
+    accentColor: '#10b981',
+    iconBg: '#d1fae5',
+    iconColor: '#065f46',
+  },
+  {
+    key: 'draft',
+    label: 'Draft',
+    icon: 'bi-pencil-fill',
+    accentColor: '#f59e0b',
+    iconBg: '#fef9c3',
+    iconColor: '#b45309',
+  },
+  {
+    key: 'inactive',
+    label: 'Inactive',
+    icon: 'bi-pause-circle-fill',
+    accentColor: '#9ca3af',
+    iconBg: '#f3f4f6',
+    iconColor: '#6b7280',
+  },
 ];
 
 export default function RulesSummary({ rules }) {
@@ -17,29 +44,52 @@ export default function RulesSummary({ rules }) {
   };
 
   return (
-    <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-      <div className="d-flex gap-3 mb-4" style={{ minWidth: 'fit-content' }}>
-        {STAT_CARDS.map((card) => (
-          <div key={card.key} className="flex-grow-1" style={{ minWidth: 120, flex: '1 1 0' }}>
-            <Card className="border-0 shadow-sm h-100">
-              <Card.Body className="d-flex align-items-center gap-2 py-3 px-3">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 38, height: 38, backgroundColor: card.bg }}
-                >
-                  <i className={card.icon} style={{ color: card.color, fontSize: '1rem' }}></i>
-                </div>
-                <div>
-                  <div className="fw-bold mb-0 lh-1" style={{ fontSize: '1.1rem' }}>
-                    {values[card.key]}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>{card.label}</div>
-                </div>
-              </Card.Body>
-            </Card>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+      gap: 16,
+      marginBottom: 24,
+    }}>
+      {STAT_CARDS.map((card) => (
+        <div
+          key={card.key}
+          style={{
+            background: '#fff',
+            borderRadius: 14,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+            borderLeft: `4px solid ${card.accentColor}`,
+            padding: '16px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            transition: 'transform 0.18s, box-shadow 0.18s',
+            cursor: 'default',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-3px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.07)';
+          }}
+        >
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: card.iconBg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <i className={`bi ${card.icon}`} style={{ fontSize: 20, color: card.iconColor }}></i>
           </div>
-        ))}
-      </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 22, lineHeight: 1, color: '#1e293b' }}>
+              {values[card.key]}
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{card.label}</div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
