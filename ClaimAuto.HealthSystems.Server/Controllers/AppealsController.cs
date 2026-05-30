@@ -198,8 +198,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (string.IsNullOrWhiteSpace(reason))
                 return BadRequest(new { message = "Appeal reason is required." });
 
-            int userId = GetCurrentUserId();
-            var userOrgId = GetLoggedInUserOrgId();
+            
 
             // ── Store uploaded file names in DocumentsJSON ──
             string? documentsJSON = null;
@@ -229,7 +228,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // ── Store uploaded file names in DocumentsJSON (legacy compat) ──
-            string? documentsJSON = null;
+            //string? documentsJSON = null;
             if (cachedFiles.Count > 0)
             {
                 var fileNames = cachedFiles.Select(f => f.Name).ToList();
