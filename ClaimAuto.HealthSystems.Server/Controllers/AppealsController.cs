@@ -18,6 +18,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IAppealRepository _appealRepo;
         private readonly IClaimRepository _claimRepo;
         private readonly IUserRepository _userRepo;
+        private readonly IMemberRepository _memberRepo;
         private readonly INotificationRepository _notifRepo;
         private readonly IAppealPdfRepository _pdfService;
         private readonly IAdjudicationRepository _adjRepo;
@@ -28,6 +29,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             IAppealRepository appealRepo,
             IClaimRepository claimRepo,
             IUserRepository userRepo,
+            IMemberRepository memberRepo,
             INotificationRepository notifRepo,
             IAppealPdfRepository pdfService,
             IAdjudicationRepository adjRepo,
@@ -37,6 +39,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _appealRepo = appealRepo;
             _claimRepo = claimRepo;
             _userRepo = userRepo;
+            _memberRepo = memberRepo;
             _notifRepo = notifRepo;
             _pdfService = pdfService;
             _adjRepo = adjRepo;
@@ -142,11 +145,37 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [FromForm] List<IFormFile>? files)
         {
             // ── Validate claim exists (org-scoped for SaaS) ──
-            var claim = await _claimRepo.GetClaimByIdAsync(claimID, GetLoggedInUserOrgId());
+            int userId = GetCurrentUserId();
+            string role = GetCurrentUserRole();
+            var userOrgId = GetLoggedInUserOrgId();
+
+            var claim = await _claimRepo.GetClaimByIdAsync(claimID, userOrgId);
             if (claim == null)
                 return NotFound(new { message = $"Claim {claimID} not found." });
 
             // ── Claim must be Rejected or Adjudicated ──
+            if (role == nameof(UserRole.Policyholder))
+            {
+                var member = await _memberRepo.GetMemberByIdAsync(claim.MemberID, userOrgId);
+                var isOwnMemberClaim = member?.PolicyholderUserID == userId;
+                var isOwnReimbursementClaim = claim.ProviderID == userId;
+
+                if (!isOwnMemberClaim && !isOwnReimbursementClaim)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        message = "You can only appeal claims linked to your own member profile."
+                    });
+                }
+            }
+            else if (role == nameof(UserRole.Hospital) && claim.ProviderID != userId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "You can only appeal claims submitted by your hospital account."
+                });
+            }
+
             if (!Enum.TryParse<ClaimStatus>(claim.Status, true, out var claimStatus)
                 || (claimStatus != ClaimStatus.Rejected))
             {
@@ -157,7 +186,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // ── No duplicate active appeal ──
-            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(claimID, GetLoggedInUserOrgId());
+            var existingAppeals = await _appealRepo.GetAppealsByClaimIdAsync(claimID, userOrgId);
             var activeAppeal = existingAppeals.FirstOrDefault(
                 a => a.Status == AppealStatus.Filed || a.Status == AppealStatus.UnderReview);
             if (activeAppeal != null)
@@ -172,6 +201,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             int userId = GetCurrentUserId();
             var userOrgId = GetLoggedInUserOrgId();
 
+            // ── Store uploaded file names in DocumentsJSON ──
+            string? documentsJSON = null;
             // ════════════════════════════════════════════════════════════
             //  Pre-read all uploaded files into memory ONCE.
             //  IFormFile streams can only be consumed once. We need the
@@ -179,6 +210,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             //  so we cache them up front and reuse them everywhere.
             // ════════════════════════════════════════════════════════════
             var cachedFiles = new List<(string Name, string ContentType, byte[] Data)>();
+
             if (files != null && files.Count > 0)
             {
                 foreach (var file in files)
