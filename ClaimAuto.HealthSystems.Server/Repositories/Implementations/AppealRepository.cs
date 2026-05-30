@@ -153,5 +153,72 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(s => s.OrganizationID == userOrgId.Value);
             return await query.ToListAsync();
         }
+<<<<<<< Updated upstream
+=======
+
+        // ────────────────────────────────────────────────────────────────
+        //  APPEAL DOCUMENTS — individual uploaded files
+        // ────────────────────────────────────────────────────────────────
+
+        /// <summary>Persists every uploaded file as its own AppealDocument row.</summary>
+        public async Task SaveAppealDocumentsAsync(int appealId, List<AppealDocument> docs)
+        {
+            if (docs == null || docs.Count == 0) return;
+            foreach (var d in docs) d.AppealID = appealId;
+
+            try
+            {
+                _context.AppealDocuments.AddRange(docs);
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+                foreach (var doc in docs)
+                {
+                    var entry = _context.Entry(doc);
+                    if (entry.State != EntityState.Detached)
+                        entry.State = EntityState.Detached;
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>Returns metadata (no FileData) for every original file uploaded with an appeal.</summary>
+        public async Task<List<AppealDocument>> GetAppealDocumentsAsync(int appealId, int? userOrgId = null)
+        {
+            var query = _context.AppealDocuments
+                .Where(d => d.AppealID == appealId);
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            // Project only metadata fields — explicitly skip FileData to keep payload small.
+            return await query
+                .OrderBy(d => d.UploadedAt)
+                .Select(d => new AppealDocument
+                {
+                    DocumentID     = d.DocumentID,
+                    AppealID       = d.AppealID,
+                    FileName       = d.FileName,
+                    ContentType    = d.ContentType,
+                    FileSize       = d.FileSize,
+                    UploadedAt     = d.UploadedAt,
+                    OrganizationID = d.OrganizationID,
+                    // FileData intentionally NOT selected
+                })
+                .ToListAsync();
+        }
+
+        /// <summary>Returns the FULL document including FileData bytes — used by view/download endpoints.</summary>
+        public async Task<AppealDocument?> GetAppealDocumentByIdAsync(int appealId, int docId, int? userOrgId = null)
+        {
+            var query = _context.AppealDocuments
+                .Where(d => d.AppealID == appealId && d.DocumentID == docId);
+            if (userOrgId.HasValue)
+                query = query.Where(d => d.OrganizationID == userOrgId.Value);
+
+            return await query.FirstOrDefaultAsync();
+        }
+>>>>>>> Stashed changes
     }
 }
