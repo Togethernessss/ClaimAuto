@@ -1,4 +1,5 @@
-import { Card, Table, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import { useState } from 'react';
+import { Card, Table, Badge, Button, Alert, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import {
   formatDate,
   calcAge,
@@ -20,6 +21,18 @@ export default function MembersTable({
   onCreateFirst,
 }) {
   const canEdit = isAdmin || isStaff;
+
+  // ── Copy-to-clipboard state (Hospital member number) ──────────
+  const [copiedId, setCopiedId] = useState(null);
+
+  function handleCopyMemberNumber(memberID, memberNumber) {
+    navigator.clipboard.writeText(memberNumber)
+      .then(() => {
+        setCopiedId(memberID);
+        setTimeout(() => setCopiedId(null), 2000);
+      })
+      .catch(() => {});
+  }
 
   return (
     <Card className="border-0 shadow-sm">
@@ -130,11 +143,60 @@ export default function MembersTable({
                         </div>
                         <div>
                           <div className="fw-semibold">{member.name}</div>
-                          <div
-                            className="text-muted font-monospace"
-                            style={{ fontSize: '0.72rem' }}
-                          >
-                            {member.memberNumber}
+                          {/* Member number with copy button for Hospital */}
+                          <div className="d-flex align-items-center gap-1 mt-1">
+                            <span
+                              className="font-monospace"
+                              style={{
+                                fontSize: '0.72rem',
+                                color: '#7c3aed',
+                                fontWeight: 700,
+                                background: '#f5f3ff',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              {member.memberNumber}
+                            </span>
+                            {isHospital && (
+                              <OverlayTrigger
+                                placement="top"
+                                overlay={
+                                  <Tooltip>
+                                    {copiedId === member.memberID
+                                      ? 'Copied!'
+                                      : 'Copy Member ID — use when submitting a claim'}
+                                  </Tooltip>
+                                }
+                              >
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyMemberNumber(member.memberID, member.memberNumber);
+                                  }}
+                                  style={{
+                                    background: copiedId === member.memberID
+                                      ? '#d1fae5' : '#f3f4f6',
+                                    border: `1px solid ${copiedId === member.memberID
+                                      ? '#6ee7b7' : '#e5e7eb'}`,
+                                    borderRadius: 4,
+                                    padding: '1px 5px',
+                                    cursor: 'pointer',
+                                    color: copiedId === member.memberID
+                                      ? '#059669' : '#7c3aed',
+                                    fontSize: 11,
+                                    transition: 'all 0.15s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  <i className={`bi ${copiedId === member.memberID
+                                    ? 'bi-check2' : 'bi-clipboard'}`}
+                                  />
+                                </button>
+                              </OverlayTrigger>
+                            )}
                           </div>
                         </div>
                       </div>

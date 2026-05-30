@@ -323,61 +323,79 @@ export default function SubmitClaimModal({
       </Modal.Header>
 
       <Form onSubmit={handleSubmit}>
-        <div style={{ overflowY: 'auto', maxHeight: '65vh', padding: '16px 16px 0' }}>
 
-          {error && (
-            <Alert variant="danger" className="d-flex align-items-center py-2">
-              <i className="bi bi-exclamation-triangle-fill me-2"></i>
-              {error}
+        {/* ── Error banner — outside scroll so it's always visible ─────────── */}
+        {error && (
+          <div className="px-3 pt-2">
+            <Alert
+              variant="danger"
+              className="d-flex align-items-start gap-2 py-2 mb-0"
+            >
+              <i className="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+              <div>
+                <div className="fw-semibold" style={{ fontSize: '0.85rem' }}>
+                  Submission Failed
+                </div>
+                <div style={{ fontSize: '0.82rem', marginTop: 2 }}>{error}</div>
+              </div>
             </Alert>
-          )}
+          </div>
+        )}
+
+        <div style={{ overflowY: 'auto', maxHeight: '65vh', padding: '16px 16px 0' }}>
 
           <Row className="g-3">
 
             {/* External Claim Ref */}
             <Col md={6}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">
-                  External Claim Ref
-                </Form.Label>
-                <Form.Control
-                  placeholder="e.g. HOSP-2026-00142"
-                  value={form.externalClaimRef}
-                  onChange={handleField('externalClaimRef')}
-                />
-                <Form.Text className="text-muted">
-                  Your billing system reference. Must be unique.
-                </Form.Text>
-              </Form.Group>
+              {(() => {
+                // Detect duplicate-ref conflict so we can highlight the field
+                const isDuplicateRef = !!error && (
+                  error.toLowerCase().includes('externalclaimref') ||
+                  error.toLowerCase().includes('external claim ref') ||
+                  error.toLowerCase().includes('external reference') ||
+                  error.toLowerCase().includes('already exists')
+                );
+                return (
+                  <Form.Group>
+                    <Form.Label className="small fw-semibold">
+                      External Claim Ref
+                      {isDuplicateRef && (
+                        <span className="text-danger ms-2" style={{ fontSize: '0.72rem' }}>
+                          ← already used
+                        </span>
+                      )}
+                    </Form.Label>
+                    <Form.Control
+                      placeholder="e.g. HOSP-2026-00142"
+                      value={form.externalClaimRef}
+                      onChange={handleField('externalClaimRef')}
+                      isInvalid={isDuplicateRef}
+                      style={isDuplicateRef ? { borderColor: '#dc3545', background: '#fff5f5' } : {}}
+                    />
+                    {isDuplicateRef ? (
+                      <Form.Control.Feedback type="invalid" style={{ display: 'block' }}>
+                        This reference number is already used by another claim. Please enter a different one.
+                      </Form.Control.Feedback>
+                    ) : (
+                      <Form.Text className="text-muted">
+                        Your hospital billing system reference. Leave blank if none.
+                        If provided, it <strong>must be unique</strong> per claim.
+                      </Form.Text>
+                    )}
+                  </Form.Group>
+                );
+              })()}
             </Col>
 
-            {/* Claim Type */}
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label className="small fw-semibold">
-                  Claim Type <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Select
-                  value={form.claimType}
-                  onChange={handleField('claimType')}
-                  required
-                >
-                  <option value="">— Select type —</option>
-                  {coveredClaimTypes.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-
-            {/* ── Patient Lookup by Member Number ─────────────────────────
+            {/* ── Member Number — moved to row 1 (was full-width row 2) ──
               Hospital types the member number from the patient's card
               (e.g. MEM-000042) and clicks Find. Name, policy, memberID
               and policyID all auto-fill — no dropdown needed.         */}
-            <Col md={12}>
+            <Col md={6}>
               <Form.Group>
                 <Form.Label className="small fw-semibold">
-                  Patient Member Number <span className="text-danger">*</span>
+                  Member Number <span className="text-danger">*</span>
                 </Form.Label>
                 <div className="d-flex gap-2 align-items-center">
                   <Form.Control
@@ -387,7 +405,6 @@ export default function SubmitClaimModal({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { e.preventDefault(); handleLookup(); }
                     }}
-                    style={{ maxWidth: 220 }}
                   />
                   <Button
                     variant="outline-primary"
@@ -419,6 +436,25 @@ export default function SubmitClaimModal({
                 <Form.Text className="text-muted">
                   Enter the member number from the patient's insurance card, then click Find.
                 </Form.Text>
+              </Form.Group>
+            </Col>
+
+            {/* Claim Type — moved to row 2 (was row 1 right column) */}
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label className="small fw-semibold">
+                  Claim Type <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Select
+                  value={form.claimType}
+                  onChange={handleField('claimType')}
+                  required
+                >
+                  <option value="">— Select type —</option>
+                  {coveredClaimTypes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Form.Select>
               </Form.Group>
             </Col>
 

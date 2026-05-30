@@ -1,11 +1,141 @@
 // src/pages/shared/Claims/components/ClaimsTable.jsx
-import { Card, Table, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import {
   formatDate, formatCurrency,
-  statusVariant, statusLabel,
-  priorityVariant, priorityTextColor,
-  claimTypeVariant, claimTypeIcon,
+  statusLabel,
+  claimTypeIcon,
 } from '../utils/claimHelpers';
+
+// ── Status styling ───────────────────────────────────────────────────────────
+const STATUS_STYLE = {
+  Submitted:               { bg: '#dbeafe', color: '#1d4ed8', dot: '#3b82f6' },
+  DocsVerificationPending: { bg: '#e0f2fe', color: '#0369a1', dot: '#0ea5e9' },
+  UnderReview:             { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
+  Adjudicating:            { bg: '#ede9fe', color: '#5b21b6', dot: '#8b5cf6' },
+  Approved:                { bg: '#d1fae5', color: '#065f46', dot: '#10b981' },
+  Paid:                    { bg: '#d1fae5', color: '#064e3b', dot: '#059669' },
+  Rejected:                { bg: '#fee2e2', color: '#991b1b', dot: '#ef4444' },
+};
+
+// ── Priority styling ─────────────────────────────────────────────────────────
+const PRIORITY_STYLE = {
+  Low:    { color: '#15803d', dot: '#22c55e' },
+  Normal: { color: '#6b7280', dot: '#d1d5db' },
+  High:   { color: '#c2410c', dot: '#f97316' },
+  Urgent: { color: '#b91c1c', dot: '#ef4444' },
+};
+
+// ── Claim-type colors ────────────────────────────────────────────────────────
+const TYPE_COLOR = {
+  Inpatient:    { bg: '#ede9fe', color: '#5b21b6' },
+  Outpatient:   { bg: '#e0f2fe', color: '#0369a1' },
+  Emergency:    { bg: '#fee2e2', color: '#b91c1c' },
+  Reimbursement:{ bg: '#fef9c3', color: '#854d0e' },
+};
+
+function StatusPill({ status }) {
+  const s = STATUS_STYLE[status] ?? { bg: '#f3f4f6', color: '#374151', dot: '#9ca3af' };
+  return (
+    <span style={{
+      display:      'inline-flex',
+      alignItems:   'center',
+      gap:          5,
+      background:   s.bg,
+      color:        s.color,
+      fontSize:     '0.72rem',
+      fontWeight:   700,
+      padding:      '3px 10px',
+      borderRadius: 20,
+      whiteSpace:   'nowrap',
+      letterSpacing:'0.2px',
+    }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: s.dot, flexShrink: 0,
+      }} />
+      {statusLabel(status)}
+    </span>
+  );
+}
+
+function PriorityBadge({ priority }) {
+  const p = PRIORITY_STYLE[priority] ?? PRIORITY_STYLE.Normal;
+  return (
+    <span style={{
+      display:    'inline-flex',
+      alignItems: 'center',
+      gap:        5,
+      fontSize:   '0.72rem',
+      fontWeight: 600,
+      color:      p.color,
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: p.dot, flexShrink: 0,
+        boxShadow: priority === 'Urgent' ? `0 0 4px ${p.dot}` : 'none',
+      }} />
+      {priority}
+    </span>
+  );
+}
+
+function TypeChip({ claimType }) {
+  const t = TYPE_COLOR[claimType] ?? { bg: '#f3f4f6', color: '#374151' };
+  const icon = claimTypeIcon(claimType);
+  return (
+    <span style={{
+      display:      'inline-flex',
+      alignItems:   'center',
+      gap:          5,
+      background:   t.bg,
+      color:        t.color,
+      fontSize:     '0.72rem',
+      fontWeight:   600,
+      padding:      '3px 9px',
+      borderRadius: 20,
+      whiteSpace:   'nowrap',
+    }}>
+      <i className={`bi ${icon}`} style={{ fontSize: '0.7rem' }}></i>
+      {claimType}
+    </span>
+  );
+}
+
+function ActionBtn({ onClick, title, icon, hoverBg, color, hoverColor }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width:          30, height: 30,
+        borderRadius:   8,
+        border:         'none',
+        background:     'transparent',
+        color:          color,
+        cursor:         'pointer',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        fontSize:       '0.8rem',
+        transition:     'background 0.15s, color 0.15s, transform 0.12s',
+        flexShrink:     0,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = hoverBg;
+        e.currentTarget.style.color      = hoverColor ?? color;
+        e.currentTarget.style.transform  = 'scale(1.12)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color      = color;
+        e.currentTarget.style.transform  = 'scale(1)';
+      }}
+    >
+      <i className={`bi ${icon}`}></i>
+    </button>
+  );
+}
 
 export default function ClaimsTable({
   claims,
@@ -21,268 +151,361 @@ export default function ClaimsTable({
   onUpdateStatus,
   onDelete,
 }) {
-  const canUpdate = isAdmin || isStaff;
-  const canDelete = isAdmin || isHospital;
+  const canUpdate     = isAdmin || isStaff;
+  const canDelete     = isAdmin || isHospital;
   const finalStatuses = ['Rejected', 'Approved', 'Paid'];
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <Spinner animation="border" variant="primary" />
-          <div className="mt-2 text-muted small">Loading claims...</div>
-        </Card.Body>
-      </Card>
+      <div style={{
+        background:   'white',
+        borderRadius: 16,
+        boxShadow:    '0 4px 24px rgba(0,0,0,0.07)',
+        overflow:     'hidden',
+      }}>
+        {/* Skeleton header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          height:     48,
+        }} />
+        <div className="text-center py-5">
+          <Spinner
+            animation="border"
+            style={{ color: '#7c3aed', width: 36, height: 36, borderWidth: 3 }}
+          />
+          <div className="mt-3" style={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 500 }}>
+            Loading claims…
+          </div>
+        </div>
+      </div>
     );
   }
 
-  // ── Error ─────────────────────────────────────────────────────────────────
+  // ── Error ──────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="p-4">
-          <Alert variant="danger" className="d-flex align-items-center mb-0">
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-            <Button variant="link" size="sm" className="ms-auto p-0 text-danger" onClick={onRetry}>
-              <i className="bi bi-arrow-clockwise me-1"></i> Retry
-            </Button>
-          </Alert>
-        </Card.Body>
-      </Card>
+      <div style={{
+        background:   'white',
+        borderRadius: 16,
+        boxShadow:    '0 4px 24px rgba(0,0,0,0.07)',
+        padding:      '28px 24px',
+        textAlign:    'center',
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%',
+          background: '#fef2f2', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 14px',
+        }}>
+          <i className="bi bi-exclamation-triangle-fill"
+            style={{ color: '#ef4444', fontSize: '1.4rem' }}></i>
+        </div>
+        <div style={{ fontWeight: 700, color: '#111827', marginBottom: 6 }}>{error}</div>
+        <button
+          onClick={onRetry}
+          style={{
+            padding: '7px 20px', borderRadius: 8,
+            border: '1.5px solid #a78bfa',
+            background: '#f5f3ff', color: '#7c3aed',
+            fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <i className="bi bi-arrow-clockwise"></i> Retry
+        </button>
+      </div>
     );
   }
 
-  // ── Empty ─────────────────────────────────────────────────────────────────
+  // ── Empty ──────────────────────────────────────────────────────────────────
   if (claims.length === 0) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <i className="bi bi-folder2" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-          <div className="fw-semibold text-muted mt-3">
-            {hasFilters ? 'No claims match your filters' : 'No claims yet'}
-          </div>
-          <div className="small text-muted mt-1">
-            {hasFilters
-              ? 'Try clearing your filters to see all claims.'
-              : isHospital
-              ? 'Submit your first claim using the button above.'
-              : isPolicyholder
-              ? 'Request a reimbursement using the button above.'
-              : 'Claims will appear here once submitted.'}
-          </div>
-        </Card.Body>
-      </Card>
+      <div style={{
+        background:   'white',
+        borderRadius: 16,
+        boxShadow:    '0 4px 24px rgba(0,0,0,0.07)',
+        padding:      '44px 24px',
+        textAlign:    'center',
+      }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: '#f5f3ff', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+        }}>
+          <i className="bi bi-folder2"
+            style={{ color: '#a78bfa', fontSize: '1.8rem' }}></i>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#374151', marginBottom: 6 }}>
+          {hasFilters ? 'No claims match your filters' : 'No claims yet'}
+        </div>
+        <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+          {hasFilters
+            ? 'Try clearing your filters to see all claims.'
+            : isHospital
+            ? 'Submit your first claim using the button above.'
+            : isPolicyholder
+            ? 'Request a reimbursement using the button above.'
+            : 'Claims will appear here once submitted.'}
+        </div>
+      </div>
     );
   }
 
-  // ── Table ─────────────────────────────────────────────────────────────────
+  // ── Table ──────────────────────────────────────────────────────────────────
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
-        <div className="table-responsive">
-          <Table hover className="mb-0 align-middle">
-            <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-              <tr>
-                <th className="ps-4 py-3 text-muted small fw-semibold text-uppercase">Claim</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Member</th>
-                {(isAdmin || isStaff) && (
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Provider</th>
-                )}
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Type</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Amount</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Status</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Priority</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Submitted</th>
-                <th className="py-3 pe-4 text-muted small fw-semibold text-uppercase text-end">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+    <div style={{
+      background:   'white',
+      borderRadius: 16,
+      boxShadow:    '0 4px 24px rgba(0,0,0,0.07)',
+      overflow:     'hidden',
+    }}>
 
-            <tbody>
-              {claims.map((claim) => (
-                <tr key={claim.claimID}>
+      {/* ── Scrollable area — prevents Actions column from being clipped when
+           the sidebar is open and the viewport is narrow ─────────────────── */}
+      <div style={{ overflowX: 'auto' }}>
+        {/* min-width: max-content makes this div exactly as wide as its grid
+            content so the scroll container always knows when to scroll */}
+        <div style={{ minWidth: 'max-content' }}>
 
-                  {/* Claim ID */}
-                  <td className="ps-4 py-3">
-                    <div className="fw-semibold font-monospace" style={{ fontSize: '0.85rem' }}>
-                      CLM-{claim.claimID}
-                    </div>
-                    {claim.externalClaimRef && (
-                      <div className="text-muted" style={{ fontSize: '0.7rem' }}>
-                        {claim.externalClaimRef}
-                      </div>
-                    )}
-                  </td>
+          {/* ── Gradient header row ────────────────────────────────────── */}
+          <div style={{
+            background:          'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding:             '0 20px',
+            display:             'grid',
+            gridTemplateColumns: buildColumns(isAdmin, isStaff),
+            alignItems:          'center',
+            height:              48,
+            gap:                 12,
+          }}>
+            {HEADER_COLS(isAdmin, isStaff).map((col) => (
+              <div key={col} style={{
+                color:         'rgba(255,255,255,0.78)',
+                fontSize:      '0.68rem',
+                fontWeight:    700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.6px',
+                whiteSpace:    'nowrap',
+              }}>
+                {col}
+              </div>
+            ))}
+          </div>
 
-                  {/* Member */}
-                  <td className="py-3">
-                    <div className="small fw-semibold">{claim.memberName}</div>
-                    <div className="text-muted" style={{ fontSize: '0.72rem' }}>
-                      {claim.policyName}
-                    </div>
-                  </td>
+          {/* ── Rows ─────────────────────────────────────────────────── */}
+          <div>
+            {claims.map((claim, idx) => (
+              <ClaimRow
+                key={claim.claimID}
+                claim={claim}
+                idx={idx}
+                isAdmin={isAdmin}
+                isStaff={isStaff}
+                isHospital={isHospital}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+                finalStatuses={finalStatuses}
+                onView={onView}
+                onUpdateStatus={onUpdateStatus}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
 
-                  {/* Provider — Admin + Staff only */}
-                  {(isAdmin || isStaff) && (
-                    <td className="py-3 small">{claim.providerName}</td>
-                  )}
-
-                  {/* Claim type */}
-                  <td className="py-3">
-                    <Badge bg={claimTypeVariant(claim.claimType)} className="px-2 py-1">
-                      <i className={`${claimTypeIcon(claim.claimType)} me-1`}></i>
-                      {claim.claimType}
-                    </Badge>
-                  </td>
-
-                  {/* Amount */}
-                  <td className="py-3 fw-semibold small">
-                    {formatCurrency(claim.totalBilledAmount)}
-                  </td>
-
-                  {/* Status */}
-                  <td className="py-3">
-                    <Badge bg={statusVariant(claim.status)} className="px-3 py-2">
-                      {statusLabel(claim.status)}
-                    </Badge>
-                  </td>
-
-                  {/* Priority */}
-                  <td className="py-3">
-                    <Badge
-                      bg={priorityVariant(claim.priority)}
-                      text={priorityTextColor(claim.priority)}
-                      className="px-2 py-1"
-                      style={{ border: claim.priority === 'Normal' ? '1px solid #dee2e6' : 'none' }}
-                    >
-                      {claim.priority === 'Urgent' && (
-                        <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                      )}
-                      {claim.priority}
-                    </Badge>
-                  </td>
-
-                  {/* Submitted at */}
-                  <td className="py-3 small text-muted">{formatDate(claim.submittedAt)}</td>
-
-                  {/* Actions */}
-                  <td className="py-3 pe-4">
-                    <div className="d-flex flex-column align-items-end gap-1">
-
-                      {/* View detail — all roles */}
-                      <Button
-                        size="sm"
-                        onClick={() => onView(claim)}
-                        style={{
-                          width: 90,
-                          borderRadius: 6,
-                          fontWeight: 600,
-                          fontSize: '0.78rem',
-                          background: '#e8f0fe',
-                          border: '1.5px solid #4285f4',
-                          color: '#1a56db',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 5,
-                          padding: '5px 0',
-                          transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#4285f4';
-                          e.currentTarget.style.color = '#fff';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#e8f0fe';
-                          e.currentTarget.style.color = '#1a56db';
-                        }}
-                      >
-                        <i className="bi bi-eye" style={{ fontSize: '0.72rem' }}></i>
-                        View
-                      </Button>
-
-                      {/* Update status — Admin + Staff only, not on finalized claims */}
-                      {canUpdate && !finalStatuses.includes(claim.status) && (
-                        <Button
-                          size="sm"
-                          onClick={() => onUpdateStatus(claim)}
-                          style={{
-                            width: 90,
-                            borderRadius: 6,
-                            fontWeight: 600,
-                            fontSize: '0.78rem',
-                            background: '#fff8e1',
-                            border: '1.5px solid #f9a825',
-                            color: '#e65100',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 5,
-                            padding: '5px 0',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#f9a825';
-                            e.currentTarget.style.color = '#fff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#fff8e1';
-                            e.currentTarget.style.color = '#e65100';
-                          }}
-                        >
-                          <i className="bi bi-pencil-fill" style={{ fontSize: '0.72rem' }}></i>
-                          Update
-                        </Button>
-                      )}
-
-                      {/* Delete — Admin: Rejected or Submitted | Hospital: own Submitted only */}
-                      {canDelete && (
-                        claim.status === 'Rejected' ||
-                        (claim.status === 'Submitted' && (isAdmin || isHospital))
-                      ) && (
-                        <Button
-                          size="sm"
-                          onClick={() => onDelete(claim)}
-                          style={{
-                            width: 90,
-                            borderRadius: 6,
-                            fontWeight: 600,
-                            fontSize: '0.78rem',
-                            background: '#ffebee',
-                            border: '1.5px solid #ef5350',
-                            color: '#c62828',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 5,
-                            padding: '5px 0',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#ef5350';
-                            e.currentTarget.style.color = '#fff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#ffebee';
-                            e.currentTarget.style.color = '#c62828';
-                          }}
-                        >
-                          <i className="bi bi-trash-fill" style={{ fontSize: '0.72rem' }}></i>
-                          Delete
-                        </Button>
-                      )}
-
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
         </div>
-      </Card.Body>
-    </Card>
+      </div>
+
+      {/* ── Footer count — always visible, outside scroll area ────────────── */}
+      <div style={{
+        borderTop:      '1px solid #f1f5f9',
+        padding:        '10px 20px',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'flex-end',
+        gap:            6,
+      }}>
+        <i className="bi bi-list-ul" style={{ color: '#a78bfa', fontSize: '0.8rem' }}></i>
+        <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>
+          Showing <strong style={{ color: '#667eea' }}>{claims.length}</strong> claim{claims.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function buildColumns(isAdmin, isStaff) {
+  const withProvider = isAdmin || isStaff;
+  if (withProvider) {
+    // Claim | Member | Provider | Type | Amount | Status | Priority | Date | Actions
+    return '160px 150px 130px 120px 100px 130px 90px 95px 100px';
+  }
+  // Claim | Member | Type | Amount | Status | Priority | Date | Actions
+  return '160px 170px 120px 100px 130px 90px 95px 100px';
+}
+
+function HEADER_COLS(isAdmin, isStaff) {
+  const base = ['Claim', 'Member'];
+  if (isAdmin || isStaff) base.push('Provider');
+  base.push('Type', 'Amount', 'Status', 'Priority', 'Submitted', 'Actions');
+  return base;
+}
+
+function ClaimRow({
+  claim, idx,
+  isAdmin, isStaff, isHospital,
+  canUpdate, canDelete, finalStatuses,
+  onView, onUpdateStatus, onDelete,
+}) {
+  const withProvider = isAdmin || isStaff;
+  const canDeleteThis =
+    canDelete && (
+      claim.status === 'Rejected' ||
+      (claim.status === 'Submitted' && (isAdmin || isHospital))
+    );
+  const canUpdateThis = canUpdate && !finalStatuses.includes(claim.status);
+
+  return (
+    <div
+      style={{
+        display:         'grid',
+        gridTemplateColumns: buildColumns(isAdmin, isStaff),
+        alignItems:      'center',
+        padding:         '13px 20px',
+        gap:             12,
+        borderBottom:    '1px solid #f1f5f9',
+        background:      'white',
+        transition:      'background 0.12s',
+        cursor:          'default',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = '#faf9ff';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'white';
+      }}
+    >
+      {/* Claim ID */}
+      <div>
+        <div style={{
+          fontFamily:  'monospace',
+          fontWeight:  700,
+          fontSize:    '0.82rem',
+          color:       '#4c1d95',
+          letterSpacing: '0.2px',
+        }}>
+          CLM-{claim.claimID}
+        </div>
+        {claim.externalClaimRef && (
+          <div style={{
+            fontSize:  '0.68rem',
+            color:     '#94a3b8',
+            marginTop: 1,
+            overflow:  'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {claim.externalClaimRef}
+          </div>
+        )}
+      </div>
+
+      {/* Member */}
+      <div>
+        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+          {claim.memberName}
+        </div>
+        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 1 }}>
+          {claim.policyName}
+        </div>
+      </div>
+
+      {/* Provider (admin/staff) */}
+      {withProvider && (
+        <div style={{
+          fontSize:    '0.8rem',
+          color:       '#374151',
+          overflow:    'hidden',
+          textOverflow:'ellipsis',
+          whiteSpace:  'nowrap',
+        }}>
+          {claim.providerName ?? '—'}
+        </div>
+      )}
+
+      {/* Type */}
+      <div>
+        <TypeChip claimType={claim.claimType} />
+      </div>
+
+      {/* Amount */}
+      <div style={{
+        fontSize:   '0.84rem',
+        fontWeight: 700,
+        color:      '#1e293b',
+        whiteSpace: 'nowrap',
+      }}>
+        {formatCurrency(claim.totalBilledAmount)}
+      </div>
+
+      {/* Status */}
+      <div>
+        <StatusPill status={claim.status} />
+      </div>
+
+      {/* Priority */}
+      <div>
+        <PriorityBadge priority={claim.priority} />
+      </div>
+
+      {/* Submitted date */}
+      <div style={{
+        fontSize: '0.75rem',
+        color:    '#94a3b8',
+        whiteSpace: 'nowrap',
+      }}>
+        {formatDate(claim.submittedAt)}
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        display:    'flex',
+        alignItems: 'center',
+        gap:        2,
+      }}>
+        {/* View */}
+        <ActionBtn
+          onClick={() => onView(claim)}
+          title="View claim details"
+          icon="bi-eye-fill"
+          color="#3b82f6"
+          hoverBg="#dbeafe"
+        />
+
+        {/* Update status */}
+        {canUpdateThis && (
+          <ActionBtn
+            onClick={() => onUpdateStatus(claim)}
+            title="Update status"
+            icon="bi-pencil-fill"
+            color="#d97706"
+            hoverBg="#fef9c3"
+          />
+        )}
+
+        {/* Delete */}
+        {canDeleteThis && (
+          <ActionBtn
+            onClick={() => onDelete(claim)}
+            title="Delete claim"
+            icon="bi-trash3-fill"
+            color="#ef4444"
+            hoverBg="#fee2e2"
+          />
+        )}
+      </div>
+    </div>
   );
 }

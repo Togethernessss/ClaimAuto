@@ -168,22 +168,8 @@ function NavProfileAvatar() {
 
 export default function AppLayout() {
   const navigate = useNavigate();
-  const [sidebarOpen,   setSidebarOpen]   = useState(true);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user } = useAuth();
-
-  const handleScroll = (e) => {
-    const el = e.target;
-    const nearBottom =
-      el.scrollTop + el.clientHeight >=
-      el.scrollHeight - 100;
-    setShowScrollTop(nearBottom);
-  };
-
-  const scrollToTop = () => {
-    document.getElementById('main-content')
-      ?.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   return (
     <NotificationProvider>
@@ -265,22 +251,21 @@ export default function AppLayout() {
         </nav>
 
         <div style={{
-          position:  'fixed',
+          position:     'fixed',
           top: 60, left: 0, bottom: 0,
-          width:     250,
-          overflowY: 'auto',
-          zIndex:    1020,
-          transform: sidebarOpen
-            ? 'translateX(0)'
-            : 'translateX(-250px)',
-          transition: 'transform 0.3s ease',
+          width:        250,
+          overflowY:    'auto',
+          overflowX:    'hidden',
+          zIndex:       1020,
+          transform:    sidebarOpen ? 'translateX(0)' : 'translateX(-250px)',
+          transition:   'transform 0.3s ease',
+          borderRadius: '0 22px 22px 0',
         }}>
           <Sidebar />
         </div>
 
         <main
           id="main-content"
-          onScroll={handleScroll}
           style={{
             position:        'absolute',
             top:             60,
@@ -295,34 +280,6 @@ export default function AppLayout() {
         >
           <Outlet />
         </main>
-
-        {showScrollTop && (
-          <button
-            onClick={scrollToTop}
-            style={{
-              position:     'fixed',
-              bottom:       32, right: 32,
-              width:        44, height: 44,
-              borderRadius: '50%',
-              background:
-                'linear-gradient(135deg, ' +
-                '#667eea 0%, #764ba2 100%)',
-              border:    'none',
-              color:     'white',
-              fontSize:  20,
-              cursor:    'pointer',
-              zIndex:    1050,
-              boxShadow:
-                '0 4px 12px rgba(102, 126, 234, 0.5)',
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              transition:     'opacity 0.3s ease',
-            }}
-          >
-            <i className="bi bi-arrow-up"></i>
-          </button>
-        )}
 
       </div>
     </NotificationProvider>

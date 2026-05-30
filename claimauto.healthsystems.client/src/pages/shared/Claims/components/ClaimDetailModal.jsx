@@ -16,6 +16,71 @@ import {
 } from '../utils/claimHelpers';
 import RejectClaimModal from './RejectClaimModal';
 
+// ── Claim timeline stages (Policyholder view) ────────────────────────────────
+const TIMELINE_STAGES = [
+  {
+    key:         'submitted',
+    label:       'Claim Submitted',
+    description: 'Your claim has been received and registered in our system.',
+    icon:        'bi-cloud-upload-fill',
+    activeColor: '#7c3aed',
+  },
+  {
+    key:         'docs_verification',
+    label:       'Document Verification',
+    description: 'Our team is reviewing the supporting documents attached to your claim.',
+    icon:        'bi-file-earmark-check-fill',
+    activeColor: '#2563eb',
+  },
+  {
+    key:         'under_review',
+    label:       'Under Review',
+    description: 'Your claim is being carefully evaluated by our insurance specialists.',
+    icon:        'bi-search',
+    activeColor: '#0891b2',
+  },
+  {
+    key:         'adjudication',
+    label:       'Adjudication',
+    description: 'Automated rules and manual review criteria are being applied to your claim.',
+    icon:        'bi-cpu-fill',
+    activeColor: '#d97706',
+  },
+  {
+    key:         'decision',
+    label:       'Final Decision',
+    description: 'A final decision is being prepared for your claim.',
+    icon:        'bi-patch-check-fill',
+    activeColor: '#16a34a',
+  },
+];
+
+function getStageState(stageKey, claimStatus) {
+  const terminal = ['Approved', 'Paid', 'Rejected'];
+  switch (stageKey) {
+    case 'submitted':
+      return 'done';
+    case 'docs_verification':
+      if (['UnderReview', 'Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (claimStatus === 'DocsVerificationPending') return 'active';
+      return 'pending';
+    case 'under_review':
+      if (['Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (claimStatus === 'UnderReview') return 'active';
+      return 'pending';
+    case 'adjudication':
+      if (terminal.includes(claimStatus)) return 'done';
+      if (claimStatus === 'Adjudicating') return 'active';
+      return 'pending';
+    case 'decision':
+      if (terminal.includes(claimStatus)) return 'done';
+      if (claimStatus === 'Adjudicating') return 'active';
+      return 'pending';
+    default:
+      return 'pending';
+  }
+}
+
 export default function ClaimDetailModal({
   show,
   claim,
@@ -52,6 +117,13 @@ export default function ClaimDetailModal({
   const [reuploadingDocId, setReuploadingDocId] = useState(null);      // frontend/claim
   const fileRef = useRef(null);
 
+  // ── 1-hour Hospital edit window (tick every 30 s so display stays fresh) ──
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   // ── reset all state when modal opens ───────────────────────────────────────
   useEffect(() => {
     if (show) {
@@ -84,32 +156,65 @@ export default function ClaimDetailModal({
   const claimFinalized = finalStatuses.includes(claim?.status);
   const docReviewWindow = claim?.status === 'Submitted' || claim?.status === 'DocsVerificationPending';
 
-  // Only Hospital/Policyholder can upload documents, and only while the claim is
-  // still Submitted (before staff touches it).
+  // ── Hospital 1-hour document-edit window ─────────────────────────────────
+  // .NET JSON serialisers often emit UTC datetimes WITHOUT the 'Z' suffix
+  // (e.g. "2026-05-30T07:06:00").  A browser in IST then silently treats that
+  // string as *local* time, making `submittedMs` appear 5 h 30 m earlier than
+  // it really is — so every fresh claim looks "expired".  We fix this by
+  // appending 'Z' whenever the string has no explicit timezone marker.
+  function toUtcMs(dateStr) {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    const hasZone =
+      s.endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(s);
+    const ms = new Date(hasZone ? s : s + 'Z').getTime();
+    return isNaN(ms) ? null : ms;
+  }
+
+  const ONE_HOUR_MS     = 60 * 60 * 1000;
+  const submittedMs     = toUtcMs(claim?.submittedAt);
+  const msSinceSubmit   = submittedMs != null ? now - submittedMs : null;
+  const withinEditWindow = isHospital &&
+    msSinceSubmit != null &&
+    msSinceSubmit < ONE_HOUR_MS &&
+    !claimFinalized;
+  const editWindowExpired = isHospital &&
+    msSinceSubmit != null &&
+    msSinceSubmit >= ONE_HOUR_MS &&
+    !claimFinalized;
+  const msRemaining   = withinEditWindow ? ONE_HOUR_MS - msSinceSubmit : 0;
+  const minutesLeft   = Math.ceil(msRemaining / 60_000);
+
+  // Only Hospital/Policyholder can upload documents:
+  //   - Hospital: within the 1-hour edit window (any claim status, not finalized)
+  //   - Policyholder: only while the claim is still Submitted
   // Staff and Admin cannot upload — they verify/reject documents only.
-  const canUpload = !claimFinalized &&
-    (isHospital || isPolicyholder) &&
-    claim?.status === 'Submitted';
+  const canUpload = !claimFinalized && (
+    (isHospital   && withinEditWindow) ||
+    (isPolicyholder && claim?.status === 'Submitted')
+  );
 
   const canDeleteDoc = (doc) => {
     if (doc.status === 'Verified') return false;
     if (claimFinalized) return false;
-    if (isAdmin) return true;
-    if (isStaff) return true;
-    // Hospital/PH can delete only while claim is still Submitted (before staff touches it)
-    return doc.uploadedByID === currentUserId && claim?.status === 'Submitted';
+    if (isAdmin || isStaff) return true;
+    if (doc.uploadedByID !== currentUserId) return false;
+    if (isHospital)      return withinEditWindow;
+    return isPolicyholder && claim?.status === 'Submitted';
   };
 
   const canVerifyDoc = (doc) =>
     (isAdmin || isStaff) && doc.status === 'Pending' && !claimFinalized;
 
-  // frontend/claim: hospital/PH can re-upload their own rejected docs
-  const canReuploadDoc = (doc) =>
-    doc.status === 'Rejected' &&
-    (isHospital || isPolicyholder) &&
-    doc.uploadedByID === currentUserId &&
-    !claimFinalized &&
-    docReviewWindow;
+  // Hospital/PH can re-upload their own rejected docs:
+  // Hospital: within the 1-hour window | PH: while docReviewWindow is active
+  const canReuploadDoc = (doc) => {
+    if (doc.status !== 'Rejected') return false;
+    if (claimFinalized) return false;
+    if (doc.uploadedByID !== currentUserId) return false;
+    if (isHospital)      return withinEditWindow;
+    return isPolicyholder && docReviewWindow;
+  };
 
   const canViewDocs = (isAdmin || isStaff) || !claimFinalized;
 
@@ -345,6 +450,38 @@ export default function ClaimDetailModal({
                             }
                           </Button>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── Hospital 1-hour edit window banners ──────── */}
+                    {withinEditWindow && (
+                      <div
+                        className="rounded-3 p-3 mb-3 d-flex align-items-start gap-2"
+                        style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}
+                      >
+                        <i className="bi bi-clock-history text-primary flex-shrink-0 mt-1"></i>
+                        <div>
+                          <div className="small fw-semibold mb-1" style={{ color: '#1e40af' }}>
+                            Document Edit Window Open
+                          </div>
+                          <div className="small text-muted">
+                            You can upload, delete, or replace documents for{' '}
+                            <strong>{minutesLeft} more minute{minutesLeft !== 1 ? 's' : ''}</strong>.
+                            After this window closes only staff can manage documents.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {editWindowExpired && (
+                      <div
+                        className="rounded-3 p-2 mb-3 d-flex align-items-center gap-2"
+                        style={{ background: '#fffbeb', border: '1px solid #fde68a' }}
+                      >
+                        <i className="bi bi-lock-fill text-warning"></i>
+                        <span className="small text-muted">
+                          The <strong>1-hour document edit window</strong> has expired.
+                          Contact insurance staff to modify documents.
+                        </span>
                       </div>
                     )}
 
@@ -837,6 +974,184 @@ export default function ClaimDetailModal({
                     )}
                   </div>
                 </Tab>
+
+                {/* ── TAB 6: TIMELINE (Policyholder only) ─────────── */}
+                {isPolicyholder && (
+                  <Tab
+                    eventKey="timeline"
+                    title={<><i className="bi bi-diagram-3 me-1"></i>Timeline</>}
+                  >
+                    <div style={{ overflowY: 'auto', maxHeight: '45vh' }}>
+                      <style>{`
+                        @keyframes claimTimelinePulse {
+                          0%   { box-shadow: 0 0 0 0 rgba(124,58,237,0.38); }
+                          60%  { box-shadow: 0 0 0 11px rgba(124,58,237,0); }
+                          100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+                        }
+                      `}</style>
+
+                      {/* Current status banner */}
+                      <div
+                        className="rounded-3 p-3 mb-4 d-flex align-items-center gap-3"
+                        style={{ background: 'linear-gradient(135deg,#f0f4ff,#faf5ff)', border: '1px solid #e0d7f5' }}
+                      >
+                        <div style={{
+                          background: 'linear-gradient(135deg,#667eea,#764ba2)',
+                          borderRadius: 10, padding: '8px 10px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <i className="bi bi-shield-half text-white" style={{ fontSize: 20 }}></i>
+                        </div>
+                        <div>
+                          <div className="fw-semibold" style={{ fontSize: '0.85rem', color: '#1f2937' }}>
+                            Current Status:{' '}
+                            <Badge
+                              bg={statusVariant(claim.status)}
+                              className="px-2 py-1 ms-1"
+                              style={{ fontSize: '0.72rem' }}
+                            >
+                              {statusLabel(claim.status)}
+                            </Badge>
+                          </div>
+                          <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                            Claim CLM-{claim.claimID} · Submitted {formatDate(claim.submittedAt)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vertical timeline */}
+                      <div style={{ padding: '0 4px 8px' }}>
+                        {TIMELINE_STAGES.map((stage, idx) => {
+                          const state      = getStageState(stage.key, claim.status);
+                          const isLast     = idx === TIMELINE_STAGES.length - 1;
+                          const isRejected = stage.key === 'decision' && claim.status === 'Rejected';
+                          const isApproved = stage.key === 'decision' && ['Approved', 'Paid'].includes(claim.status);
+
+                          const dotColor = state === 'pending'
+                            ? '#d1d5db'
+                            : state === 'active'
+                              ? stage.activeColor
+                              : isRejected ? '#dc2626' : isApproved ? '#16a34a' : stage.activeColor;
+
+                          const stageLabel = stage.key === 'decision'
+                            ? (isApproved
+                                ? (claim.status === 'Paid' ? 'Approved & Payment Executed' : 'Claim Approved')
+                                : isRejected ? 'Claim Rejected' : stage.label)
+                            : stage.label;
+
+                          const stageDesc = stage.key === 'decision'
+                            ? (isApproved
+                                ? (claim.status === 'Paid'
+                                    ? 'Your claim was approved and payment has been executed to your provider.'
+                                    : 'Your claim has been approved. Payment will be processed shortly.')
+                                : isRejected
+                                  ? 'After thorough review, your claim could not be approved. Contact your insurance provider for more information.'
+                                  : stage.description)
+                            : stage.description;
+
+                          const timestamp = stage.key === 'submitted'
+                            ? formatDate(claim.submittedAt)
+                            : stage.key === 'decision' && state === 'done' && claim.adjudication?.executedAt
+                              ? formatDate(claim.adjudication.executedAt)
+                              : null;
+
+                          return (
+                            <div key={stage.key} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+                              {/* Left: circle + connector */}
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 44 }}>
+                                <div style={{
+                                  width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                                  background: state === 'pending' ? '#f9fafb' : dotColor,
+                                  border: `2.5px solid ${dotColor}`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  transition: 'all 0.3s',
+                                  ...(state === 'active'
+                                    ? { animation: 'claimTimelinePulse 1.8s ease-in-out infinite' }
+                                    : {}),
+                                }}>
+                                  {state === 'done' ? (
+                                    <i className="bi bi-check-lg" style={{ fontSize: 18, color: 'white' }}></i>
+                                  ) : state === 'active' ? (
+                                    <i className={`bi ${stage.icon}`} style={{ fontSize: 16, color: 'white' }}></i>
+                                  ) : (
+                                    <i className={`bi ${stage.icon}`} style={{ fontSize: 15, color: '#d1d5db' }}></i>
+                                  )}
+                                </div>
+                                {!isLast && (
+                                  <div style={{
+                                    width: 3, height: 44,
+                                    background: state === 'done' ? dotColor : '#e5e7eb',
+                                    margin: '3px 0', borderRadius: 2, flexShrink: 0,
+                                  }} />
+                                )}
+                              </div>
+
+                              {/* Right: content */}
+                              <div style={{ paddingTop: 10, flex: 1, paddingBottom: isLast ? 4 : 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
+                                  <span style={{
+                                    fontWeight: 600, fontSize: '0.88rem',
+                                    color: state === 'pending' ? '#9ca3af' : '#1f2937',
+                                  }}>
+                                    {stageLabel}
+                                  </span>
+                                  {state === 'done' && (
+                                    <span style={{
+                                      fontSize: '0.65rem', fontWeight: 700,
+                                      background: isRejected ? '#fee2e2' : '#d1fae5',
+                                      color: isRejected ? '#b91c1c' : '#065f46',
+                                      padding: '2px 7px', borderRadius: 999,
+                                    }}>
+                                      {isRejected ? 'REJECTED' : 'COMPLETED'}
+                                    </span>
+                                  )}
+                                  {state === 'active' && (
+                                    <span style={{
+                                      fontSize: '0.65rem', fontWeight: 700,
+                                      background: dotColor + '22',
+                                      color: dotColor,
+                                      padding: '2px 7px', borderRadius: 999,
+                                      border: `1px solid ${dotColor}55`,
+                                    }}>
+                                      IN PROGRESS
+                                    </span>
+                                  )}
+                                  {timestamp && (
+                                    <span style={{ fontSize: '0.7rem', color: '#9ca3af', marginLeft: 'auto' }}>
+                                      <i className="bi bi-clock me-1"></i>{timestamp}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{
+                                  fontSize: '0.78rem',
+                                  color: state === 'pending' ? '#d1d5db' : '#6b7280',
+                                  lineHeight: 1.55,
+                                  paddingBottom: isLast ? 0 : 28,
+                                }}>
+                                  {stageDesc}
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer note */}
+                      <div
+                        className="rounded-3 p-2 d-flex align-items-center gap-2 mt-2"
+                        style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}
+                      >
+                        <i className="bi bi-info-circle text-muted flex-shrink-0" style={{ fontSize: '0.8rem' }}></i>
+                        <span style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                          For questions about your claim status, contact your insurance provider or member support.
+                        </span>
+                      </div>
+                    </div>
+                  </Tab>
+                )}
 
               </Tabs>
             </>
