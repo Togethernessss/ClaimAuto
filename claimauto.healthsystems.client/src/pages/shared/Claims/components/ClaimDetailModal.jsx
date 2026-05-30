@@ -84,17 +84,20 @@ export default function ClaimDetailModal({
   const claimFinalized = finalStatuses.includes(claim?.status);
   const docReviewWindow = claim?.status === 'Submitted' || claim?.status === 'DocsVerificationPending';
 
-  // Staff/Admin can upload on any non-finalized claim; Hospital/PH only during doc-review window
-  const canUpload = !claimFinalized && (
-    (isAdmin || isStaff) || ((isHospital || isPolicyholder) && docReviewWindow)
-  );
+  // Only Hospital/Policyholder can upload documents, and only while the claim is
+  // still Submitted (before staff touches it).
+  // Staff and Admin cannot upload — they verify/reject documents only.
+  const canUpload = !claimFinalized &&
+    (isHospital || isPolicyholder) &&
+    claim?.status === 'Submitted';
 
   const canDeleteDoc = (doc) => {
     if (doc.status === 'Verified') return false;
     if (claimFinalized) return false;
     if (isAdmin) return true;
     if (isStaff) return true;
-    return doc.uploadedByID === currentUserId && docReviewWindow;
+    // Hospital/PH can delete only while claim is still Submitted (before staff touches it)
+    return doc.uploadedByID === currentUserId && claim?.status === 'Submitted';
   };
 
   const canVerifyDoc = (doc) =>
@@ -119,13 +122,9 @@ export default function ClaimDetailModal({
   const handleUpload = async () => {
     if (!fileName || !claim) return;
     const file = fileRef.current?.files?.[0];
-    const sha256 = file ? await computeSHA256(file) : '';
-    const dto = {
-      docType,
-      fileURI: simulateFileURI(claim.claimID, docType, fileName),
-      sha256,
-    };
-    onUploadDocument(claim.claimID, dto);
+    if (!file) return;
+    // Pass the raw file and docType — Claims.jsx handles the actual upload + SHA256
+    onUploadDocument(claim.claimID, file, docType);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
   };

@@ -72,12 +72,12 @@ export default function StaffDashboard() {
   }
 
   function getPercent(kpi) {
-    if (!kpi || kpi.currentValue === 0) return 0;
+    if (!kpi || kpi.currentValue == null) return 0;
     return Math.min(Math.round(kpi.currentValue), 100);
   }
 
   function getStatus(kpi, invertLower = false) {
-    if (!kpi || kpi.currentValue === 0) return 'No data';
+    if (!kpi || kpi.currentValue == null) return 'No data';
     if (invertLower)
       return kpi.currentValue <= kpi.target
         ? 'On target' : 'Below target';
@@ -86,7 +86,7 @@ export default function StaffDashboard() {
   }
 
   function getColor(kpi, invertLower = false) {
-    if (!kpi || kpi.currentValue === 0) return '#9e9e9e';
+    if (!kpi || kpi.currentValue == null) return '#9e9e9e';
     if (invertLower)
       return kpi.currentValue <= kpi.target
         ? '#0d6efd' : '#ef4444';

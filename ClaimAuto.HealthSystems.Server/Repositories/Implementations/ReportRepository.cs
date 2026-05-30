@@ -263,11 +263,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             if (totalClaims > 0)
             {
+                // Count all auto-adjudicated claims (PerformedByID == null means
+                // the rule engine processed it — regardless of Approved/Denied outcome)
                 var autoPaid = await _context.AdjudicationRecords
                     .Where(a => !userOrgId.HasValue || a.OrganizationID == userOrgId.Value)
-                    .CountAsync(a =>
-                        a.Decision == AdjDecision.Approved
-                        && a.PerformedByID == null);
+                    .CountAsync(a => a.PerformedByID == null);
 
                 var autoAdjRate = Math.Min(Math.Round(
                     (double)autoPaid / totalClaims * 100, 2), 100);

@@ -205,6 +205,18 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var member = await _db.Members.FindAsync(dto.MemberID);
             if (member == null) return null;
 
+            // Validate each line's service date falls within the member's coverage period
+            if (dto.Lines != null)
+            {
+                foreach (var line in dto.Lines)
+                {
+                    if (line.ServiceDate.Date < member.CoverageStart.Date)
+                        return null;
+                    if (member.CoverageEnd.HasValue && line.ServiceDate.Date > member.CoverageEnd.Value.Date)
+                        return null;
+                }
+            }
+
             var policy = await _db.Policies.FindAsync(dto.PolicyID);
             if (policy == null || policy.Status != PolicyStatus.Active)
                 return null;
@@ -453,7 +465,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  DELETE CLAIM — only Rejected claims, tenant-aware (Phase 4)
         // ══════════════════════════════════════════════════════════════════
-        public async Task<string> DeleteClaimAsync(int claimId, int deletedByUserId, int? userOrgId = null)
+        public async Task<string> DeleteClaimAsync(int claimId, int deletedByUserId, int? userOrgId = null, bool isHospital = false)
         {
             // Tenant-aware lookup: if userOrgId is supplied, the claim must belong to that org.
             // Cross-tenant attempts get "notfound" (don't reveal existence across tenants).
@@ -464,8 +476,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var claim = await query.FirstOrDefaultAsync();
             if (claim == null) return "notfound";
 
-            if (claim.Status != ClaimStatus.Rejected)
-                return "notrejected";
+            if (isHospital)
+            {
+                // Hospital can only delete Submitted claims they own (before staff review)
+                if (claim.Status != ClaimStatus.Submitted)
+                    return "notallowed";
+                if (claim.ProviderID != deletedByUserId)
+                    return "notfound";  // don't reveal cross-provider existence
+            }
+            else
+            {
+                // Admin can delete Rejected or Submitted claims
+                if (claim.Status != ClaimStatus.Rejected && claim.Status != ClaimStatus.Submitted)
+                    return "notallowed";
+            }
 
             var audit = new AuditLog
             {

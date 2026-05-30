@@ -162,6 +162,23 @@ export default function SubmitClaimModal({
       setLineError('Service date cannot be in the future — claims must be for services already rendered.');
       return;
     }
+    if (lookupResult) {
+      const sd = new Date(lineForm.serviceDate);
+      const cs = new Date(lookupResult.coverageStart);
+      if (sd < cs) {
+        const startStr = cs.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+        setLineError(`Service date cannot be before the member's coverage start (${startStr}).`);
+        return;
+      }
+      if (lookupResult.coverageEnd) {
+        const ce = new Date(lookupResult.coverageEnd);
+        if (sd > ce) {
+          const endStr = ce.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+          setLineError(`Service date cannot be after the member's coverage end (${endStr}).`);
+          return;
+        }
+      }
+    }
     if (Number(lineForm.quantity) < 1 || !Number.isInteger(Number(lineForm.quantity))) {
       setLineError('Quantity must be a whole number of at least 1.');
       return;
