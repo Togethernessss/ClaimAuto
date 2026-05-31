@@ -60,6 +60,28 @@ export default function Notifications() {
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
 
+  // ── Auto-mark all unread as read on first visit ─────────────────────
+  // The bell badge clears as soon as the user lands on this page, matching
+  // the standard "you've seen it" behavior. We fire ONCE per page mount
+  // (empty deps) so filter changes don't re-trigger it. The cancelled flag
+  // protects against React 18 strict-mode double-invoke in dev.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await markAllAsRead();
+        if (!cancelled) {
+          refresh();             // tell the bell context to refetch → badge drops to 0
+          loadNotifications();   // re-render the list so rows now appear as Read
+        }
+      } catch {
+        // Silent — user can still hit "Mark all as read" manually if this fails
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!successMsg) return;
     const t = setTimeout(() => setSuccessMsg(null), 3000);

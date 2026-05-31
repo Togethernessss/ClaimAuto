@@ -174,6 +174,29 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         /// <summary>
+        /// Looks up every enrollment that shares a member number.
+        /// Used when one policyholder has multiple active policies under the same Member ID.
+        /// </summary>
+        [HttpGet("lookup-all")]
+        [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> LookupMemberEnrollmentsByNumber([FromQuery] string memberNumber)
+        {
+            if (string.IsNullOrWhiteSpace(memberNumber))
+                return BadRequest("memberNumber query parameter is required.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+            var members = await _memberRepo.GetMembersByNumberAsync(memberNumber.Trim(), userOrgId);
+
+            if (!members.Any())
+                return NotFound($"No member found with member number '{memberNumber}'.");
+
+            return Ok(members);
+        }
+
+        /// <summary>
         /// Returns the current Policyholder's own member record.
         /// Called by the Policyholder dashboard to show coverage card.
         /// </summary>

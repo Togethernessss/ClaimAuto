@@ -1,4 +1,4 @@
-﻿using ClaimAuto.HealthSystems.Server.DTOs;
+using ClaimAuto.HealthSystems.Server.DTOs;
 
 namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 {
@@ -46,5 +46,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Returns true if the same Policyholder is already an Active Member on the same Policy
         // (scoped to org when supplied). Used by POST /api/members to short-circuit with a 409.
         Task<bool> IsEnrolledInPolicyAsync(int policyholderUserId, int policyId, int? userOrgId = null);
+
+        // Used by: GET /api/members/lookup-all?memberNumber=MEM-000042
+        // Returns every policy enrollment sharing the same member card number.
+        Task<List<MemberResponseDto>> GetMembersByNumberAsync(string memberNumber, int? userOrgId = null);
     }
 }

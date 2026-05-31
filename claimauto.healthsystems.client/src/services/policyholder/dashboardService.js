@@ -7,7 +7,7 @@
 
 import { getActivePolicies }                          from '../policies/policyService';
 import { getAllClaims }                               from '../claims/claimService';
-import { getMyMember }                               from '../members/memberService';
+import { getMyMemberEnrollments }                   from '../members/memberService';
 import {
   getMyNotifications,
   markAsRead,
@@ -94,6 +94,7 @@ function mapMember(m) {
   if (!m) return null;
   return {
     memberID:     m.memberID,
+    policyID:     m.policyID,
     memberNumber: m.memberNumber,
     name:         m.name,
     dob:          m.dob,
@@ -150,22 +151,27 @@ export async function fetchDashboardData() {
       return fallback;
     });
 
-  const [policies, claims, notifications, appeals, member, payments] =
+  const [policies, claims, notifications, appeals, members, payments] =
     await Promise.all([
       safe(getActivePolicies(),  []),
       safe(getAllClaims(),       []),
       safe(getMyNotifications(), []),
       safe(getAllAppeals(),      []),
-      safe(getMyMember(),        null),   // single member, not a list
+      safe(getMyMemberEnrollments(), []),
       safe(getAllPayments(),     []),
     ]);
 
+  const mappedPolicies = policies.map(mapPolicy).filter(Boolean);
+  const mappedMembers = members.map(mapMember).filter(Boolean);
+
   return {
-      policy:        policies.length > 0 ? mapPolicy(policies[0]) : null,
+      policy:        mappedPolicies[0] ?? null,
+      policies:      mappedPolicies,
       claims:        claims.map(mapClaim),
       notifications: notifications.map(mapNotification),
       appeals:       appeals.map(mapAppeal),
-      member:        mapMember(member),   // singular — own member record only
+      member:        mappedMembers[0] ?? null,
+      members:       mappedMembers,
       payments:      payments.map(mapPayment),
   };
 }

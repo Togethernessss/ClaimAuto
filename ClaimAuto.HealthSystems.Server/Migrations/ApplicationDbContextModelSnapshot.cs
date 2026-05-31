@@ -129,6 +129,48 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.ToTable("Appeals");
                 });
 
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AppealDocument", b =>
+                {
+                    b.Property<int>("DocumentID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DocumentID"));
+
+                    b.Property<int>("AppealID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("FileData")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("OrganizationID")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("DocumentID");
+
+                    b.HasIndex("AppealID");
+
+                    b.HasIndex("OrganizationID");
+
+                    b.ToTable("AppealDocuments");
+                });
+
             modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AuditLog", b =>
                 {
                     b.Property<int>("AuditID")
@@ -687,7 +729,6 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.HasKey("MemberID");
 
                     b.HasIndex("MemberNumber")
-                        .IsUnique()
                         .HasFilter("[MemberNumber] IS NOT NULL");
 
                     b.HasIndex("OrganizationID");
@@ -1305,6 +1346,24 @@ namespace ClaimAuto.HealthSystems.Server.Migrations
                     b.Navigation("DecisionBy");
 
                     b.Navigation("FiledByUser");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("ClaimAuto.HealthSystems.Server.Model.AppealDocument", b =>
+                {
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Appeal", "Appeal")
+                        .WithMany()
+                        .HasForeignKey("AppealID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ClaimAuto.HealthSystems.Server.Model.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Appeal");
 
                     b.Navigation("Organization");
                 });

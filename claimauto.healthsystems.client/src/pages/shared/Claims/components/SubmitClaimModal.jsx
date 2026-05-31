@@ -11,7 +11,7 @@ import {
   DOC_TYPES, computeSHA256,
 } from '../utils/claimHelpers';
 import { uploadFile } from '../../../../services/files/fileService';
-import { lookupMemberByNumber } from '../../../../services/members/memberService';
+import { lookupMemberEnrollmentsByNumber } from '../../../../services/members/memberService';
 const EMPTY_LINE = {
   serviceCode:   '',
   serviceDate:   '',
@@ -46,6 +46,7 @@ export default function SubmitClaimModal({
 
   const [lookupQuery,   setLookupQuery]   = useState('');
   const [lookupResult,  setLookupResult]  = useState(null);
+  const [lookupOptions, setLookupOptions] = useState([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError,   setLookupError]   = useState(null);
 
@@ -77,6 +78,7 @@ export default function SubmitClaimModal({
       setShowLineForm(false);
       setLookupQuery('');
       setLookupResult(null);
+      setLookupOptions([]);
       setLookupLoading(false);
       setLookupError(null);
       setEditLineIdx(null);
@@ -95,25 +97,33 @@ export default function SubmitClaimModal({
   const handleField = (field) => (e) =>
     setForm({ ...form, [field]: e.target.value });
 
+  const applyLookupEnrollment = (member) => {
+    setLookupResult(member);
+    setForm((prev) => ({
+      ...prev,
+      memberID:  String(member.memberID),
+      policyID:  String(member.policyID),
+      claimType: '',
+    }));
+  };
+
   // ── Member lookup — Hospital types member number and clicks Find ──────────
   const handleLookup = async () => {
     if (!lookupQuery.trim()) return;
     setLookupLoading(true);
     setLookupError(null);
     setLookupResult(null);
+    setLookupOptions([]);
     setForm((prev) => ({ ...prev, memberID: '', policyID: '', claimType: '' }));
     try {
-      const member = await lookupMemberByNumber(lookupQuery.trim());
-      if (member.status !== 'Active') {
-        setLookupError(`Member found but status is "${member.status}" — cannot submit claims for inactive members.`);
+      const enrollments = await lookupMemberEnrollmentsByNumber(lookupQuery.trim());
+      const activeEnrollments = enrollments.filter((member) => member.status === 'Active');
+      if (activeEnrollments.length === 0) {
+        setLookupError('Member found, but no active policy enrollment is available for claim submission.');
+      } else if (activeEnrollments.length === 1) {
+        applyLookupEnrollment(activeEnrollments[0]);
       } else {
-        setLookupResult(member);
-        setForm((prev) => ({
-          ...prev,
-          memberID:  String(member.memberID),
-          policyID:  String(member.policyID),
-          claimType: '',
-        }));
+        setLookupOptions(activeEnrollments);
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data || 'Member not found.';
@@ -431,6 +441,28 @@ export default function SubmitClaimModal({
                 {lookupError && (
                   <div className="text-danger small mt-1">
                     <i className="bi bi-exclamation-circle me-1"></i>{lookupError}
+                  </div>
+                )}
+                {lookupOptions.length > 1 && !lookupResult && (
+                  <div className="mt-2">
+                    <Form.Select
+                      size="sm"
+                      value=""
+                      onChange={(e) => {
+                        const selected = lookupOptions.find((m) => m.memberID === Number(e.target.value));
+                        if (selected) applyLookupEnrollment(selected);
+                      }}
+                    >
+                      <option value="">Select policy enrollment for this claim</option>
+                      {lookupOptions.map((member) => (
+                        <option key={member.memberID} value={member.memberID}>
+                          {member.name} ({member.memberNumber}) - {member.policyName}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <div className="text-muted small mt-1">
+                      This Member ID has multiple active policies. Pick the policy used for this treatment.
+                    </div>
                   </div>
                 )}
                 {lookupResult && (

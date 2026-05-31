@@ -47,6 +47,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(m => m.Status == parsedStatus);
 
             return await query
+                .OrderBy(m => m.MemberID)
                 .Select(m => new MemberResponseDto
                 {
                     MemberID = m.MemberID,
@@ -79,6 +80,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(m => m.OrganizationID == userOrgId.Value);
 
             return await query
+                .OrderBy(m => m.MemberID)
                 .Select(m => new MemberResponseDto
                 { 
                     MemberID = m.MemberID,
@@ -267,13 +269,30 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             if (!Enum.TryParse<GenderType>(dto.Gender, out var gender))
                 return null;
 
+            // ── Re-use the same MemberNumber if this policyholder is already enrolled
+            //    in another policy (same userID, same org). This ensures one person
+            //    always carries the same Member ID regardless of how many policies
+            //    they are enrolled in.
+            string? existingMemberNumber = null;
+            if (dto.PolicyholderUserID > 0)
+            {
+                var priorEnrollment = await _db.Members
+                    .Where(m => m.PolicyholderUserID == dto.PolicyholderUserID
+                             && m.MemberNumber != null
+                             && (!userOrgId.HasValue || m.OrganizationID == userOrgId))
+                    .OrderBy(m => m.MemberID)   // take the very first enrollment's number
+                    .FirstOrDefaultAsync();
+
+                existingMemberNumber = priorEnrollment?.MemberNumber;
+            }
+
             var member = new Member
             {
                 PolicyID = dto.PolicyID,
                 Name = dto.Name,
                 DOB = dto.DOB,
                 Gender = gender,
-                MemberNumber = null,          // auto-generated after first save
+                MemberNumber = existingMemberNumber,  // null → auto-generated; non-null → reused
                 ContactInfoJSON = dto.ContactInfoJSON,
                 CoverageStart = dto.CoverageStart,
                 CoverageEnd = dto.CoverageEnd,
@@ -298,9 +317,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _db.AuditLogs.Add(audit);
             await _db.SaveChangesAsync();    // ← First save: gets auto-assigned MemberID
 
-            // Auto-generate MemberNumber from the database-assigned MemberID
-            // Format: MEM-000001, MEM-000042, MEM-100523 — guaranteed unique, no manual input
-            member.MemberNumber = $"MEM-{member.MemberID:D6}";
+            // Auto-generate MemberNumber only for first-time enrollments.
+            // Subsequent enrollments for the same user reuse the number set above.
+            if (member.MemberNumber == null)
+                member.MemberNumber = $"MEM-{member.MemberID:D6}";
+
             audit.ResourceID = member.MemberID.ToString();
             await _db.SaveChangesAsync();    // ← Second save: writes MemberNumber + ResourceID
 
@@ -543,6 +564,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(m => m.OrganizationID == userOrgId.Value);
 
             return await query
+                .OrderBy(m => m.MemberID)
                 .Select(m => new MemberResponseDto
                 {
                     MemberID = m.MemberID,
@@ -569,6 +591,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         public async Task<MemberResponseDto?> GetMemberByNumberAsync(string memberNumber, int? userOrgId = null)
         {
+            var matches = await GetMembersByNumberAsync(memberNumber, userOrgId);
+            return matches.FirstOrDefault();
+        }
+
+        public async Task<List<MemberResponseDto>> GetMembersByNumberAsync(string memberNumber, int? userOrgId = null)
+        {
             var query = _db.Members
                 .Where(m => m.MemberNumber == memberNumber);
 
@@ -576,6 +604,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 query = query.Where(m => m.OrganizationID == userOrgId.Value);
 
             return await query
+                .OrderBy(m => m.MemberID)
                 .Select(m => new MemberResponseDto
                 {
                     MemberID = m.MemberID,
@@ -593,7 +622,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     CoverageRulesJSON = m.Policy.CoverageRulesJSON,
                     PolicyEffectiveTo = m.Policy.EffectiveTo,
                 })
-                .FirstOrDefaultAsync();
+                .ToListAsync();
         }
 
         private string ExtractReasonFromCache(string? resultJson)

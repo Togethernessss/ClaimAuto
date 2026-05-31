@@ -348,7 +348,11 @@ const [policyholderUsers, setPolicyholderUsers] = useState([]);
       />
 
       {!loading && !error && members.length > 0 && (
-          <MembersSummary members={members} />
+          <MembersSummary
+            members={members}
+            activeStatus={statusFilter}
+            onCardClick={setStatusFilter}
+          />
       )}
 
       <MembersTable
