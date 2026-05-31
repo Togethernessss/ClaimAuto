@@ -72,13 +72,26 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             return payment == null ? null : MapPayment(payment);
         }
         // ── CREATE PAYMENT ────────────────────────────────────────────
-        public async Task<PaymentResponseDto> CreatePaymentAsync(
+        // 4.1 — Guard against double-payment. Inside the transaction we check
+        // for any active (non-Failed) payment on the same claim before inserting.
+        // Returns null if a duplicate exists; controller maps that to 409.
+        public async Task<PaymentResponseDto?> CreatePaymentAsync(
             Payment payment, int createdByUserId)
         {
             using var transaction = await _context.Database
-                .BeginTransactionAsync();
+                .BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             try
             {
+                var hasActivePayment = await _context.Payments.AnyAsync(p =>
+                    p.ClaimID == payment.ClaimID &&
+                    p.Status != PaymentStatus.Failed);
+
+                if (hasActivePayment)
+                {
+                    await transaction.RollbackAsync();
+                    return null;
+                }
+
                 payment.CreatedAt = DateTime.UtcNow;
                 payment.Status = PaymentStatus.Pending;
                 _context.Payments.Add(payment);
@@ -126,32 +139,57 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
         }
         // ── AUTHORIZE PAYMENT ─────────────────────────────────────────
+        // 4.2 — Race-safe: wrap the whole read-modify-write in a Serializable
+        // transaction so two concurrent calls can't both observe Pending. The
+        // second caller will see Status = Authorized after the first commits
+        // and bail with null (controller maps to 409).
         public async Task<PaymentResponseDto?> AuthorizePaymentAsync(
             int id, int authorizedByUserId)
         {
-            var payment = await _context.Payments
-                .Include(p => p.Payee)
-                .Include(p => p.Claim)
-                .FirstOrDefaultAsync(p => p.PaymentID == id);
-            if (payment == null) return null;
-            if (payment.Status != PaymentStatus.Pending) return null;
-            payment.Status = PaymentStatus.Authorized;
-            _context.AuditLogs.Add(new AuditLog
+            using var transaction = await _context.Database
+                .BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            try
             {
-                UserID = authorizedByUserId,
-                Action = "AuthorizePayment",
-                ResourceType = "Payment",
-                ResourceID = id.ToString(),
-                DetailsJSON = $"{{\"paymentID\":{id}," +
-                                 $"\"claimID\":{payment.ClaimID}," +
-                                 $"\"amount\":{payment.Amount}," +
-                                 $"\"previousStatus\":\"Pending\"," +
-                                 $"\"newStatus\":\"Authorized\"}}",
-                Timestamp = DateTime.UtcNow,
-                OrganizationID = payment.OrganizationID,
-            });
-            await _context.SaveChangesAsync();
-            return MapPayment(payment);
+                var payment = await _context.Payments
+                    .Include(p => p.Payee)
+                    .Include(p => p.Claim)
+                    .FirstOrDefaultAsync(p => p.PaymentID == id);
+
+                if (payment == null)
+                {
+                    await transaction.RollbackAsync();
+                    return null;
+                }
+                if (payment.Status != PaymentStatus.Pending)
+                {
+                    await transaction.RollbackAsync();
+                    return null;
+                }
+
+                payment.Status = PaymentStatus.Authorized;
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserID = authorizedByUserId,
+                    Action = "AuthorizePayment",
+                    ResourceType = "Payment",
+                    ResourceID = id.ToString(),
+                    DetailsJSON = $"{{\"paymentID\":{id}," +
+                                     $"\"claimID\":{payment.ClaimID}," +
+                                     $"\"amount\":{payment.Amount}," +
+                                     $"\"previousStatus\":\"Pending\"," +
+                                     $"\"newStatus\":\"Authorized\"}}",
+                    Timestamp = DateTime.UtcNow,
+                    OrganizationID = payment.OrganizationID,
+                });
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return MapPayment(payment);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
         // ── EXECUTE PAYMENT ───────────────────────────────────────────
         public async Task<PaymentResponseDto?> ExecutePaymentAsync(
@@ -170,10 +208,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             payment.ReferenceNumber = referenceNumber;
             if (payment.Claim != null)
                 payment.Claim.Status = ClaimStatus.Paid;
-            // ── Generate remittance PDF (Cashless only) ───────────────
+            // ── Generate remittance PDF ────────────────────────────────
+            // Reimbursement removed — all paid claims now get a remittance.
             Remittance? remittance = null;
-            if (payment.Claim != null &&
-                payment.Claim.ClaimType != ClaimType.Reimbursement)
+            if (payment.Claim != null)
             {
                 remittance = new Remittance
                 {

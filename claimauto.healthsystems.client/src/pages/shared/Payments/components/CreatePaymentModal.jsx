@@ -50,21 +50,34 @@ export default function CreatePaymentModal({
     return { count: claimPayments.length, totalPaid };
   }
 
+  // 4.3 — hide claims that already have a non-Failed payment so staff can't
+  // accidentally double-pay. We treat 'Failed' as the only re-payable state;
+  // every other status (Pending/Authorized/Executed) is "active" and blocks.
+  const hasActivePayment = (claimId) =>
+    payments.some(p => p.claimID === claimId && p.status !== 'Failed');
+
+  const unpaidClaims = claims.filter(c => !hasActivePayment(c.claimID));
+
   const filteredClaims = claimSearch
-    ? claims.filter(c =>
+    ? unpaidClaims.filter(c =>
         c.providerName?.toLowerCase().includes(claimSearch.toLowerCase()) ||
         String(c.claimID).includes(claimSearch))
-    : claims.slice(0, 20);
+    : unpaidClaims.slice(0, 20);
 
   // FIX: set both claimID and payeeID when a claim is selected
   // c.providerID = the hospital's UserID — this is who gets paid
+  // 6.2 — also pre-fill amount with the claim's approved amount so staff
+  //       don't have to retype it. They can still adjust if needed.
   function handleSelectClaim(c) {
     setSelectedClaim(c);
     setShowPanel(false);
     setClaimSearch('');
     setValidationError(null);
     onFieldChange('claimID')({ target: { value: c.claimID } });
-    onFieldChange('payeeID')({ target: { value: c.providerID } }); // ← KEY FIX
+    onFieldChange('payeeID')({ target: { value: c.providerID } });
+    onFieldChange('amount')({
+      target: { value: c.approvedAmount ?? c.totalBilledAmount ?? '' }
+    });
   }
 
   // FIX: clear both claimID and payeeID when user clicks "Change"
@@ -85,6 +98,16 @@ export default function CreatePaymentModal({
       setValidationError('Please enter a valid amount greater than 0.');
       return;
     }
+    // 4.1 — block at the client too. Backend also enforces (returns 409),
+    //       but checking here gives an immediate inline error instead of
+    //       an awkward round-trip with a generic toast.
+    if (hasActivePayment(form.claimID)) {
+      setValidationError(
+        'This claim already has an active payment. ' +
+        'Cancel or void the existing payment before creating a new one.'
+      );
+      return;
+    }
     setValidationError(null);
     onSubmit();
   }
@@ -98,7 +121,7 @@ export default function CreatePaymentModal({
       case 'Outpatient':    return { bg: '#e3f2fd', color: '#1565c0' };
       case 'Pharmacy':      return { bg: '#f3e5f5', color: '#4a148c' };
       case 'Emergency':     return { bg: '#fff3e0', color: '#e65100' };
-      case 'Reimbursement': return { bg: '#e8f5e9', color: '#2e7d32' };
+      // Reimbursement case removed — claim type no longer exists.
       default:              return { bg: '#f5f5f5', color: '#424242' };
     }
   }

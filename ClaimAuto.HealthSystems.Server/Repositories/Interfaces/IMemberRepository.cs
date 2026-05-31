@@ -41,5 +41,10 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
         // Allows Hospital to find a patient by member card number before submitting a claim.
         // Returns null if not found or doesn't belong to this org.
         Task<MemberResponseDto?> GetMemberByNumberAsync(string memberNumber, int? userOrgId = null);
+
+        // 1.2 — duplicate-enrollment guard.
+        // Returns true if the same Policyholder is already an Active Member on the same Policy
+        // (scoped to org when supplied). Used by POST /api/members to short-circuit with a 409.
+        Task<bool> IsEnrolledInPolicyAsync(int policyholderUserId, int policyId, int? userOrgId = null);
     }
 }

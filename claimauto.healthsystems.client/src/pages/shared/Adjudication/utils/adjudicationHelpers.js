@@ -89,7 +89,7 @@ export function claimTypeStyle(type) {
     case 'Outpatient':    return { bg: '#f3e5f5', color: '#6a1b9a' };
     case 'Pharmacy':      return { bg: '#d1f2eb', color: '#085041' };
     case 'Emergency':     return { bg: '#fdecea', color: '#b71c1c' };
-    case 'Reimbursement': return { bg: '#fff3e0', color: '#e65100' };
+    // Reimbursement claim type removed.
     default:              return { bg: '#e2e3e5', color: '#41464b' };
   }
 }

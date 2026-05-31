@@ -24,7 +24,7 @@ const RULE_TEMPLATES = [
     description: 'Denies the claim if the member\'s policy is not currently Active.',
     ruleType: 'PolicyActive', icon: 'bi-shield-check', color: '#085041', bg: '#d1f2eb' },
   { id: 'in-network',               name: 'In-Network Check',
-    description: 'Rejects out-of-network providers. Reimbursement claims are excluded.',
+    description: 'Rejects out-of-network providers.',
     ruleType: 'InNetwork', icon: 'bi-hospital', color: '#0C447C', bg: '#e3f2fd' },
   { id: 'waiting-period',           name: 'Waiting Period',
     description: 'Rejects claims filed before the policy waiting period has elapsed.',
@@ -50,9 +50,7 @@ const RULE_TEMPLATES = [
   { id: 'duplicate-detection',      name: 'Duplicate Detection',
     description: 'Denies duplicate claims (same member + provider within N days).',
     ruleType: 'DuplicateCheck', icon: 'bi-files', color: '#6a1b9a', bg: '#f3e5f5' },
-  { id: 'reimbursement-duplicate',  name: 'Reimbursement Duplicate Check',
-    description: 'Prevents double-billing on reimbursement claims when hospital already filed.',
-    ruleType: 'ReimbursementDuplicate', icon: 'bi-arrow-repeat', color: '#5d4037', bg: '#efebe9' },
+  // Reimbursement Duplicate Check template removed — Reimbursement claim type no longer exists.
   { id: 'deductible',               name: 'Deductible Applied',
     description: 'Reduces the payable amount by the policy\'s deductible before approving payment.',
     ruleType: 'Deductible', icon: 'bi-percent', color: '#1b5e20', bg: '#e8f5e9' },
@@ -69,7 +67,7 @@ const RULE_TEMPLATES = [
 
 const RULE_TYPES = RULE_TEMPLATES.map(t => t.ruleType);
 
-const CLAIM_TYPES = ['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency', 'Reimbursement'];
+const CLAIM_TYPES = ['Inpatient', 'Outpatient', 'Pharmacy', 'Emergency'];
 const DOC_TYPES = ['Invoice', 'MedicalRecord', 'LabReport', 'Prescription', 'DischargeSummary'];
 // AdjDecision values. 'Approved' replaces the old 'Paid' label.
 // 'Paid' is kept as a recognized synonym only for hydrating legacy rule JSON.
@@ -88,7 +86,7 @@ const TEMPLATE_PARAM_SCHEMAS = {
   PolicyActive:           [],
   InNetwork:              [],
   CoverageRemaining:      [],
-  ReimbursementDuplicate: [],
+  // ReimbursementDuplicate removed — Reimbursement claim type no longer exists.
   Deductible:             [],
   RouteToReview:          [],
 
@@ -162,7 +160,7 @@ const TEMPLATE_DEFAULT_ACTIONS = {
   ClaimTypeDeny:          { decision: 'Denied',        reason: 'Claim type not covered' },
   ClaimTypePass:          { decision: 'Approved',      reason: 'Claim type auto-approved' },
   DuplicateCheck:         { decision: 'Denied',        reason: 'Duplicate claim detected' },
-  ReimbursementDuplicate: { decision: 'Denied',        reason: 'Possible double-billing on reimbursement' },
+  // ReimbursementDuplicate default removed — Reimbursement claim type no longer exists.
   Deductible:             { decision: 'Continue',      reason: 'Deductible applied to payable amount' },
   CoPay:                  { decision: 'Continue',      reason: 'Co-pay applied' },
   RequireDocType:         { decision: 'PendingReview', reason: 'Required documents missing' },

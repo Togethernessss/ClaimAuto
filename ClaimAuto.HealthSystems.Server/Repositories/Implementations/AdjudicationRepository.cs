@@ -261,8 +261,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Staff's only remaining step: Authorize → Execute on /payments
             if (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
             {
-                // For Reimbursement claims the payee is the Policyholder (ProviderID = their UserID)
-                // For all other claim types the payee is the Hospital provider
+                // Payee is always the Hospital provider (Reimbursement removed)
                 var payment = new Payment
                 {
                     ClaimID = claimId,
@@ -607,64 +606,33 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     return;
             }
 
-            bool isReimbursement = claim.ClaimType == ClaimType.Reimbursement;
-
-            if (isReimbursement)
+            // Reimbursement removed — every claim is a Hospital claim now.
+            // Notify provider (hospital) and member (policyholder) separately.
+            await _notificationRepo.CreateAsync(new Notification
             {
-                // For reimbursement, ProviderID = Policyholder's UserID.
-                // Send ONE clear reimbursement-specific notification — no duplicate.
-                var reimbMessage = decision switch
-                {
-                    AdjDecision.Approved => $"Your reimbursement request (CLM-{claim.ClaimID}) has been approved. " +
-                                           $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
-                    AdjDecision.Partial => $"Your reimbursement request (CLM-{claim.ClaimID}) has been partially approved. " +
-                                           $"₹{payableAmount:N2} will be transferred to your account after staff authorization.",
-                    AdjDecision.Denied => $"Your reimbursement request (CLM-{claim.ClaimID}) has been denied. " +
-                                           $"You may file an appeal if you disagree with this decision.",
-                    _ => $"Your reimbursement request (CLM-{claim.ClaimID}) status has been updated."
-                };
+                UserID = claim.ProviderID,
+                ClaimID = claim.ClaimID,
+                Message = providerMessage,
+                Category = category,
+                Severity = severity,
+                Status = NotificationStatus.Unread,
+                CreatedAt = DateTime.UtcNow,
+                OrganizationID = claim.OrganizationID,
+            });
 
+            if (claim.Member?.PolicyholderUserID != null)
+            {
                 await _notificationRepo.CreateAsync(new Notification
                 {
-                    UserID = claim.ProviderID,   // = Policyholder for reimbursement
+                    UserID = claim.Member.PolicyholderUserID.Value,
                     ClaimID = claim.ClaimID,
-                    Message = reimbMessage,
+                    Message = memberMessage,
                     Category = category,
                     Severity = severity,
                     Status = NotificationStatus.Unread,
                     CreatedAt = DateTime.UtcNow,
                     OrganizationID = claim.OrganizationID,
                 });
-            }
-            else
-            {
-                // Standard hospital claim — notify provider and member separately
-                await _notificationRepo.CreateAsync(new Notification
-                {
-                    UserID = claim.ProviderID,
-                    ClaimID = claim.ClaimID,
-                    Message = providerMessage,
-                    Category = category,
-                    Severity = severity,
-                    Status = NotificationStatus.Unread,
-                    CreatedAt = DateTime.UtcNow,
-                    OrganizationID = claim.OrganizationID,
-                });
-
-                if (claim.Member?.PolicyholderUserID != null)
-                {
-                    await _notificationRepo.CreateAsync(new Notification
-                    {
-                        UserID = claim.Member.PolicyholderUserID.Value,
-                        ClaimID = claim.ClaimID,
-                        Message = memberMessage,
-                        Category = category,
-                        Severity = severity,
-                        Status = NotificationStatus.Unread,
-                        CreatedAt = DateTime.UtcNow,
-                        OrganizationID = claim.OrganizationID,
-                    });
-                }
             }
             // ── Notify InsuranceStaff to authorize the payment ────────────────────
             // (Only for Paid/Partial — staff must authorize before payment executes)

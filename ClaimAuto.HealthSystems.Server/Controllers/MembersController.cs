@@ -94,6 +94,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 return BadRequest("A registered Policyholder user must be selected to enroll a member.");
 
             var userOrgId = GetLoggedInUserOrgId();
+
+            // 1.2 — Block duplicate enrollment (same policyholder + same policy in same org).
+            // Backend check is authoritative; frontend modal also warns the user.
+            var alreadyEnrolled = await _memberRepo.IsEnrolledInPolicyAsync(
+                dto.PolicyholderUserID, dto.PolicyID, userOrgId);
+            if (alreadyEnrolled)
+            {
+                return Conflict(new
+                {
+                    message = "This policyholder is already enrolled in the selected policy. " +
+                              "Pick a different policy or update the existing enrollment."
+                });
+            }
+
             var created = await _memberRepo.CreateMemberAsync(dto, userId.Value, userOrgId);
             if (created == null)
                 return BadRequest("Failed to enroll member. Ensure the policy is active and Coverage Start is not a past date.");

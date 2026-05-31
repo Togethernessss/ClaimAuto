@@ -29,7 +29,7 @@ const TYPE_COLOR = {
   Inpatient:    { bg: '#ede9fe', color: '#5b21b6' },
   Outpatient:   { bg: '#e0f2fe', color: '#0369a1' },
   Emergency:    { bg: '#fee2e2', color: '#b91c1c' },
-  Reimbursement:{ bg: '#fef9c3', color: '#854d0e' },
+  // Reimbursement entry removed — claim type no longer exists.
 };
 
 function StatusPill({ status }) {

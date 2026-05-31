@@ -97,6 +97,16 @@ public class PaymentsController : BaseController
 
         var response = await _paymentRepository.CreatePaymentAsync(payment, userId.Value);
 
+        // 4.1 — null means an active payment already exists for this claim.
+        if (response == null)
+        {
+            return Conflict(new
+            {
+                message = "A payment already exists for this claim. " +
+                          "Cancel or void the existing payment before creating a new one."
+            });
+        }
+
         return CreatedAtAction(nameof(GetPaymentById),
             new { id = response.PaymentID }, response);
     }

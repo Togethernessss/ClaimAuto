@@ -193,14 +193,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var provider = await _db.Users.FindAsync(dto.ProviderID);
             if (provider == null) return null;
 
-            if (dto.ClaimType == "Reimbursement")
-            {
-                if (provider.Role != UserRole.Policyholder) return null;
-            }
-            else
-            {
-                if (provider.Role != UserRole.Hospital) return null;
-            }
+            // Reimbursement claim type removed — every claim must come from a Hospital
+            if (provider.Role != UserRole.Hospital) return null;
 
             var member = await _db.Members.FindAsync(dto.MemberID);
             if (member == null) return null;

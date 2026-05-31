@@ -23,8 +23,8 @@ export async function getClaimById(id) {
 
 // ── SUBMIT CLAIM ──────────────────────────────────────────────────────────────
 // Backend:  POST /api/claims
-// Hospital:     claimType = Inpatient | Outpatient | Pharmacy | Emergency
-// Policyholder: claimType = Reimbursement
+// Hospital only: claimType = Inpatient | Outpatient | Pharmacy | Emergency
+// (Reimbursement claim type removed.)
 // Returns:  ClaimResponseDto (201 Created)
 export async function submitClaim(dto) {
   const response = await api.post('/api/claims', dto);
