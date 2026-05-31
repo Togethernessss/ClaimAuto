@@ -10,11 +10,10 @@ import { formatCurrency, formatDate } from '../../data/policyholderDashboardData
 const STATUS_STYLE = {
   Approved:    { bg: '#ecfdf5', color: '#065f46', dot: '#10b981' },
   Paid:        { bg: '#ecfdf5', color: '#065f46', dot: '#10b981' },
-  Pending:     { bg: '#fffbeb', color: '#92400e', dot: '#f59e0b' },
-  Submitted:   { bg: '#eff6ff', color: '#1e40af', dot: '#3b82f6' },
-  UnderReview: { bg: '#eff6ff', color: '#1e40af', dot: '#3b82f6' },
-  Adjudicating:{ bg: '#f5f3ff', color: '#5b21b6', dot: '#8b5cf6' },
-  Rejected:    { bg: '#fef2f2', color: '#991b1b', dot: '#ef4444' },
+  Submitted:              { bg: '#eff6ff', color: '#1e40af', dot: '#3b82f6' },
+  DocsVerificationPending:{ bg: '#e0f2fe', color: '#0369a1', dot: '#0ea5e9' },
+  UnderReview:            { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
+  Rejected:               { bg: '#fef2f2', color: '#991b1b', dot: '#ef4444' },
 };
 
 export default function RecentClaimsTable({ claims }) {

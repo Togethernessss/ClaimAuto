@@ -25,7 +25,7 @@
 
         // ── Fraud / duplicate ───────────────────────────────────────
         public const string DUPLICATE_CHECK = "DuplicateCheck";
-        public const string REIMBURSEMENT_DUP = "ReimbursementDuplicate";
+        // REIMBURSEMENT_DUP removed — Reimbursement claim type no longer exists.
 
         // ── Financial adjustments ───────────────────────────────────
         public const string DEDUCTIBLE = "Deductible";
@@ -41,7 +41,7 @@
             POLICY_ACTIVE, IN_NETWORK, WAITING_PERIOD, COVERAGE_LIMIT,
             AMOUNT_BELOW, AMOUNT_ABOVE, AMOUNT_BETWEEN,
             CLAIM_TYPE_DENY, CLAIM_TYPE_PASS,
-            DUPLICATE_CHECK, REIMBURSEMENT_DUP,
+            DUPLICATE_CHECK,
             DEDUCTIBLE, COPAY,
             REQUIRE_DOC_TYPE, ROUTE_TO_REVIEW,
         };

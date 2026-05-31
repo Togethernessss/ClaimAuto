@@ -223,23 +223,7 @@ namespace ClaimAuto.HealthSystems.Server.Data
                     OrganizationID          = orgId,
                     CreatedAt               = now,
                 },
-                new Rule
-                {
-                    Name                    = "Reimbursement Duplicate Check",
-                    Description             = "Denies a reimbursement if the same member already has an active hospital claim in the last 7 days.",
-                    RuleType                = RuleTemplate.REIMBURSEMENT_DUP,
-                    ConditionExpressionJSON = "{}",
-                    ActionExpressionJSON    = JsonSerializer.Serialize(new RuleAction
-                    {
-                        Decision = "Denied",
-                        Reason   = "Possible double-billing on reimbursement"
-                    }),
-                    Priority                = 4,
-                    Status                  = RuleStatus.Active,
-                    CreatedBy               = adminId,
-                    OrganizationID          = orgId,
-                    CreatedAt               = now,
-                },
+                // "Reimbursement Duplicate Check" rule removed — Reimbursement claim type no longer exists.
                 new Rule
                 {
                     Name                    = "Coverage Remaining Check",

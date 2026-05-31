@@ -70,7 +70,7 @@ export function claimTypeVariant(claimType) {
     case 'Outpatient':    return 'info';
     case 'Pharmacy':      return 'success';
     case 'Emergency':     return 'danger';
-    case 'Reimbursement': return 'warning';
+    // Reimbursement case removed — claim type no longer exists.
     default:              return 'secondary';
   }
 }
@@ -81,7 +81,7 @@ export function claimTypeIcon(claimType) {
     case 'Outpatient':    return 'bi-person-walking';
     case 'Pharmacy':      return 'bi-capsule';
     case 'Emergency':     return 'bi-exclamation-triangle-fill';
-    case 'Reimbursement': return 'bi-arrow-return-left';
+    // Reimbursement case removed — claim type no longer exists.
     default:              return 'bi-file-medical';
   }
 }
@@ -106,8 +106,7 @@ export function lineStatusVariant(status) {
 
 export function adjDecisionVariant(decision) {
   switch (decision) {
-    case 'Approved':      return 'success';   // frontend/claim addition — new flow uses Approved
-    case 'Paid':          return 'success';
+    case 'Approved':      return 'success';
     case 'Partial':       return 'info';
     case 'Denied':        return 'danger';
     case 'PendingReview': return 'warning';
@@ -118,7 +117,7 @@ export function adjDecisionVariant(decision) {
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
 export const CLAIM_TYPES = [
-  'Inpatient', 'Outpatient', 'Pharmacy', 'Emergency', 'Reimbursement',
+  'Inpatient', 'Outpatient', 'Pharmacy', 'Emergency',
 ];
 
 export const HOSPITAL_CLAIM_TYPES = [
@@ -130,7 +129,10 @@ export const HOSPITAL_CLAIM_TYPES = [
 // 'Validated'   REMOVED — was a manual trigger, no longer part of flow.
 // All status transitions are automatic on submission.
 export const CLAIM_STATUSES = [
-  'Submitted',               // legacy / direct channel submissions
+  // 'Submitted' removed — never visible to staff. New claims auto-transition to
+  // DocsVerificationPending immediately on submission, so the filter chip
+  // matched zero rows and was confusing. statusVariant/statusLabel still
+  // include 'Submitted' for policyholder-side displays.
   'DocsVerificationPending', // awaiting staff document review before adjudication
   'UnderReview',             // fraud flagged OR adjudication routed to manual review
   'Approved',                // adjudication Paid/Partial → payment auto-created
@@ -144,10 +146,6 @@ export const DOC_TYPES = [
   'Invoice', 'MedicalRecord', 'LabReport', 'Prescription', 'DischargeSummary',
 ];
 
-export function simulateFileURI(claimId, docType, fileName) {
-  const ext = fileName?.split('.').pop() || 'pdf';
-  return `uploads/claim-${claimId}-${docType.toLowerCase()}-${Date.now()}.${ext}`;
-}
 
 export async function computeSHA256(file) {
   const buffer = await file.arrayBuffer();

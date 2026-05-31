@@ -8,6 +8,7 @@ export default function CreateModal({
   form,
   policies,
   policyholderUsers,
+  existingMembers,          // 1.2 — list of all current Members; used to detect duplicate enrollment
   onHide,
   onFieldChange,
   onUserSelect,
@@ -49,6 +50,17 @@ export default function CreateModal({
     ? selectedPolicy.effectiveTo.split('T')[0]
     : undefined;
 
+  // 1.2 — Live duplicate-enrollment detection. Fires only after BOTH the
+  //       policyholder and the policy have been picked. The backend also
+  //       enforces this (returns 409); this is just a friendlier UX.
+  const isDuplicateEnrollment =
+    form.policyholderUserID && form.policyID &&
+    (existingMembers || []).some(m =>
+      String(m.policyholderUserID) === String(form.policyholderUserID) &&
+      String(m.policyID)           === String(form.policyID) &&
+      (m.status === 'Active' || m.status === undefined)
+    );
+
   return (
     <Modal show={show} onHide={onHide} size="lg" backdrop="static">
       <Modal.Header closeButton className="border-0 pb-0">
@@ -65,6 +77,14 @@ export default function CreateModal({
             <Alert variant="danger" className="d-flex align-items-center py-2">
               <i className="bi bi-exclamation-triangle-fill me-2"></i>
               {error}
+            </Alert>
+          )}
+
+          {/* 1.2 — duplicate enrollment warning */}
+          {isDuplicateEnrollment && (
+            <Alert variant="warning" className="d-flex align-items-center py-2">
+              <i className="bi bi-exclamation-circle-fill me-2"></i>
+              This policyholder is already enrolled in the selected policy. Pick a different policy or update the existing enrollment.
             </Alert>
           )}
 
@@ -370,7 +390,7 @@ export default function CreateModal({
             type="submit"
             variant="primary"
             className="px-4 fw-semibold"
-            disabled={loading || !form.policyholderUserID}
+            disabled={loading || !form.policyholderUserID || isDuplicateEnrollment}
           >
             {loading ? (
               <>

@@ -15,7 +15,7 @@ const TEMPLATE_LABELS = {
   ClaimTypeDeny:          'Deny by Type',
   ClaimTypePass:          'Auto-Pass by Type',
   DuplicateCheck:         'Duplicate Check',
-  ReimbursementDuplicate: 'Reimbursement Dup',
+  // ReimbursementDuplicate label removed — Reimbursement claim type no longer exists.
   Deductible:             'Deductible',
   CoPay:                  'CoPay',
   RequireDocType:         'Require Document',

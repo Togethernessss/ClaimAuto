@@ -1,15 +1,15 @@
 
 // ── CREATE CLAIM ──────────────────────────────────────────────────────────────
-// Hospital:     POST /api/claims  →  ClaimType = Inpatient/Outpatient/Pharmacy/Emergency
-// Policyholder: POST /api/claims  →  ClaimType = Reimbursement
+// Hospital only: POST /api/claims  →  ClaimType = Inpatient/Outpatient/Pharmacy/Emergency
+// (Reimbursement claim type removed.)
 
 export class CreateClaimDto {
   constructor({
-    externalClaimRef  = '',      // Hospital billing ref | null for Policyholder
-    providerID        = 0,       // Hospital UserID | Policyholder UserID
+    externalClaimRef  = '',      // Hospital billing ref
+    providerID        = 0,       // Hospital UserID
     memberID          = 0,       // patient MemberID
     policyID          = 0,       // active PolicyID
-    claimType         = '',      // "Inpatient"|"Outpatient"|"Pharmacy"|"Emergency"|"Reimbursement"
+    claimType         = '',      // "Inpatient" | "Outpatient" | "Pharmacy" | "Emergency"
     totalBilledAmount = 0,       // decimal
     currency          = 'INR',
     priority          = 'Normal',// "Normal"|"High"|"Urgent"

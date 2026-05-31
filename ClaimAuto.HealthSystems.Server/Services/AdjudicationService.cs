@@ -54,16 +54,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
                         break;
 
                     case "In-Network Check":
-                        // Reimbursement claims are submitted by the Policyholder directly —
-                        // the ProviderID is the policyholder's own UserID, not a hospital.
-                        // In-Network Check is not applicable; pass through automatically.
-                        if (claim.ClaimType == ClaimType.Reimbursement)
-                        {
-                            trace.Result = "PASS";
-                            trace.Reason = "Reimbursement claim — In-Network Check not applicable. " +
-                                           "Member paid out-of-pocket and is requesting reimbursement.";
-                            break;
-                        }
+                        // Reimbursement removed — In-Network Check applies to every claim now.
 
                         var provider = await _db.Users
                             .AsNoTracking()
@@ -161,42 +152,7 @@ namespace ClaimAuto.HealthSystems.Server.Services
                             trace.Reason = "No deductible applicable for this policy.";
                         }
                         break;
-                    case "Reimbursement Duplicate Check":
-                        // Only applies to reimbursement claims — all others pass through
-                        if (claim.ClaimType != ClaimType.Reimbursement)
-                        {
-                            trace.Result = "PASS";
-                            trace.Reason = "Not a reimbursement claim — check not applicable.";
-                            break;
-                        }
-
-                        // If the same member already has a non-rejected, non-reimbursement
-                        // claim (Inpatient / Outpatient / Pharmacy / Emergency) within 7 days,
-                        // the hospital has already billed the insurer for the same episode.
-                        // Filing a reimbursement ON TOP of that = double payment.
-                        var reimb7Days = DateTime.UtcNow.AddDays(-7);
-                        var hasConflictingClaim = await _db.Claims
-                            .AnyAsync(c => c.MemberID == claim.MemberID
-                                        && c.ClaimID != claim.ClaimID
-                                        && c.ClaimType != ClaimType.Reimbursement
-                                        && c.SubmittedAt >= reimb7Days
-                                        && c.Status != ClaimStatus.Rejected);
-
-                        if (hasConflictingClaim)
-                        {
-                            trace.Result = "FAIL";
-                            trace.Reason = "Member already has an active hospital claim submitted within " +
-                                           "the last 7 days. Filing a reimbursement for the same period " +
-                                           "would result in double payment for the same episode.";
-                            shouldDeny = true;
-                        }
-                        else
-                        {
-                            trace.Result = "PASS";
-                            trace.Reason = "No conflicting active hospital claims in the last 7 days. " +
-                                           "Reimbursement is eligible.";
-                        }
-                        break;
+                    // "Reimbursement Duplicate Check" case removed — Reimbursement claim type no longer exists.
 
                     case "Coverage Remaining Check":
                         var policyForCoverage = await _db.Policies.FindAsync(claim.PolicyID);

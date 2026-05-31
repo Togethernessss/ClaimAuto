@@ -426,6 +426,7 @@ const [policyholderUsers, setPolicyholderUsers] = useState([]);
         form={createForm}
         policies={policies}
         policyholderUsers={policyholderUsers}
+        existingMembers={members}    /* 1.2 — duplicate-enrollment check */
         onHide={() => setShowCreate(false)}
         onFieldChange={handleCreateField}
         onUserSelect={handleUserSelect}

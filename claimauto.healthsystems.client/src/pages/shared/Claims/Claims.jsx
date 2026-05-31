@@ -23,7 +23,7 @@ import ClaimsFilters from './components/ClaimsFilters';
 import ClaimsSummary from './components/ClaimsSummary';
 import ClaimsTable from './components/ClaimsTable';
 import SubmitClaimModal from './components/SubmitClaimModal';
-import ReimbursementModal from './components/ReimbursementModal';
+// ReimbursementModal removed — Reimbursement claim type no longer exists.
 import ClaimDetailModal from './components/ClaimDetailModal';
 import UpdateStatusModal from './components/UpdateStatusModal';
 import DeleteClaimModal from './components/DeleteClaimModal';
@@ -68,7 +68,7 @@ const SEGMENTS = [
         label: 'In Progress',
         icon: 'bi-hourglass-split',
         color: '#f59e0b',
-        statuses: ['Pending', 'UnderReview', 'Submitted', 'Adjudicating'],
+        statuses: ['Submitted', 'DocsVerificationPending', 'UnderReview'],
     },
     {
         key: 'rejected',
@@ -131,10 +131,7 @@ export default function Claims() {
     const [submitLoading, setSubmitLoading] = useState(false);
     const [submitError, setSubmitError] = useState(null);
 
-    // ── REIMBURSEMENT MODAL (Policyholder) ────────────────────────────────────
-    const [showReimbursement, setShowReimbursement] = useState(false);
-    const [reimbursementLoading, setReimbursementLoading] = useState(false);
-    const [reimbursementError, setReimbursementError] = useState(null);
+    // Reimbursement modal state removed — Reimbursement claim type no longer exists.
 
     // ── DETAIL MODAL ──────────────────────────────────────────────────────────
     const [showDetail, setShowDetail] = useState(false);
@@ -274,27 +271,7 @@ export default function Claims() {
         }
     };
 
-    // ── POLICYHOLDER REIMBURSEMENT HANDLERS ───────────────────────────────────
-    const handleSubmitReimbursement = async (formData) => {
-        setReimbursementError(null);
-        setReimbursementLoading(true);
-        try {
-            const result = await submitClaim(formData);
-            const claimId = result?.claim?.claimID ?? result?.claimID;
-            setShowReimbursement(false);
-            await loadClaims();
-            const reimbMsg = `Reimbursement CLM-${claimId} submitted. Attach your bills to speed up processing.`;
-            setSuccessMsg(reimbMsg);
-            toast.success(`Reimbursement CLM-${claimId} submitted successfully!`, 'Reimbursement Submitted');
-        } catch (err) {
-            const body = err.response?.data;
-            const extracted = (typeof body === 'string' ? body.replace(/^"|"$/g, '').trim() : null)
-                || body?.message || body?.detail || null;
-            setReimbursementError(extracted || 'Failed to submit reimbursement.');
-        } finally {
-            setReimbursementLoading(false);
-        }
-    };
+    // Policyholder reimbursement handler removed — Reimbursement claim type no longer exists.
 
     // ── VIEW DETAIL HANDLERS ──────────────────────────────────────────────────
     const openDetail = async (claim) => {
@@ -503,10 +480,7 @@ export default function Claims() {
                     setSubmitError(null);
                     setShowSubmit(true);
                 }}
-                onReimbursementClick={() => {
-                    setReimbursementError(null);
-                    setShowReimbursement(true);
-                }}
+                /* onReimbursementClick removed — Reimbursement claim type no longer exists. */
             />
 
             {/* Search + status + priority filters */}
@@ -594,15 +568,7 @@ export default function Claims() {
                 onSubmit={handleSubmitClaim}
             />
 
-            <ReimbursementModal
-                show={showReimbursement}
-                loading={reimbursementLoading}
-                error={reimbursementError}
-                members={members}
-                userID={user?.userID}
-                onHide={() => setShowReimbursement(false)}
-                onSubmit={handleSubmitReimbursement}
-            />
+            {/* ReimbursementModal removed — Reimbursement claim type no longer exists. */}
 
             {/* All roles — full claim detail with 4 tabs */}
             <ClaimDetailModal

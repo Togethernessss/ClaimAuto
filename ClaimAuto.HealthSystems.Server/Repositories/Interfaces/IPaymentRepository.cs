@@ -14,7 +14,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Interfaces
 
         Task<PaymentResponseDto?> GetPaymentByIdAsync(int id, int? userOrgId = null);
 
-        Task<PaymentResponseDto> CreatePaymentAsync(
+        // Returns null if a non-Failed payment already exists for this claim
+        // (duplicate-payment guard). Controller maps null → 409 Conflict.
+        Task<PaymentResponseDto?> CreatePaymentAsync(
             Payment payment,
             int createdByUserId);
 

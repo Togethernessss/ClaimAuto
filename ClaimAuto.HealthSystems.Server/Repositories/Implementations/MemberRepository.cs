@@ -235,6 +235,20 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // ══════════════════════════════════════════════════════════════════
         //  CREATE MEMBER — enroll under a policy
         // ══════════════════════════════════════════════════════════════════
+        // 1.2 — duplicate-enrollment check (called by MembersController before CreateMember).
+        public async Task<bool> IsEnrolledInPolicyAsync(int policyholderUserId, int policyId, int? userOrgId = null)
+        {
+            var query = _db.Members.Where(m =>
+                m.PolicyholderUserID == policyholderUserId &&
+                m.PolicyID == policyId &&
+                m.Status == MemberStatus.Active);
+
+            if (userOrgId.HasValue)
+                query = query.Where(m => m.OrganizationID == userOrgId.Value);
+
+            return await query.AnyAsync();
+        }
+
         public async Task<MemberResponseDto?> CreateMemberAsync(CreateMemberDto dto, int createdByUserId, int? userOrgId = null)
         {
 

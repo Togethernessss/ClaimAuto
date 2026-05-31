@@ -8,7 +8,7 @@ export default function ClaimsHeader({
   isPolicyholder,
   successMsg,
   onSubmitClick,        // Hospital — submit new claim
-  onReimbursementClick, // Policyholder — submit reimbursement
+  // onReimbursementClick prop removed — Reimbursement claim type no longer exists.
 }) {
   const subtitle = isAdmin || isStaff
     ? 'All insurance claims across all providers and members'
@@ -107,33 +107,8 @@ export default function ClaimsHeader({
                 </button>
               )}
 
-              {isPolicyholder && (
-                <button
-                  onClick={onReimbursementClick}
-                  style={{
-                    padding:        '8px 18px',
-                    borderRadius:   10,
-                    border:         '1.5px solid rgba(255,255,255,0.35)',
-                    background:     'rgba(255,255,255,0.18)',
-                    color:          'white',
-                    fontSize:       '0.82rem',
-                    fontWeight:     700,
-                    cursor:         'pointer',
-                    display:        'flex',
-                    alignItems:     'center',
-                    gap:            7,
-                    backdropFilter: 'blur(8px)',
-                    transition:     'background 0.15s',
-                    whiteSpace:     'nowrap',
-                    boxShadow:      '0 2px 8px rgba(0,0,0,0.15)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.28)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; }}
-                >
-                  <i className="bi bi-arrow-return-left" style={{ fontSize: '0.85rem' }}></i>
-                  Request Reimbursement
-                </button>
-              )}
+              {/* Policyholder "Request Reimbursement" button removed —
+                  Reimbursement claim type no longer exists. */}
             </div>
           )}
         </div>

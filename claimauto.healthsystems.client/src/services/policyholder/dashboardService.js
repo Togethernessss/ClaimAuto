@@ -19,16 +19,6 @@ import {
   withdrawAppeal,
 } from '../appeals/appealService';
 
-// Demo imports (still here as a fallback you can toggle for offline dev)
-import {
-  demoPolicy, demoClaims, demoNotifications,
-  demoAppeals, demoMembers, demoPayments,
-} from '../../data/policyholderDashboardData';
-
-// 🔌 Set to true to render the dashboard from demo data instead of the API.
-// Useful when the backend is down during local development.
-const USE_DEMO = false;
-
 // ═════════════════════════════════════════════════════════════════════════════
 // MAPPERS — translate backend DTO shape ➜ component-expected shape
 // ═════════════════════════════════════════════════════════════════════════════
@@ -150,20 +140,6 @@ function mapAppeal(a)       { return a; }
 // the entire dashboard — that section just shows empty.
 // ═════════════════════════════════════════════════════════════════════════════
 export async function fetchDashboardData() {
-  if (USE_DEMO) {
-    await new Promise((r) => setTimeout(r, 300));
-    return {
-      policy:        demoPolicy,
-      policies:      demoPolicy ? [demoPolicy] : [],
-      claims:        demoClaims,
-      notifications: demoNotifications,
-      appeals:       demoAppeals,
-      member:        demoMembers[0] ?? null,
-      members:       demoMembers,
-      payments:      demoPayments,
-    };
-  }
-
   const safe = (promise, fallback) =>
     promise.catch((err) => {
       console.warn(
@@ -204,12 +180,10 @@ export async function fetchDashboardData() {
 // NOTIFICATION ACTIONS — real backend
 // ─────────────────────────────────────────────────────────────────────────────
 export async function markNotificationRead(notificationID) {
-  if (USE_DEMO) return { success: true };
   return await markAsRead(notificationID);
 }
 
 export async function dismissNotificationById(notificationID) {
-  if (USE_DEMO) return { success: true };
   return await dismissNotification(notificationID);
 }
 
@@ -217,9 +191,5 @@ export async function dismissNotificationById(notificationID) {
 // APPEAL ACTIONS — real backend
 // ─────────────────────────────────────────────────────────────────────────────
 export async function withdrawAppealById(appealID) {
-  if (USE_DEMO) {
-    alert(`Demo: Appeal APP-${appealID} would be withdrawn.`);
-    return { success: true };
-  }
   return await withdrawAppeal(appealID);
 }

@@ -93,7 +93,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         /// The unguessable GUID acts as a capability token.
         /// </summary>
         [HttpGet("{guid}")]
-        [AllowAnonymous]
+        [Authorize]
         public async Task<IActionResult> GetFile(string guid)
         {
             var content = await _db.ClaimDocumentContents.FindAsync(guid);

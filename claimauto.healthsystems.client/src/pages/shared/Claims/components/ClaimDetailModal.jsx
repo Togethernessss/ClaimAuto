@@ -12,9 +12,10 @@ import {
   claimTypeVariant, claimTypeIcon,
   docStatusVariant, lineStatusVariant,
   adjDecisionVariant, DOC_TYPES,
-  simulateFileURI, computeSHA256,
+  computeSHA256,
 } from '../utils/claimHelpers';
 import RejectClaimModal from './RejectClaimModal';
+import api from '../../../../api/axiosClient';
 
 // ── Claim timeline stages (Policyholder view) ────────────────────────────────
 const TIMELINE_STAGES = [
@@ -61,20 +62,19 @@ function getStageState(stageKey, claimStatus) {
     case 'submitted':
       return 'done';
     case 'docs_verification':
-      if (['UnderReview', 'Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (['UnderReview', ...terminal].includes(claimStatus)) return 'done';
       if (claimStatus === 'DocsVerificationPending') return 'active';
       return 'pending';
     case 'under_review':
-      if (['Adjudicating', ...terminal].includes(claimStatus)) return 'done';
+      if (terminal.includes(claimStatus)) return 'done';
       if (claimStatus === 'UnderReview') return 'active';
       return 'pending';
     case 'adjudication':
       if (terminal.includes(claimStatus)) return 'done';
-      if (claimStatus === 'Adjudicating') return 'active';
+      // No intermediate status exists — adjudication is instantaneous
       return 'pending';
     case 'decision':
       if (terminal.includes(claimStatus)) return 'done';
-      if (claimStatus === 'Adjudicating') return 'active';
       return 'pending';
     default:
       return 'pending';
@@ -232,6 +232,18 @@ export default function ClaimDetailModal({
     onUploadDocument(claim.claimID, file, docType);
     setFileName('');
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  // ── Secure file preview — fetches via JWT so [Authorize] is respected ─────
+  const handlePreviewFile = async (fileURI) => {
+    try {
+      const response = await api.get(fileURI, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(response.data);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch {
+      // file unavailable — silently ignore (user will see new tab fail to open)
+    }
   };
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -670,7 +682,7 @@ export default function ClaimDetailModal({
                                     size="sm" className="p-1" style={{ lineHeight: 1 }}
                                     title={isRealUrl ? 'Open file' : 'View details'}
                                     onClick={() => {
-                                      if (isRealUrl) window.open(doc.fileURI, '_blank');
+                                      if (isRealUrl) handlePreviewFile(doc.fileURI);
                                       else setPreviewDocId(isExpanded ? null : doc.docID);
                                     }}
                                   >
@@ -893,6 +905,61 @@ export default function ClaimDetailModal({
                                     </div>
                                   );
                                 })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 3.3 — Calculation breakdown. The backend serializes two
+                            slightly different shapes (auto engine vs manual
+                            adjudication), so we accept both key sets and render
+                            whatever is present. */}
+                        {claim.adjudication.calculationsJSON && (() => {
+                          let calc = null;
+                          try { calc = JSON.parse(claim.adjudication.calculationsJSON); }
+                          catch { return null; }
+                          if (!calc || typeof calc !== 'object') return null;
+
+                          const rows = [
+                            { label: 'Original Billed',     value: calc.billed       ?? calc.originalAmount, kind: 'billed'    },
+                            { label: 'Allowed',             value: calc.allowed,                            kind: 'neutral'   },
+                            { label: 'Deductible Applied',  value: calc.deductibleApplied ?? calc.totalDeducted, kind: 'deduct'},
+                            { label: 'Co-Pay',              value: calc.copay,                              kind: 'deduct'    },
+                            { label: 'Net Payable',         value: calc.payable      ?? calc.approvedAmount, kind: 'final'    },
+                          ].filter(r => r.value !== undefined && r.value !== null);
+
+                          if (rows.length === 0) return null;
+
+                          return (
+                            <div className="mt-3">
+                              <div className="small fw-semibold mb-2 text-muted">
+                                <i className="bi bi-calculator me-1"></i>Calculation Breakdown
+                              </div>
+                              <div
+                                className="rounded"
+                                style={{ background: '#f8f9fa', border: '1px solid #e9ecef', overflow: 'hidden' }}
+                              >
+                                <Table size="sm" className="mb-0">
+                                  <tbody>
+                                    {rows.map((r, i) => {
+                                      const isFinal  = r.kind === 'final';
+                                      const isDeduct = r.kind === 'deduct' && Number(r.value) > 0;
+                                      return (
+                                        <tr key={i} style={isFinal ? { borderTop: '2px solid #dee2e6' } : undefined}>
+                                          <td className={isFinal ? 'fw-bold' : 'text-muted small'} style={{ paddingLeft: 12 }}>
+                                            {r.label}
+                                          </td>
+                                          <td
+                                            className={`text-end ${isFinal ? 'fw-bold text-success' : isDeduct ? 'text-danger' : 'fw-semibold'}`}
+                                            style={{ paddingRight: 12, whiteSpace: 'nowrap' }}
+                                          >
+                                            {isDeduct ? '−' : ''}{formatCurrency(r.value)}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </Table>
                               </div>
                             </div>
                           );

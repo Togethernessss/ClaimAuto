@@ -189,6 +189,16 @@ export default function SubmitClaimModal({
         }
       }
     }
+    // Duplicate line check — only when adding (not when editing an existing line)
+    if (editLineIdx === null) {
+      const isDuplicate = lines.some(
+        (l) => l.serviceCode === serviceCodeClean && l.serviceDate === lineForm.serviceDate
+      );
+      if (isDuplicate) {
+        setLineError('A line with this service code and date already exists on this claim.');
+        return;
+      }
+    }
     if (Number(lineForm.quantity) < 1 || !Number.isInteger(Number(lineForm.quantity))) {
       setLineError('Quantity must be a whole number of at least 1.');
       return;
