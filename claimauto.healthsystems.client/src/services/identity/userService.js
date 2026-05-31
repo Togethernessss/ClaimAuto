@@ -50,3 +50,20 @@ export async function getAllUsers() {
 export async function updateUserStatus(userId, status) {
   await api.patch(`/api/users/${userId}/status`, { status });
 }
+
+// ── PUT /api/users/{id}/photo — self only ─────────────────────
+// Persists a profile photo. `dataUrl` must be the full base64 data URL
+// produced by FileReader.readAsDataURL, e.g. "data:image/png;base64,...".
+// Returns the updated UserResponseDto so the caller can refresh AuthContext.
+export async function updateProfilePhoto(userId, dataUrl) {
+  const response = await api.put(`/api/users/${userId}/photo`, {
+    profilePhoto: dataUrl,
+  });
+  return response.data;
+}
+
+// ── DELETE /api/users/{id}/photo — self only ──────────────────
+// Removes the profile photo. Returns nothing on success.
+export async function removeProfilePhoto(userId) {
+  await api.delete(`/api/users/${userId}/photo`);
+}

@@ -142,14 +142,17 @@ export default function Sidebar({ collapsed = false }) {
         position:       'relative',
         transition:     'all 0.3s ease',
       }}>
-        {/* Avatar circle */}
+        {/* Avatar circle — tap to open profile page. Shows photo if set, else initials. */}
         <div
-          title={collapsed ? (user.name || user.email) : undefined}
+          onClick={() => navigate('/profile')}
+          title={user.name || user.email || 'Profile'}
           style={{
             width:          38, height: 38,
             borderRadius:   '50%',
             flexShrink:     0,
-            background:     'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
+            background:     user.profilePhoto
+              ? 'transparent'
+              : 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
             display:        'flex',
             alignItems:     'center',
             justifyContent: 'center',
@@ -159,9 +162,19 @@ export default function Sidebar({ collapsed = false }) {
             boxShadow:      '0 3px 10px rgba(102,126,234,0.55)',
             border:         '2px solid rgba(255,255,255,0.15)',
             letterSpacing:  0.5,
-            cursor:         collapsed ? 'default' : 'auto',
+            cursor:         'pointer',
+            overflow:       'hidden',
           }}>
-          {initials}
+          {user.profilePhoto ? (
+            <img
+              src={user.profilePhoto}
+              alt="Profile"
+              style={{
+                width: '100%', height: '100%',
+                objectFit: 'cover', display: 'block',
+              }}
+            />
+          ) : initials}
         </div>
 
         {/* Name + role — hidden when collapsed */}

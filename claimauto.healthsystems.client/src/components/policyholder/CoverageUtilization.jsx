@@ -1,18 +1,32 @@
-import { formatCurrency, calculateCoverageUsed } from '../../data/policyholderDashboardData';
+import {
+  formatCurrency,
+  calculateCoverageUsed,
+  calculateCoverageBreakdown,
+} from '../../data/policyholderDashboardData';
 
 /**
  * Coverage utilization bar.
- * Props unchanged: { policy, claims }
- * Calculations unchanged.
+ * Props:
+ *   policy          — combined or single active policy (carries the total coverage)
+ *   claims          — full claim list (we filter internally by active-policy IDs)
+ *   activePolicies  — list of currently-active policies; used to scope claim sums
+ *                     so a removed/expired policy's claims don't inflate "Used"
  */
-export default function CoverageUtilization({ policy, claims }) {
+export default function CoverageUtilization({ policy, claims, activePolicies }) {
   if (!policy) return null;
 
-  // Calculations — unchanged
-  const used      = calculateCoverageUsed(claims);
-  const total     = policy.coverageAmount || 1;
-  const percent   = Math.min(100, Math.round((used / total) * 100));
-  const remaining = Math.max(0, total - used);
+  // Filter coverage usage to only claims against currently-active policies.
+  // Without this, a deleted policy's old claims keep counting and "Used" can
+  // exceed "Total Cover" — which is mathematically impossible.
+  const activePolicyIds = activePolicies?.map((p) => p.policyID) ?? null;
+  const breakdown   = calculateCoverageBreakdown(claims, activePolicyIds);
+  const used        = breakdown.total;
+  const total       = policy.coverageAmount || 1;
+  const rawPercent  = (used / total) * 100;
+  const percent     = Math.min(100, Math.round(rawPercent));
+  const remaining   = Math.max(0, total - used);
+  const overLimit   = used > total;
+  const showBreakdown = breakdown.paid > 0 || breakdown.approved > 0;
 
   // Dynamic colours based on usage — logic unchanged
   let barColor   = '#10b981';
@@ -74,6 +88,28 @@ export default function CoverageUtilization({ policy, claims }) {
           <div style={{ fontSize: '0.6rem', fontWeight: 600, opacity: 0.7, marginTop: 3, letterSpacing: '1px' }}>USED</div>
         </div>
       </div>
+
+      {/* ── Over-limit warning ────────────────────────────────────
+          Shown when claims under active policies exceed the available
+          coverage cap. Most often means a high-value claim was filed
+          against the only active policy and the cap is breached. */}
+      {overLimit && (
+        <div
+          className="d-flex align-items-start gap-2 px-3 py-2 mb-3 rounded"
+          style={{
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#991b1b',
+          }}
+        >
+          <i className="bi bi-exclamation-triangle-fill" style={{ marginTop: 2 }}></i>
+          <small>
+            <strong>Coverage limit exceeded.</strong>{' '}
+            {formatCurrency(used - total)} over the active-policy cap. Contact your
+            insurer for excess settlement or activate an additional policy.
+          </small>
+        </div>
+      )}
 
       {/* ── Progress bar ─────────────────────────────────────────── */}
       <div className="mb-1 d-flex justify-content-between" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
@@ -145,6 +181,49 @@ export default function CoverageUtilization({ policy, claims }) {
           </div>
         ))}
       </div>
+
+      {/* ── Lifecycle breakdown: "Paid" vs "Approved (queued)" ────────
+          Shows the policyholder WHY their Used number is what it is.
+          Production-grade clarity: "Used" includes BOTH money already
+          paid and money that's approved but waiting for payment to
+          execute. Splitting them visible removes the confusion of
+          "I haven't received that money yet — why is it 'Used'?". */}
+      {showBreakdown && (
+        <div
+          className="d-flex flex-wrap justify-content-between mt-3 pt-3"
+          style={{
+            borderTop: '1px dashed #e2e8f0',
+            gap: 12,
+          }}
+        >
+          <div className="d-flex align-items-center gap-2" style={{ fontSize: '0.72rem' }}>
+            <span
+              style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#10b981', flexShrink: 0,
+              }}
+            ></span>
+            <span style={{ color: '#64748b' }}>Already paid</span>
+            <strong style={{ color: '#065f46' }}>{formatCurrency(breakdown.paid)}</strong>
+          </div>
+
+          <div className="d-flex align-items-center gap-2" style={{ fontSize: '0.72rem' }}>
+            <span
+              style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#f59e0b', flexShrink: 0,
+              }}
+            ></span>
+            <span style={{ color: '#64748b' }}>Approved (queued)</span>
+            <strong style={{ color: '#92400e' }}>{formatCurrency(breakdown.approved)}</strong>
+            <i
+              className="bi bi-info-circle"
+              title="Approved claims are committed against your coverage. Payment will execute shortly."
+              style={{ color: '#94a3b8', fontSize: '0.7rem', cursor: 'help' }}
+            ></i>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -429,7 +429,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     Message =
                         $"Fraud alert on CLM-{id}: score {fraudScore.ScoreValue}/100. " +
                         "Claim is blocked pending fraud investigation.",
-                    Category = NotificationCategory.Exception,
+                    Category = NotificationCategory.Fraud,
                     Severity = NotificationSeverity.Critical,
                     CreatedAt = DateTime.UtcNow,
                     Status = NotificationStatus.Unread,

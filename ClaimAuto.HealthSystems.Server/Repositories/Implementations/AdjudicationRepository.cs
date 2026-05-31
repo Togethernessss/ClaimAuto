@@ -577,7 +577,8 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                       $"Please review the adjudication decision.";
                     memberMessage = $"Your claim (Ref: {claim.ExternalClaimRef}) denied. " +
                                       $"You may file an appeal if you disagree.";
-                    category = NotificationCategory.Exception;
+                    // Claim denial is a claim-status event, not a system error.
+                    category = NotificationCategory.Claim;
                     severity = NotificationSeverity.Warning;
                     break;
 

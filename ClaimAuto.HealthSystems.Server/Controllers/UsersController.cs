@@ -22,18 +22,43 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         private readonly IUserRepository _userRepository;
         private readonly IAuthRepository _authRepository;
         private readonly IEmailServices _emailService;
+        private readonly INotificationRepository _notif;
         private readonly ApplicationDbContext _db;
 
         public UsersController(
             IUserRepository userRepository,
             IAuthRepository authRepository,
             IEmailServices emailService,
+            INotificationRepository notif,
             ApplicationDbContext db)
         {
             _userRepository = userRepository;
             _authRepository = authRepository;
             _emailService = emailService;
+            _notif = notif;
             _db = db;
+        }
+
+        // Best-effort Account-category notification. Failures never break
+        // the admin action that just succeeded.
+        private async Task SafeNotifyAccountAsync(
+            int userId, int? orgId, string message, NotificationSeverity severity)
+        {
+            try
+            {
+                await _notif.CreateAsync(new Notification
+                {
+                    UserID = userId,
+                    ClaimID = null,
+                    Message = message,
+                    Category = NotificationCategory.Account,
+                    Severity = severity,
+                    Status = NotificationStatus.Unread,
+                    CreatedAt = DateTime.UtcNow,
+                    OrganizationID = orgId,
+                });
+            }
+            catch { /* never block the admin action */ }
         }
 
         [HttpGet]
@@ -55,7 +80,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = u.MFAEnabled,
                 Status = u.Status.ToString(),
                 CreatedAt = u.CreatedAt,
-                IsInNetwork = u.IsInNetwork
+                IsInNetwork = u.IsInNetwork,
+                ProfilePhoto = u.ProfilePhoto
             });
 
             return Ok(response);
@@ -83,7 +109,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = user.MFAEnabled,
                 Status = user.Status.ToString(),
                 CreatedAt = user.CreatedAt,
-                IsInNetwork = user.IsInNetwork
+                IsInNetwork = user.IsInNetwork,
+                ProfilePhoto = user.ProfilePhoto
             });
         }
 
@@ -106,7 +133,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 MFAEnabled = u.MFAEnabled,
                 Status = u.Status.ToString(),
                 CreatedAt = u.CreatedAt,
-                IsInNetwork = u.IsInNetwork
+                IsInNetwork = u.IsInNetwork,
+                ProfilePhoto = u.ProfilePhoto
             });
 
             return Ok(response);
@@ -267,6 +295,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (!isAdmin && callerId != id)
                 return Forbid();
 
+            // ── Snapshot pre-change values for notification triggers ────────────
+            // We compare AFTER mutation to determine which Account notifications
+            // (if any) should fire. The concern: don't spam on no-op updates.
+            var prevStatus = user.Status;
+            bool profileFieldChanged =
+                (dto.Name       != null && dto.Name       != user.Name) ||
+                (dto.Phone      != null && dto.Phone      != user.Phone) ||
+                (dto.Department != null && dto.Department != user.Department);
+
             if (dto.Name != null) user.Name = dto.Name;
             if (dto.Phone != null) user.Phone = dto.Phone;
             if (dto.Department != null) user.Department = dto.Department;
@@ -280,6 +317,54 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             await _userRepository.UpdateUserAsync(user);
+
+            // ── Account-category notifications (admin updating someone else only) ─
+            // Skip when an admin is updating their own profile (`callerId == id`)
+            // since they obviously know what they just did.
+            if (isAdmin && callerId != id)
+            {
+                // A6 — Profile updated by admin (only if real content fields changed,
+                // NOT on MFA toggle / status / IsInNetwork — those have their own).
+                if (profileFieldChanged)
+                {
+                    var adminName = await _db.Users
+                        .Where(u => u.UserID == callerId)
+                        .Select(u => u.Name)
+                        .FirstOrDefaultAsync() ?? "an administrator";
+
+                    await SafeNotifyAccountAsync(
+                        user.UserID, user.OrganizationID,
+                        $"Your profile (name / phone / department) was updated by {adminName} " +
+                        $"at {DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                        $"Review your dashboard to confirm the changes.",
+                        NotificationSeverity.Info);
+                }
+
+                // A7 — Account deactivated (status went Active → Inactive)
+                if (prevStatus == AccountStatus.Active && user.Status == AccountStatus.Inactive)
+                {
+                    var adminName = await _db.Users
+                        .Where(u => u.UserID == callerId)
+                        .Select(u => u.Name)
+                        .FirstOrDefaultAsync() ?? "an administrator";
+
+                    await SafeNotifyAccountAsync(
+                        user.UserID, user.OrganizationID,
+                        $"Your account has been deactivated by {adminName} " +
+                        $"at {DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                        $"Contact support if this was unexpected.",
+                        NotificationSeverity.Critical);
+                }
+                // A8 — Account reactivated (status went Inactive → Active)
+                else if (prevStatus == AccountStatus.Inactive && user.Status == AccountStatus.Active)
+                {
+                    await SafeNotifyAccountAsync(
+                        user.UserID, user.OrganizationID,
+                        "Your account has been reactivated. You can now sign in normally.",
+                        NotificationSeverity.Info);
+                }
+            }
+
             return NoContent();
         }
 
@@ -343,6 +428,81 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     newStatus = newStatus.ToString()
                 })
             });
+            await _db.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // ─── Profile photo ────────────────────────────────────────────────
+        // PUT /api/users/{id}/photo
+        // Body: { "profilePhoto": "data:image/png;base64,..." }
+        // Self-only: the caller must be the same user. Admins are NOT permitted
+        // here on purpose — personal photo is a self-service field.
+        [HttpPut("{id}/photo")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserResponseDto>> UpdateProfilePhoto(int id, UpdatePhotoDto dto)
+        {
+            var callerId = GetLoggedInUserId();
+            if (callerId == null || callerId.Value != id)
+                return Forbid();
+
+            if (string.IsNullOrWhiteSpace(dto.ProfilePhoto))
+                return BadRequest("ProfilePhoto is required.");
+
+            // Must be a data URL of an image type.
+            if (!dto.ProfilePhoto.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("ProfilePhoto must be a data URL (data:image/...).");
+
+            // Defensive size cap — 2 MB binary ≈ ~2.8 MB base64 string. Allow 3 MB
+            // for safety. Frontend already enforces 2 MB on the file.
+            if (dto.ProfilePhoto.Length > 3_000_000)
+                return BadRequest("Photo too large. Max 2 MB.");
+
+            var userOrgId = GetLoggedInUserOrgId();
+            var user = await _userRepository.GetUserByIdAsync(id, userOrgId);
+            if (user == null) return NotFound();
+
+            user.ProfilePhoto = dto.ProfilePhoto;
+            user.UpdatedAt   = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            return Ok(new UserResponseDto
+            {
+                UserID = user.UserID,
+                Name = user.Name,
+                Role = user.Role.ToString(),
+                Email = user.Email,
+                Phone = user.Phone,
+                Department = user.Department,
+                MFAEnabled = user.MFAEnabled,
+                Status = user.Status.ToString(),
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt,
+                IsInNetwork = user.IsInNetwork,
+                ProfilePhoto = user.ProfilePhoto,
+            });
+        }
+
+        // DELETE /api/users/{id}/photo — clears the photo. Self-only.
+        [HttpDelete("{id}/photo")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteProfilePhoto(int id)
+        {
+            var callerId = GetLoggedInUserId();
+            if (callerId == null || callerId.Value != id)
+                return Forbid();
+
+            var userOrgId = GetLoggedInUserOrgId();
+            var user = await _userRepository.GetUserByIdAsync(id, userOrgId);
+            if (user == null) return NotFound();
+
+            user.ProfilePhoto = null;
+            user.UpdatedAt    = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
             return NoContent();

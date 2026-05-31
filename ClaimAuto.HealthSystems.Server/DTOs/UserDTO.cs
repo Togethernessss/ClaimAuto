@@ -58,6 +58,16 @@
         public string? OrganizationSupportEmail { get; set; }   // ← NEW
         public string? OrganizationSupportPhone { get; set; }   // ← NEW
         public bool IsInNetwork { get; set; }
+
+        // ─── Profile photo (base64 data URL) — see User.ProfilePhoto ────
+        public string? ProfilePhoto { get; set; }
+    }
+
+    // ── UpdatePhotoDto — used by PUT /api/users/{id}/photo
+    public class UpdatePhotoDto
+    {
+        /// <summary>Base64 data URL e.g. "data:image/png;base64,iVBORw0…". Required.</summary>
+        public string? ProfilePhoto { get; set; }
     }
 }
 

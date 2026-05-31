@@ -75,10 +75,13 @@ function mapClaim(c) {
   return {
     claimID:         c.claimID,
     memberID:        c.memberID,
+    policyID:        c.policyID,                    // needed to scope coverage usage by active policy
     dateOfService:   c.submittedAt,
     hospitalName,
     procedureName,
     amount:          c.totalBilledAmount,
+    // Prefer real approved amount; only fall back to billed when backend hasn't
+    // sent one yet (e.g. very old claims with no AdjudicationRecord).
     approvedAmount:  isApprovedOrPaid ? (c.approvedAmount ?? c.totalBilledAmount) : null,
     status:          c.status,
   };

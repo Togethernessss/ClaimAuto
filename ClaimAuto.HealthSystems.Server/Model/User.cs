@@ -63,6 +63,11 @@ namespace ClaimAuto.HealthSystems.Server.Model
         public int? OrganizationID { get; set; }
         public Organization? Organization { get; set; }
         public bool IsInNetwork { get; set; } = true;
+
+        // ─── Profile photo — base64 data URL ("data:image/png;base64,…") ─
+        // Nullable, max ~3 MB on the wire (2 MB binary). Stored as nvarchar(MAX).
+        public string? ProfilePhoto { get; set; }
+
         // Navigation
         public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>(); // 1-to-many with AuditLog
     

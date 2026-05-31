@@ -83,11 +83,54 @@ export function notificationStyle(severity) {
 // FRONTEND-COMPUTED DERIVATIONS (use only existing backend fields)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function calculateCoverageUsed(claims) {
-  // Sum of approved or paid claims
-  return claims
-    .filter((c) => ['Approved', 'Paid'].includes(c.status))
-    .reduce((sum, c) => sum + (c.approvedAmount ?? c.amount ?? 0), 0);
+// Sum of approved/paid/partial claim amounts.
+//
+// activePolicyIds — array (or Set) of PolicyIDs whose claims should be counted.
+// When supplied, claims against expired/inactive/deleted policies are excluded
+// so "Used" never exceeds "Total Cover" purely because of a removed policy.
+// When omitted (null/undefined), all claims are summed — backward compatible.
+//
+// We use approvedAmount when present (the real payable amount after deductible
+// and co-pay); fall back to billed amount only for legacy un-adjudicated rows.
+export function calculateCoverageUsed(claims, activePolicyIds = null) {
+  const { total } = calculateCoverageBreakdown(claims, activePolicyIds);
+  return total;
+}
+
+// Breakdown of coverage usage into "paid" (money already out the door) and
+// "approved" (decisions made but payment not yet executed — still locked
+// against the policy's available coverage). The total of these two is what
+// reduces the policyholder's "available to claim" balance.
+//
+// Why split: production insurance dashboards show BOTH so the policyholder
+// understands the lifecycle — "we've paid X already, and Y is queued to be
+// paid soon." Hiding the split confuses people during the payment-execution
+// window which can take days.
+//
+// Returns: { total: number, paid: number, approved: number }
+//   total    — paid + approved (what reduces "Remaining")
+//   paid     — sum of claims in 'Paid' status (executed)
+//   approved — sum of claims in 'Approved' or 'Partial' status (queued)
+export function calculateCoverageBreakdown(claims, activePolicyIds = null) {
+  const activeSet = activePolicyIds
+    ? new Set(activePolicyIds.map((id) => String(id)))
+    : null;
+
+  const inScope = claims.filter(
+    (c) => !activeSet || activeSet.has(String(c.policyID))
+  );
+
+  const amountOf = (c) => Number(c.approvedAmount ?? c.amount ?? 0);
+
+  const paid = inScope
+    .filter((c) => c.status === 'Paid')
+    .reduce((sum, c) => sum + amountOf(c), 0);
+
+  const approved = inScope
+    .filter((c) => c.status === 'Approved' || c.status === 'Partial')
+    .reduce((sum, c) => sum + amountOf(c), 0);
+
+  return { total: paid + approved, paid, approved };
 }
 
 export function calculateClaimsCountByMember(claims, memberID) {

@@ -61,9 +61,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         ProviderName = c.Provider.Name,
         MemberID = c.MemberID,
         MemberName = c.Member.Name,
+        PolicyID = c.PolicyID,                       // ← needed by frontend to scope by active policy
         PolicyName = c.Policy.PlanName,
         ClaimType = c.ClaimType.ToString(),
         TotalBilledAmount = c.TotalBilledAmount,
+        // ApprovedAmount populated below from the latest AdjudicationRecord
         Currency = c.Currency,
         Status = c.Status.ToString(),
         Priority = c.Priority.ToString(),
@@ -76,7 +78,55 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     .Skip((page.Value - 1) * pageSize.Value)
                     .Take(pageSize.Value);
 
-            return await pagedQuery.ToListAsync();
+            var claims = await pagedQuery.ToListAsync();
+
+            // ── Enrich with ApprovedAmount from latest AdjudicationRecord ─────
+            // One round trip to the DB instead of N+1. We pull each claim's most
+            // recent CalculationsJSON, then parse client-side for "approvedAmount"
+            // (auto-adjudication shape) or "payable" (manual adjudication shape).
+            if (claims.Count > 0)
+            {
+                var claimIds = claims.Select(c => c.ClaimID).ToList();
+
+                var adjJsonByClaim = await _db.AdjudicationRecords
+                    .Where(a => claimIds.Contains(a.ClaimID))
+                    .GroupBy(a => a.ClaimID)
+                    .Select(g => new
+                    {
+                        ClaimID = g.Key,
+                        Latest  = g.OrderByDescending(a => a.ExecutedAt)
+                                   .Select(a => a.CalculationsJSON)
+                                   .FirstOrDefault()
+                    })
+                    .ToDictionaryAsync(x => x.ClaimID, x => x.Latest);
+
+                foreach (var dto in claims)
+                {
+                    if (!adjJsonByClaim.TryGetValue(dto.ClaimID, out var calcJson)
+                        || string.IsNullOrWhiteSpace(calcJson))
+                        continue;
+
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(calcJson);
+                        var root = doc.RootElement;
+
+                        // Try keys in priority order: auto schema → manual schema → generic
+                        if (root.TryGetProperty("approvedAmount", out var approvedAmt))
+                            dto.ApprovedAmount = approvedAmt.GetDecimal();
+                        else if (root.TryGetProperty("payable", out var payable))
+                            dto.ApprovedAmount = payable.GetDecimal();
+                        else if (root.TryGetProperty("approved", out var approved))
+                            dto.ApprovedAmount = approved.GetDecimal();
+                    }
+                    catch
+                    {
+                        // Malformed JSON or wrong shape — leave ApprovedAmount null
+                    }
+                }
+            }
+
+            return claims;
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -340,7 +390,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ClaimID = claim.ClaimID,
                     Message = $"New claim CLM-{claim.ClaimID} submitted by {provider.Name}. " +
                                      $"Documents require verification before adjudication can proceed.",
-                    Category = NotificationCategory.Exception,
+                    Category = NotificationCategory.Claim,
                     Severity = NotificationSeverity.Info,
                     Status = NotificationStatus.Unread,
                     CreatedAt = DateTime.UtcNow,
@@ -358,9 +408,11 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ProviderName = provider.Name,
                 MemberID = claim.MemberID,
                 MemberName = member.Name,
+                PolicyID = claim.PolicyID,
                 PolicyName = policy.PlanName,
                 ClaimType = claim.ClaimType.ToString(),
                 TotalBilledAmount = claim.TotalBilledAmount,
+                // ApprovedAmount left null — claim has just been submitted, not yet adjudicated
                 Currency = claim.Currency,
                 Status = claim.Status.ToString(),
                 Priority = claim.Priority.ToString(),
@@ -445,7 +497,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = claim.ClaimID,
                         Message = $"Your claim CLM-{claim.ClaimID} has been rejected by {rejectedBy}. " +
                                   $"If you believe this is incorrect, you may file an appeal.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Claim,
                         Severity = NotificationSeverity.Warning,
                         Status = NotificationStatus.Unread,
                         CreatedAt = DateTime.UtcNow,
@@ -463,6 +515,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 ProviderName = claim.Provider.Name,
                 MemberID = claim.MemberID,
                 MemberName = claim.Member.Name,
+                PolicyID = claim.PolicyID,
                 PolicyName = claim.Policy.PlanName,
                 ClaimType = claim.ClaimType.ToString(),
                 TotalBilledAmount = claim.TotalBilledAmount,
@@ -700,7 +753,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         ClaimID = claimId,
                         Message = $"{uploader.Name} has uploaded a new document ({dto.DocType}) " +
                                          $"for CLM-{claimId}. Please review the updated document set.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Document,
                         Severity = NotificationSeverity.Info,
                         Status = NotificationStatus.Unread,
                         CreatedAt = DateTime.UtcNow,
@@ -837,7 +890,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                         Message = $"Your document ({doc.DocType}) for CLM-{claimId} was rejected " +
                                          $"by insurance staff. Please re-upload a corrected document " +
                                          $"to continue processing your claim.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Document,
                         Severity = NotificationSeverity.Warning,
                         Status = NotificationStatus.Unread,
                         CreatedAt = DateTime.UtcNow,
@@ -983,7 +1036,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     ClaimID = claimId,
                     Message = $"Your claim CLM-{claimId} has been REJECTED by staff. " +
                               $"Reason: {reason}",
-                    Category = NotificationCategory.Exception,
+                    Category = NotificationCategory.Claim,
                     Severity = NotificationSeverity.Warning,
                     CreatedAt = DateTime.UtcNow,
                     Status = NotificationStatus.Unread,
@@ -1091,7 +1144,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                             Message = $"A rejected document on Claim CLM-{claimId} has been " +
                                              $"re-uploaded with a corrected version ({doc.DocType}). " +
                                              "Please review.",
-                            Category = NotificationCategory.Exception,
+                            Category = NotificationCategory.Document,
                             Severity = NotificationSeverity.Info,
                             CreatedAt = DateTime.UtcNow,
                             Status = NotificationStatus.Unread,

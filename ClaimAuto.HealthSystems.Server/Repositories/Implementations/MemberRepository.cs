@@ -325,6 +325,44 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             audit.ResourceID = member.MemberID.ToString();
             await _db.SaveChangesAsync();    // ← Second save: writes MemberNumber + ResourceID
 
+            // ── M1 / M2 — enrollment notification to the policyholder ───────
+            // M1 fires for first-ever enrollment (no prior MemberNumber);
+            // M2 fires for additional policies under an existing Member ID.
+            // Both are Info severity — onboarding/positive lifecycle events.
+            // Wrapped in try/catch so notification failure never blocks
+            // the actual member-create transaction.
+            try
+            {
+                var isAdditionalPolicy = existingMemberNumber != null;
+                var coverageText = policy.SumInsured.HasValue
+                    ? $", coverage ₹{policy.SumInsured.Value:N0}"
+                    : "";
+                var startDateText = member.CoverageStart.ToString("dd MMM yyyy");
+
+                var message = isAdditionalPolicy
+                    ? $"A new policy '{policy.PlanName}'{coverageText} has been linked to your " +
+                      $"Member ID {member.MemberNumber}. Coverage starts {startDateText}."
+                    : $"Welcome! You're enrolled in '{policy.PlanName}'{coverageText} with " +
+                      $"Member ID {member.MemberNumber}. Coverage starts {startDateText}.";
+
+                if (member.PolicyholderUserID is int policyholderId && policyholderId > 0)
+                {
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserID = policyholderId,
+                        ClaimID = null,
+                        Message = message,
+                        Category = NotificationCategory.Member,
+                        Severity = NotificationSeverity.Info,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = userOrgId,
+                    });
+                    await _db.SaveChangesAsync();
+                }
+            }
+            catch { /* notification failure must not break enrollment */ }
+
             return new MemberResponseDto
             {
                 MemberID = member.MemberID,
@@ -358,22 +396,33 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Track changes for audit log — same pattern as Utkarsh
             var changes = new List<string>();
 
+            // ── Snapshot for notification triggers (Member category) ────────
+            // We compare pre/post to decide which Member notification fires.
+            // The concern: NEVER notify on a no-op update. The early return
+            // below (line ~else-branch) handles "nothing changed" without
+            // touching the notification path.
+            var prevStatus = member.Status;
+            bool profileFieldChanged = false;
+
             if (dto.Name != null && dto.Name != member.Name)
             {
                 changes.Add($"Name: '{member.Name}' → '{dto.Name}'");
                 member.Name = dto.Name;
+                profileFieldChanged = true;
             }
 
-            if (dto.ContactInfoJSON != null)
+            if (dto.ContactInfoJSON != null && dto.ContactInfoJSON != member.ContactInfoJSON)
             {
                 changes.Add("ContactInfoJSON updated");
                 member.ContactInfoJSON = dto.ContactInfoJSON;
+                profileFieldChanged = true;
             }
 
             if (dto.CoverageEnd != member.CoverageEnd)
             {
                 changes.Add($"CoverageEnd: {member.CoverageEnd} → {dto.CoverageEnd}");
                 member.CoverageEnd = dto.CoverageEnd;  // null clears it, value sets it
+                profileFieldChanged = true;
             }
 
             // Status — allow setting to any valid value including re-activating
@@ -432,6 +481,64 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
 
             await _db.SaveChangesAsync();
+
+            // ── M3 / M4 / M5 — Member-category notification (at most ONE per call) ─
+            // Priority: status change > profile change. We don't double-notify.
+            // The early return for `!changes.Any()` above means we only get here
+            // when something actually changed — no spam on no-op updates.
+            try
+            {
+                if (member.PolicyholderUserID is int policyholderId && policyholderId > 0)
+                {
+                    string? notifMessage = null;
+                    NotificationSeverity notifSeverity = NotificationSeverity.Info;
+
+                    // M3 — Active → Inactive (highest priority)
+                    if (prevStatus == MemberStatus.Active && member.Status != MemberStatus.Active)
+                    {
+                        notifMessage =
+                            $"Your member status was changed to '{member.Status}' at " +
+                            $"{DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                            $"You won't be able to file new claims until your status is reactivated. " +
+                            $"Contact support if this was unexpected.";
+                        notifSeverity = NotificationSeverity.Warning;
+                    }
+                    // M4 — Inactive (or other) → Active
+                    else if (prevStatus != MemberStatus.Active && member.Status == MemberStatus.Active)
+                    {
+                        notifMessage =
+                            "Your membership has been reactivated. " +
+                            "You can resume filing claims under your enrolled policy.";
+                        notifSeverity = NotificationSeverity.Info;
+                    }
+                    // M5 — Profile-only update (no status change involved)
+                    else if (profileFieldChanged)
+                    {
+                        notifMessage =
+                            $"Your member profile was updated at " +
+                            $"{DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                            $"Review your dashboard to confirm the changes.";
+                        notifSeverity = NotificationSeverity.Info;
+                    }
+
+                    if (notifMessage != null)
+                    {
+                        _db.Notifications.Add(new Notification
+                        {
+                            UserID = policyholderId,
+                            ClaimID = null,
+                            Message = notifMessage,
+                            Category = NotificationCategory.Member,
+                            Severity = notifSeverity,
+                            Status = NotificationStatus.Unread,
+                            CreatedAt = DateTime.UtcNow,
+                            OrganizationID = member.OrganizationID,
+                        });
+                        await _db.SaveChangesAsync();
+                    }
+                }
+            }
+            catch { /* never block the member update */ }
 
             return new MemberResponseDto
             {

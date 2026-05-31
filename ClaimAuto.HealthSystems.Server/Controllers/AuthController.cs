@@ -21,6 +21,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             private readonly ITotpRepository _totp;
             private readonly IEmailServices _email;
             private readonly IOrganizationRepository _orgs;
+            private readonly INotificationRepository _notif;
 
             // Display-only constants used in user-facing error messages.
             // Authoritative values live in AuthRepository.
@@ -34,13 +35,39 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 IConfiguration config,
                 ITotpRepository totp,
                 IEmailServices email,
-                IOrganizationRepository orgs)
+                IOrganizationRepository orgs,
+                INotificationRepository notif)
             {
                 _auth = auth;
                 _config = config;
                 _totp = totp;
                 _email = email;
                 _orgs = orgs;
+                _notif = notif;
+            }
+
+            // ── Internal helper: best-effort Account-category notification.
+            // Wrapped in try/catch so a notification failure NEVER blocks the
+            // auth action that succeeded. Failures are silent on purpose —
+            // logging belongs in the notification repo itself.
+            private async Task SafeNotifyAccountAsync(
+                int userId, int? orgId, string message, NotificationSeverity severity)
+            {
+                try
+                {
+                    await _notif.CreateAsync(new Notification
+                    {
+                        UserID = userId,
+                        ClaimID = null,
+                        Message = message,
+                        Category = NotificationCategory.Account,
+                        Severity = severity,
+                        Status = NotificationStatus.Unread,
+                        CreatedAt = DateTime.UtcNow,
+                        OrganizationID = orgId,
+                    });
+                }
+                catch { /* never block the auth action */ }
             }
 
             // POST: api/auth/register
@@ -129,8 +156,20 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                     int remaining = MAX_LOGIN_ATTEMPTS - user.LoginFailedAttempts;
                     if (remaining <= 0)
+                    {
+                        // A1 — Account just locked. Notify user (and persist for trail).
+                        var unlockTime = DateTime.UtcNow.AddMinutes(LOGIN_LOCKOUT_MINUTES);
+                        await SafeNotifyAccountAsync(
+                            user.UserID, user.OrganizationID,
+                            $"Your account has been temporarily locked due to {MAX_LOGIN_ATTEMPTS} failed " +
+                            $"login attempts. Lockout expires at " +
+                            $"{unlockTime:dd MMM yyyy, hh:mm tt} UTC. " +
+                            $"If this wasn't you, change your password as soon as the lockout expires.",
+                            NotificationSeverity.Critical);
+
                         return Unauthorized(
                             $"Too many failed attempts. Account locked for {LOGIN_LOCKOUT_MINUTES} minutes.");
+                    }
 
                     return Unauthorized(
                         $"Invalid email or password. {remaining} attempt(s) remaining before lockout.");
@@ -274,6 +313,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
                 await _auth.ConfirmMfaSetupAsync(userId);
 
+                // A4 — MFA enabled. Positive security confirmation.
+                await SafeNotifyAccountAsync(
+                    user.UserID, user.OrganizationID,
+                    "Two-factor authentication has been enabled on your account. " +
+                    "Your account is now more secure — you'll be asked for a code from your " +
+                    "Authenticator app on each sign-in.",
+                    NotificationSeverity.Info);
+
                 return Ok(new { Message = "MFA has been enabled successfully. You will need your Authenticator app for future logins." });
             }
 
@@ -302,6 +349,14 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     return Unauthorized("Invalid verification code. Cannot disable MFA.");
 
                 await _auth.DisableMfaAsync(userId);
+
+                // A5 — MFA disabled. Higher severity (Warning) because this REMOVES a
+                // security control — the user should notice immediately if it wasn't them.
+                await SafeNotifyAccountAsync(
+                    user.UserID, user.OrganizationID,
+                    $"Two-factor authentication was disabled at {DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                    "If this wasn't you, re-enable MFA from Account Settings and change your password.",
+                    NotificationSeverity.Warning);
 
                 return Ok(new { Message = "MFA has been disabled." });
             }
@@ -338,6 +393,13 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 if (!ok)
                     return NotFound("User not found.");
 
+                // A2 — Password changed successfully. Audit trail for the user.
+                await SafeNotifyAccountAsync(
+                    user.UserID, user.OrganizationID,
+                    $"Your password was changed at {DateTime.UtcNow:dd MMM yyyy, hh:mm tt} UTC. " +
+                    $"If this wasn't you, contact support immediately.",
+                    NotificationSeverity.Info);
+
                 return Ok(new { Message = "Password changed successfully." });
             }
 
@@ -368,6 +430,15 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                         {
                             // Swallow — we don't reveal email-send failures (anti-enumeration).
                         }
+
+                        // A3 — Password reset requested. In-app trail so user notices if
+                        // someone else triggers a reset on their account.
+                        await SafeNotifyAccountAsync(
+                            user.UserID, user.OrganizationID,
+                            "A password reset link has been sent to your email. " +
+                            "The link expires in 30 minutes. If you didn't request this, " +
+                            "you can safely ignore the email — your current password still works.",
+                            NotificationSeverity.Info);
                     }
                 }
 
@@ -453,6 +524,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 OrganizationSupportEmail = user.Organization?.SupportEmail,
                 OrganizationSupportPhone = user.Organization?.SupportPhone,
                 IsInNetwork = user.IsInNetwork,
+                ProfilePhoto = user.ProfilePhoto,
             };
         }
     }

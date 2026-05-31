@@ -91,8 +91,10 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     OrganizationID = userOrgId,                          // ← SaaS FIX
                 };
 
-                if (!Enum.TryParse<NotificationCategory>("Exception", true, out var cat))
-                    cat = NotificationCategory.Exception;
+                // Auto-opened fraud case → Fraud category (not Exception).
+                // Exception is reserved for genuine system/auto-process failures.
+                if (!Enum.TryParse<NotificationCategory>("Fraud", true, out var cat))
+                    cat = NotificationCategory.Fraud;
 
                 if (!Enum.TryParse<NotificationSeverity>("Critical", true, out var sev))
                     sev = NotificationSeverity.Info;
