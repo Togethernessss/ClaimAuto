@@ -33,3 +33,33 @@ input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {
   display: none !important;
 }
+
+/* ─── Opt-in scrollable list (overrides global "hide all scrollbars") ─────
+   The global `* { scrollbar-width: none }` rule above hides scrollbars
+   everywhere by default. Components that NEED visible scroll should add
+   the `.scrollable-list` class and these rules win on specificity. */
+.scrollable-list {
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 transparent;
+  -ms-overflow-style: auto !important;
+}
+
+.scrollable-list::-webkit-scrollbar {
+  display: block !important;
+  width: 6px;
+  height: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

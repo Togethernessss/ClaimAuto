@@ -75,34 +75,17 @@ function NavProfileAvatar() {
   const { user }  = useAuth();
   const navigate  = useNavigate();
 
+  // Source of truth: user.profilePhoto from AuthContext (backend-persisted).
+  // localStorage is only a fast-paint fallback for the very first render before
+  // /me has returned. The 1-second polling hack is no longer needed —
+  // updateUser() in AuthContext triggers a re-render here automatically.
   const storageKey = user?.userID
     ? `profilePhoto_${user.userID}` : null;
 
-  const [photo, setPhoto] = useState(() =>
-    storageKey
-      ? (localStorage.getItem(storageKey) ?? null)
-      : null
-  );
-
-  useEffect(() => {
-    setPhoto(
-      storageKey
-        ? (localStorage.getItem(storageKey) ?? null)
-        : null
-    );
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (!storageKey) return;
-    const t = setInterval(() => {
-      const stored = localStorage.getItem(storageKey);
-      setPhoto((prev) => {
-        if (prev !== stored) return stored;
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [storageKey]);
+  const photo =
+    user?.profilePhoto
+      ?? (storageKey ? localStorage.getItem(storageKey) : null)
+      ?? null;
 
   const initials = user?.name
     ? user.name.trim().split(/\s+/)

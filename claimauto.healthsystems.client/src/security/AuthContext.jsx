@@ -42,6 +42,20 @@ export function AuthProvider({ children }) {
     setDeactivatedMessage(null);
   }, []);
 
+  // ── Update a single field on the in-memory user + localStorage cache. ──
+  // Used by Profile.jsx after the backend confirms a profile-photo save so
+  // every consumer of useAuth() (Sidebar, navbar, banner) re-renders.
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      try {
+        localStorage.setItem('user', JSON.stringify(next));
+      } catch { /* localStorage quota: ignore */ }
+      return next;
+    });
+  }, []);
+
   // Listen for events dispatched by the axios interceptor.
   useEffect(() => {
     const handleLogout = () => logout();
@@ -92,6 +106,7 @@ export function AuthProvider({ children }) {
         login,
         logout,
         clearDeactivatedMessage,
+        updateUser,
       }}
     >
       {children}

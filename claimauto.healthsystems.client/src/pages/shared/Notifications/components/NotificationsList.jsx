@@ -14,10 +14,18 @@ function timeAgo(iso) {
 }
 
 const CATEGORY_STYLES = {
-  Payment:   { bg: '#d1fae5', color: '#065f46', icon: 'bi-cash-coin', dot: '#10b981' },
-  Appeal:    { bg: '#dbeafe', color: '#1e40af', icon: 'bi-chat-left-text', dot: '#3b82f6' },
-  Exception: { bg: '#fee2e2', color: '#991b1b', icon: 'bi-exclamation-triangle', dot: '#ef4444' },
-  default:   { bg: '#f3f4f6', color: '#374151', icon: 'bi-bell', dot: '#9ca3af' },
+  // Existing (kept; Appeal recolored to purple to free blue for Claim)
+  Payment:   { bg: '#d1fae5', color: '#065f46', icon: 'bi-cash-coin',            dot: '#10b981' },
+  Appeal:    { bg: '#f3e8ff', color: '#6b21a8', icon: 'bi-megaphone',            dot: '#a855f7' },
+  Exception: { bg: '#e5e7eb', color: '#374151', icon: 'bi-exclamation-triangle', dot: '#6b7280' },
+  // New domain categories
+  Claim:     { bg: '#dbeafe', color: '#1e40af', icon: 'bi-file-earmark-medical', dot: '#3b82f6' },
+  Document:  { bg: '#fef3c7', color: '#92400e', icon: 'bi-file-earmark-text',    dot: '#f59e0b' },
+  Fraud:     { bg: '#fecaca', color: '#991b1b', icon: 'bi-shield-exclamation',   dot: '#ef4444' },
+  Policy:    { bg: '#e0e7ff', color: '#3730a3', icon: 'bi-calendar-event',       dot: '#6366f1' },
+  Account:   { bg: '#ccfbf1', color: '#115e59', icon: 'bi-shield-lock',          dot: '#14b8a6' },
+  Member:    { bg: '#f5f5f4', color: '#44403c', icon: 'bi-person-vcard',         dot: '#78716c' },
+  default:   { bg: '#f3f4f6', color: '#374151', icon: 'bi-bell',                 dot: '#9ca3af' },
 };
 
 const SEVERITY_STYLES = {

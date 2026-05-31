@@ -3,6 +3,7 @@ import { Container, Row, Col, Button, Badge, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
 import { getMyMemberEnrollments } from '../../services/members/memberService';
+import { updateProfilePhoto, removeProfilePhoto } from '../../services/identity/userService';
 import ProfileInfoCard      from '../../components/identity/ProfileInfoCard';
 import MfaCard              from '../../components/identity/MfaCard';
 import AccountInfoCard      from '../../components/identity/AccountInfoCard';
@@ -24,7 +25,7 @@ const ROLE_ICON = {
 };
 
 export default function Profile() {
-  const { user }     = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate     = useNavigate();
   const fileInputRef = useRef(null);
   const avatarRef    = useRef(null);
@@ -33,11 +34,15 @@ export default function Profile() {
   const storageKey = user?.userID
     ? `profilePhoto_${user.userID}` : null;
 
+  // Source of truth: AuthContext user.profilePhoto (backend-persisted).
+  // localStorage is kept only as a fast-paint cache for the very first render
+  // before /me has returned.
   const [photo,         setPhoto]         = useState(() =>
-    storageKey
-      ? (localStorage.getItem(storageKey) ?? null)
-      : null
+    user?.profilePhoto
+      ?? (storageKey ? localStorage.getItem(storageKey) : null)
+      ?? null
   );
+  const [photoSaving,   setPhotoSaving]   = useState(false);
   const [showOptions,   setShowOptions]   = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [dropPos,       setDropPos]       = useState({
@@ -51,13 +56,15 @@ export default function Profile() {
   const [memberError,   setMemberError]   = useState(null);
   const [copiedMember,  setCopiedMember]  = useState(false);
 
+  // Re-sync local preview state when the backend user.profilePhoto changes
+  // (e.g. after a fresh /me poll or a different user logs in).
   useEffect(() => {
     setPhoto(
-      storageKey
-        ? (localStorage.getItem(storageKey) ?? null)
-        : null
+      user?.profilePhoto
+        ?? (storageKey ? localStorage.getItem(storageKey) : null)
+        ?? null
     );
-  }, [storageKey]);
+  }, [user?.profilePhoto, storageKey]);
 
   // ── Fetch insurance member record (Policyholder only) ─────────
   useEffect(() => {
@@ -127,10 +134,21 @@ export default function Profile() {
     setShowViewModal(true);
   }
 
-  function handleRemovePhoto() {
+  async function handleRemovePhoto() {
     setShowOptions(false);
-    setPhoto(null);
-    if (storageKey) localStorage.removeItem(storageKey);
+    if (!user?.userID) return;
+    setPhotoSaving(true);
+    try {
+      await removeProfilePhoto(user.userID);
+      setPhoto(null);
+      updateUser({ profilePhoto: null });
+      if (storageKey) localStorage.removeItem(storageKey);
+    } catch (err) {
+      console.error('Failed to remove photo:', err);
+      alert('Could not remove photo. Please try again.');
+    } finally {
+      setPhotoSaving(false);
+    }
   }
 
   const handlePhotoChange = (e) => {
@@ -145,14 +163,25 @@ export default function Profile() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const base64 = ev.target.result;
+      // Optimistic UI: show immediately while POST is in flight.
       setPhoto(base64);
+      setPhotoSaving(true);
       try {
-        if (storageKey)
-          localStorage.setItem(storageKey, base64);
-      } catch {
-        console.warn('Could not persist photo.');
+        const updated = await updateProfilePhoto(user.userID, base64);
+        const saved = updated?.profilePhoto ?? base64;
+        updateUser({ profilePhoto: saved });
+        try {
+          if (storageKey) localStorage.setItem(storageKey, saved);
+        } catch { /* localStorage quota — non-fatal, server is the source */ }
+      } catch (err) {
+        console.error('Failed to save photo:', err);
+        // Rollback the optimistic preview to whatever the server has.
+        setPhoto(user?.profilePhoto ?? null);
+        alert('Could not save photo. Please try again.');
+      } finally {
+        setPhotoSaving(false);
       }
     };
     reader.readAsDataURL(file);

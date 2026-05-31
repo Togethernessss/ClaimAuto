@@ -18,7 +18,7 @@
         public List<UploadDocumentDto>? Documents { get; set; }
     }
 
-    // ── ClaimResponseDto 
+    // ── ClaimResponseDto
     public class ClaimResponseDto
     {
         public int ClaimID { get; set; }
@@ -27,9 +27,14 @@
         public string ProviderName { get; set; } = string.Empty; // resolved — "Sunrise Hospital"
         public int MemberID { get; set; }
         public string MemberName { get; set; } = string.Empty;   // resolved — "Arjun Sharma"
+        public int PolicyID { get; set; }                          // ← needed so frontend can scope
         public string PolicyName { get; set; } = string.Empty;   // resolved — "Family Gold"
         public string ClaimType { get; set; } = string.Empty;
         public decimal TotalBilledAmount { get; set; }
+        // ApprovedAmount = the actual payable amount after deductible / co-pay,
+        // pulled from the latest AdjudicationRecord's CalculationsJSON. Null
+        // until the claim has been adjudicated.
+        public decimal? ApprovedAmount { get; set; }
         public string Currency { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Priority { get; set; } = string.Empty;

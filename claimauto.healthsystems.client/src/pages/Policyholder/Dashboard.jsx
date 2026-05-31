@@ -126,7 +126,14 @@ export default function PolicyholderDashboard() {
             )}
           </Col>
           <Col lg={5}>
-            <CoverageUtilization policy={coveragePolicy} claims={claims} />
+            {/* activePolicies prop scopes "Used" to claims under currently-active
+                policies, preventing a removed/expired policy's old claims from
+                inflating the utilization bar past 100%. */}
+            <CoverageUtilization
+              policy={coveragePolicy}
+              claims={claims}
+              activePolicies={policyList}
+            />
           </Col>
         </Row>
 
@@ -194,6 +201,15 @@ function buildCombinedCoveragePolicy(policies) {
 function ActivePoliciesPanel({ policies, members }) {
   if (!policies.length) return null;
 
+  // ── Scroll threshold ────────────────────────────────────────────────
+  // Up to 3 policies fit the card naturally. From the 4th onward we cap
+  // the list height and let it scroll inside the card. This keeps the
+  // outer dashboard layout (Coverage card, stats row, etc.) aligned and
+  // prevents a tall policy list from pushing everything below the fold.
+  const SCROLL_THRESHOLD = 3;
+  const isScrollable = policies.length > SCROLL_THRESHOLD;
+  const MAX_LIST_HEIGHT = 280;   // ~3 rows visible, 4th peeks → scroll hint
+
   return (
     <div
       className="mb-3"
@@ -241,37 +257,78 @@ function ActivePoliciesPanel({ policies, members }) {
         </span>
       </div>
 
-      <div className="px-4 py-3 d-flex flex-column gap-2">
-        {policies.map((policy) => {
-          const enrollment = members.find((m) => m.policyID === policy.policyID);
-          return (
-            <div
-              key={policy.policyID}
-              className="d-flex align-items-center justify-content-between gap-3 py-2"
-              style={{ borderBottom: '1px solid #f8fafc' }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.92rem' }}>
-                  {policy.planName}
+      {/* ── Policy list — capped height + inner scroll when 4+ policies ─ */}
+      <div style={{ position: 'relative' }}>
+        <div
+          className={`px-4 py-3 d-flex flex-column gap-2${isScrollable ? ' scrollable-list' : ''}`}
+          style={{
+            maxHeight: isScrollable ? MAX_LIST_HEIGHT : 'none',
+            overflowY: isScrollable ? 'auto' : 'visible',
+          }}
+        >
+          {policies.map((policy) => {
+            const enrollment = members.find((m) => m.policyID === policy.policyID);
+            return (
+              <div
+                key={policy.policyID}
+                className="d-flex align-items-center justify-content-between gap-3 py-2"
+                style={{ borderBottom: '1px solid #f8fafc' }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.92rem' }}>
+                    {policy.planName}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                    {policy.planCode || 'Policy'} | Member ID {enrollment?.memberNumber || '-'}
+                  </div>
                 </div>
-                <div style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                  {policy.planCode || 'Policy'} | Member ID {enrollment?.memberNumber || '-'}
+                <div className="text-end" style={{ flexShrink: 0 }}>
+                  <div className="fw-bold" style={{ color: '#4f46e5', fontSize: '0.9rem' }}>
+                    {formatPolicyAmount(policy.coverageAmount)}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
+                    {formatPolicyDate(enrollment?.coverageStart ?? policy.effectiveFrom)}
+                    {' - '}
+                    {formatPolicyDate(enrollment?.coverageEnd ?? policy.effectiveTo)}
+                  </div>
                 </div>
               </div>
-              <div className="text-end" style={{ flexShrink: 0 }}>
-                <div className="fw-bold" style={{ color: '#4f46e5', fontSize: '0.9rem' }}>
-                  {formatPolicyAmount(policy.coverageAmount)}
-                </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
-                  {formatPolicyDate(enrollment?.coverageStart ?? policy.effectiveFrom)}
-                  {' - '}
-                  {formatPolicyDate(enrollment?.coverageEnd ?? policy.effectiveTo)}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Bottom fade — visual cue that more content exists below */}
+        {isScrollable && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 24,
+              pointerEvents: 'none',
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 90%)',
+            }}
+          ></div>
+        )}
       </div>
+
+      {/* Subtle scroll hint — only when there are more policies than fit */}
+      {isScrollable && (
+        <div
+          className="d-flex align-items-center justify-content-center px-4 pb-3"
+          style={{
+            fontSize: '0.7rem',
+            color: '#94a3b8',
+            borderTop: '1px solid #f1f5f9',
+            paddingTop: 8,
+            gap: 4,
+          }}
+        >
+          <i className="bi bi-arrow-down-circle"></i>
+          Scroll inside the list to see all {policies.length} policies
+        </div>
+      )}
     </div>
   );
 }

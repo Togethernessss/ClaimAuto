@@ -40,16 +40,33 @@ export default function WelcomeHeader({ user, pendingClaims, unreadCount }) {
         {/* ── Left: avatar + greeting ──────────────────────────────── */}
         <div className="d-flex align-items-center gap-3">
           <div
+            onClick={() => navigate('/profile')}
+            title="View profile"
             className="rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
             style={{
               width: 54, height: 54,
-              background: 'rgba(255,255,255,0.15)',
+              background: user?.profilePhoto
+                ? 'transparent'
+                : 'rgba(255,255,255,0.15)',
               border: '2px solid rgba(255,255,255,0.25)',
               fontSize: '1.4rem',
-              backdropFilter: 'blur(10px)',
+              backdropFilter: user?.profilePhoto ? 'none' : 'blur(10px)',
+              cursor: 'pointer',
+              overflow: 'hidden',
             }}
           >
-            {firstName.charAt(0).toUpperCase()}
+            {user?.profilePhoto ? (
+              <img
+                src={user.profilePhoto}
+                alt="Profile"
+                style={{
+                  width: '100%', height: '100%',
+                  objectFit: 'cover', display: 'block',
+                }}
+              />
+            ) : (
+              firstName.charAt(0).toUpperCase()
+            )}
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: 2 }}>

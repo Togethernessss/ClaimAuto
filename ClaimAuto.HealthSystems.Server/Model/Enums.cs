@@ -27,7 +27,30 @@
     public enum AppealOutcome { Upheld, Overturned, PartiallyUpheld }
     public enum SubrogationStatus { Initiated, InProgress, Recovered, Closed }
     public enum ReportScope { Operational, Regulatory, Financial, Fraud }
-    public enum NotificationCategory { Exception, Payment, Appeal }
+    // Notification taxonomy — see docs/notifications.md or the team handover.
+    // Categories are the "what is this about" axis; Severity (below) is the
+    // "how urgent" axis. Don't conflate the two.
+    //   Payment   — money movement (created, executed, complete)
+    //   Appeal    — appeal lifecycle (filed, decided, withdrawn)
+    //   Exception — true system errors / process failures only
+    //   Claim     — claim lifecycle (submitted, status change, rejected)
+    //   Document  — document upload / verification / re-upload requests
+    //   Fraud     — fraud alerts and case events
+    //   Policy    — policy expiry warnings / status changes
+    //   Account   — auth / identity / security events
+    //   Member    — enrollment lifecycle (enrolled, status change, profile update)
+    public enum NotificationCategory
+    {
+        Payment,
+        Appeal,
+        Exception,
+        Claim,
+        Document,
+        Fraud,
+        Policy,
+        Account,
+        Member
+    }
     public enum NotificationSeverity { Info, Warning, Critical }
     public enum NotificationStatus { Unread, Read, Dismissed }
     public enum TaskPriority { Low, Medium, High }

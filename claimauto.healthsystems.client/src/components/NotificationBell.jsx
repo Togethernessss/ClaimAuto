@@ -17,9 +17,17 @@ function timeAgo(iso) {
 
 function categoryStyle(cat) {
   switch (cat) {
+    // Existing
     case 'Payment':   return { bg: '#d1f2eb', color: '#085041' };
-    case 'Appeal':    return { bg: '#e3f2fd', color: '#0C447C' };
-    case 'Exception': return { bg: '#fdecea', color: '#b71c1c' };
+    case 'Appeal':    return { bg: '#f3e8ff', color: '#6b21a8' };
+    case 'Exception': return { bg: '#e5e7eb', color: '#374151' };
+    // New domain categories
+    case 'Claim':     return { bg: '#dbeafe', color: '#1e40af' };
+    case 'Document':  return { bg: '#fef3c7', color: '#92400e' };
+    case 'Fraud':     return { bg: '#fecaca', color: '#991b1b' };
+    case 'Policy':    return { bg: '#e0e7ff', color: '#3730a3' };
+    case 'Account':   return { bg: '#ccfbf1', color: '#115e59' };
+    case 'Member':    return { bg: '#f5f5f4', color: '#44403c' };
     default:          return { bg: '#e2e3e5', color: '#41464b' };
   }
 }

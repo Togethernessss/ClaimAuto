@@ -1,7 +1,6 @@
 import { Button } from 'react-bootstrap';
 import { useAuth } from '../security/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 
 const ROLE_SHORTCUTS = {
   Admin: [
@@ -50,22 +49,15 @@ export default function WelcomeBanner({ emoji = '', actions = [] }) {
   const { user }  = useAuth();
   const navigate  = useNavigate();
 
+  // Source of truth: user.profilePhoto from AuthContext (backend-persisted).
+  // localStorage is just a fast-paint cache fallback for the very first render.
   const storageKey = user?.userID
     ? `profilePhoto_${user.userID}` : null;
 
-  const [photo, setPhoto] = useState(() =>
-    storageKey
-      ? (localStorage.getItem(storageKey) ?? null)
-      : null
-  );
-
-  useEffect(() => {
-    setPhoto(
-      storageKey
-        ? (localStorage.getItem(storageKey) ?? null)
-        : null
-    );
-  }, [storageKey]);
+  const photo =
+    user?.profilePhoto
+      ?? (storageKey ? localStorage.getItem(storageKey) : null)
+      ?? null;
 
   const getInitials = (name) => {
     if (!name) return '?';

@@ -16,8 +16,14 @@ export default function NotificationsFilters({
 
   const CATEGORY_OPTS = [
     { value: 'All',       label: 'All Categories' },
+    { value: 'Claim',     label: 'Claim' },
     { value: 'Payment',   label: 'Payment' },
     { value: 'Appeal',    label: 'Appeal' },
+    { value: 'Document',  label: 'Document' },
+    { value: 'Fraud',     label: 'Fraud' },
+    { value: 'Policy',    label: 'Policy' },
+    { value: 'Account',   label: 'Account' },
+    { value: 'Member',    label: 'Member' },
     { value: 'Exception', label: 'Exception' },
   ];
 

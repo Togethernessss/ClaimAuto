@@ -336,7 +336,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                     $"has been automatically expired. " +
                                     $"Effective To date was " +
                                     $"{policy.EffectiveTo:dd MMM yyyy}.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Policy,
                         Severity = NotificationSeverity.Warning,
                         Status = NotificationStatus.Unread,
                         CreatedAt = now
@@ -378,7 +378,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                     $"is expiring in {daysLeft} {dayWord} on " +
                                     $"{policy.EffectiveTo:dd MMM yyyy}. " +
                                     $"Please review and take action if needed.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Policy,
                         Severity = NotificationSeverity.Warning,
                         Status = NotificationStatus.Unread,
                         CreatedAt = now
@@ -424,7 +424,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                     $"{timeWord} at " +
                                     $"{policy.EffectiveTo:dd MMM yyyy HH:mm} UTC. " +
                                     $"Take immediate action if renewal is required.",
-                        Category = NotificationCategory.Exception,
+                        Category = NotificationCategory.Policy,
                         Severity = NotificationSeverity.Critical,
                         Status = NotificationStatus.Unread,
                         CreatedAt = now
