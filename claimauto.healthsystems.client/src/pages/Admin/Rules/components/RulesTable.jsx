@@ -1,33 +1,28 @@
 // src/pages/Admin/Rules/components/RulesTable.jsx
-import { Card, Table, Button, Alert, Spinner } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import { formatDate, ruleStatusStyle, ruleStatusIcon, ruleTypeStyle, ruleTypeIcon } from '../utils/ruleHelpers';
 
-// Map template keys → human-readable labels for the Type column.
-// Falls back to the raw value if unknown (e.g., custom rule type).
 const TEMPLATE_LABELS = {
-  PolicyActive:           'Policy Active',
-  InNetwork:              'In-Network',
-  WaitingPeriod:          'Waiting Period',
-  CoverageRemaining:      'Coverage Remaining',
-  AmountBelow:            'Auto-Approve Below',
-  AmountAbove:            'Route Above Amount',
-  AmountBetween:          'Amount in Range',
-  ClaimTypeDeny:          'Deny by Type',
-  ClaimTypePass:          'Auto-Pass by Type',
-  DuplicateCheck:         'Duplicate Check',
-  // ReimbursementDuplicate label removed — Reimbursement claim type no longer exists.
-  Deductible:             'Deductible',
-  CoPay:                  'CoPay',
-  RequireDocType:         'Require Document',
-  RouteToReview:          'Always Route',
+  PolicyActive:      'Policy Active',
+  InNetwork:         'In-Network',
+  WaitingPeriod:     'Waiting Period',
+  CoverageRemaining: 'Coverage Remaining',
+  AmountBelow:       'Auto-Approve Below',
+  AmountAbove:       'Route Above Amount',
+  AmountBetween:     'Amount in Range',
+  ClaimTypeDeny:     'Deny by Type',
+  ClaimTypePass:     'Auto-Pass by Type',
+  DuplicateCheck:    'Duplicate Check',
+  Deductible:        'Deductible',
+  CoPay:             'CoPay',
+  RequireDocType:    'Require Document',
+  RouteToReview:     'Always Route',
 };
 
 function getTemplateLabel(ruleType) {
   return TEMPLATE_LABELS[ruleType] || ruleType;
 }
 
-// Build a short human-readable summary from the rule's condition JSON
-// so admins see "Max: ₹5,000" instead of raw {"maxAmount":5000}.
 function getParamsSummary(rule) {
   if (!rule?.conditionExpressionJSON) return null;
   try {
@@ -45,41 +40,91 @@ function getParamsSummary(rule) {
       parts.push(`Types: ${p.types.join(', ')}`);
     if (Array.isArray(p.requiredTypes) && p.requiredTypes.length > 0)
       parts.push(`Required: ${p.requiredTypes.join(', ')}`);
-    return parts.length > 0 ? parts.join(' • ') : null;
+    return parts.length > 0 ? parts.join(' · ') : null;
   } catch {
     return null;
   }
 }
 
-function StatusBadge({ status }) {
+// ── Status pill ───────────────────────────────────────────────────────────────
+function StatusPill({ status }) {
   const s = ruleStatusStyle(status);
   return (
     <span style={{
-      background: s.bg, color: s.color,
-      padding: '3px 10px', borderRadius: 6,
-      fontSize: 12, fontWeight: 600,
       display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: s.bg, color: s.color,
+      padding: '3px 9px', borderRadius: 999,
+      fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap',
     }}>
-      <i className={ruleStatusIcon(status)} style={{ fontSize: 10 }}></i>
+      <i className={ruleStatusIcon(status)} style={{ fontSize: 8 }}></i>
       {status}
     </span>
   );
 }
 
+// ── Type badge ────────────────────────────────────────────────────────────────
 function TypeBadge({ type }) {
   const s = ruleTypeStyle(type);
   return (
     <span style={{
-      background: s.bg, color: s.color,
-      padding: '2px 8px', borderRadius: 4,
-      fontSize: 11, fontWeight: 500,
       display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: s.bg, color: s.color,
+      padding: '3px 9px', borderRadius: 999,
+      fontSize: '0.71rem', fontWeight: 600, whiteSpace: 'nowrap',
     }}>
-      <i className={ruleTypeIcon(type)} style={{ fontSize: 10 }}></i>
+      <i className={ruleTypeIcon(type)} style={{ fontSize: 8 }}></i>
       {getTemplateLabel(type)}
     </span>
   );
 }
+
+// ── Compact action button (full width, stacked vertically) ────────────────────
+function ActionBtn({ label, icon, bg, color, border, hoverBg, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%',
+        padding: '5px 0',
+        borderRadius: 7,
+        border,
+        background: bg,
+        color,
+        fontWeight: 700,
+        fontSize: '0.72rem',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background  = hoverBg;
+        e.currentTarget.style.color       = 'white';
+        e.currentTarget.style.borderColor = hoverBg;
+        e.currentTarget.style.transform   = 'translateY(-1px)';
+        e.currentTarget.style.boxShadow   = `0 3px 8px ${hoverBg}55`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background  = bg;
+        e.currentTarget.style.color       = color;
+        e.currentTarget.style.borderColor = border.replace('1.5px solid ', '');
+        e.currentTarget.style.transform   = 'translateY(0)';
+        e.currentTarget.style.boxShadow   = 'none';
+      }}
+    >
+      <i className={`bi ${icon}`} style={{ fontSize: '0.68rem' }}></i>
+      {label}
+    </button>
+  );
+}
+
+// ── Column config ─────────────────────────────────────────────────────────────
+//  60px | 1fr | 150px | 105px | 60px | 110px | 105px | 115px
+//  The rule-name column (1fr) absorbs leftover space.
+//  The actions column is intentionally narrower — buttons stack vertically.
+const GRID = '60px 1fr 150px 105px 60px 110px 105px 115px';
 
 export default function RulesTable({
   rules,
@@ -93,232 +138,306 @@ export default function RulesTable({
   onDelete,
   onCreateFirst,
 }) {
+
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <Spinner animation="border" variant="primary" />
-          <div className="mt-2 text-muted small">Loading rules...</div>
-        </Card.Body>
-      </Card>
+      <div style={{
+        background: 'white', borderRadius: 16,
+        boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+        padding: '56px 24px', textAlign: 'center',
+      }}>
+        <div style={{
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 14px',
+        }}>
+          <Spinner animation="border" variant="light" size="sm" />
+        </div>
+        <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>Loading rules…</div>
+      </div>
     );
   }
 
+  // ── Error ─────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="p-4">
-          <Alert variant="danger" className="d-flex align-items-center mb-0">
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-            <Button variant="link" size="sm" className="ms-auto p-0 text-danger" onClick={onRetry}>
-              <i className="bi bi-arrow-clockwise me-1"></i> Retry
-            </Button>
-          </Alert>
-        </Card.Body>
-      </Card>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: '#fff5f5', border: '1px solid #fca5a5',
+        borderRadius: 14, padding: '16px 20px',
+      }}>
+        <i className="bi bi-exclamation-triangle-fill"
+           style={{ color: '#dc2626', fontSize: 18, flexShrink: 0 }}></i>
+        <div style={{ flex: 1, color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>
+        <button onClick={onRetry} style={{
+          background: '#fee2e2', border: '1px solid #fca5a5',
+          color: '#dc2626', borderRadius: 20, padding: '5px 14px',
+          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+        }}>
+          <i className="bi bi-arrow-clockwise me-1"></i>Retry
+        </button>
+      </div>
     );
   }
 
+  // ── Empty ─────────────────────────────────────────────────────────────────
   if (rules.length === 0) {
     return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <i className="bi bi-gear" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-          <div className="fw-semibold text-muted mt-3">
-            {hasFilters ? 'No rules match your filters' : 'No rules yet'}
-          </div>
-          <div className="small text-muted mt-1">
-            {hasFilters
-              ? 'Try clearing your filters.'
-              : 'Create your first adjudication rule to get started.'}
-          </div>
-          {!hasFilters && (
-            <Button
-              variant="primary"
-              size="sm"
-              className="mt-3 rounded-pill"
-              onClick={onCreateFirst}
-            >
-              <i className="bi bi-plus me-1"></i> Create First Rule
-            </Button>
-          )}
-        </Card.Body>
-      </Card>
+      <div style={{
+        background: 'white', borderRadius: 16,
+        boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+        padding: '56px 24px', textAlign: 'center',
+      }}>
+        <div style={{
+          width: 68, height: 68, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #f3f0ff, #faf5ff)',
+          border: '2px solid #ede9fe',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+        }}>
+          <i className="bi bi-cpu" style={{ fontSize: '1.8rem', color: '#7c3aed' }}></i>
+        </div>
+        <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4, fontSize: '0.95rem' }}>
+          {hasFilters ? 'No rules match your filters' : 'No rules yet'}
+        </div>
+        <div style={{ fontSize: '0.82rem', color: '#9ca3af', marginBottom: !hasFilters ? 16 : 0 }}>
+          {hasFilters
+            ? 'Try clearing your filters.'
+            : 'Create your first adjudication rule to get started.'}
+        </div>
+        {!hasFilters && (
+          <button onClick={onCreateFirst} style={{
+            padding: '8px 20px', borderRadius: 10, border: 'none',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white', fontWeight: 700, fontSize: '0.83rem',
+            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 4px 12px rgba(102,126,234,0.35)',
+          }}>
+            <i className="bi bi-plus-lg"></i>Create First Rule
+          </button>
+        )}
+      </div>
     );
   }
 
+  // ── Table ─────────────────────────────────────────────────────────────────
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
-        <div className="table-responsive">
-          <Table hover className="mb-0 align-middle">
-            <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-              <tr>
-                <th className="ps-4 py-3 text-muted small fw-semibold text-uppercase">Priority</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Rule Name</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Type</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Status</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Version</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Created By</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Created</th>
-                <th className="py-3 pe-4 text-muted small fw-semibold text-uppercase text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.map((rule) => (
-                <tr key={rule.ruleID}>
+    <div style={{
+      background: 'white',
+      borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      overflow: 'hidden',
+    }}>
 
-                  {/* Priority */}
-                  <td className="ps-4 py-3">
-                    <div
-                      className="d-inline-flex align-items-center justify-content-center rounded-circle fw-bold"
-                      style={{
-                        width: 32, height: 32,
-                        background: '#f3f0ff',
-                        color: '#764ba2',
-                        fontSize: 13,
-                      }}
-                    >
-                      {rule.priority}
-                    </div>
-                  </td>
+      {/* Horizontal scroll wrapper */}
+      <div style={{ overflowX: 'auto' }}>
 
-                  {/* Name + description + params summary */}
-                  <td className="py-3" style={{ maxWidth: 280 }}>
-                    <div className="fw-semibold" style={{ fontSize: 13 }}>{rule.name}</div>
-                    {rule.description && (
-                      <div className="text-muted" style={{ fontSize: 11, lineHeight: 1.3 }}>
-                        {rule.description}
-                      </div>
-                    )}
-                    {getParamsSummary(rule) && (
-                      <div
-                        className="font-monospace mt-1"
-                        style={{
-                          fontSize: 10,
-                          color: '#5a6268',
-                          background: '#f0f2f5',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          display: 'inline-block',
-                        }}
-                      >
-                        <i className="bi bi-sliders me-1"></i>
-                        {getParamsSummary(rule)}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Type */}
-                  <td className="py-3">
-                    <TypeBadge type={rule.ruleType} />
-                  </td>
-
-                  {/* Status */}
-                  <td className="py-3">
-                    <StatusBadge status={rule.status} />
-                  </td>
-
-                  {/* Version */}
-                  <td className="py-3">
-                    <span className="font-monospace text-muted" style={{ fontSize: 12 }}>
-                      v{rule.version}
-                    </span>
-                  </td>
-
-                  {/* Created by */}
-                  <td className="py-3 small text-muted">{rule.createdByName}</td>
-
-                  {/* Created at */}
-                  <td className="py-3 small text-muted">{formatDate(rule.createdAt)}</td>
-
-                  {/* Actions */}
-                  <td className="py-3 pe-4">
-                    <div className="d-flex flex-column align-items-end gap-1">
-
-                      {/* Edit — always available */}
-                      <Button
-                        size="sm"
-                        onClick={() => onEdit(rule)}
-                        style={{
-                          width: 100, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                          background: '#e8f0fe', border: '1.5px solid #4285f4', color: '#1a56db',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          gap: 5, padding: '5px 0',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#4285f4'; e.currentTarget.style.color = '#fff'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = '#e8f0fe'; e.currentTarget.style.color = '#1a56db'; }}
-                      >
-                        <i className="bi bi-pencil-fill" style={{ fontSize: '0.72rem' }}></i>
-                        Edit
-                      </Button>
-
-                      {/* Activate — Draft or Inactive */}
-                      {(rule.status === 'Draft' || rule.status === 'Inactive') && (
-                        <Button
-                          size="sm"
-                          onClick={() => onActivate(rule)}
-                          style={{
-                            width: 100, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                            background: '#d1f2eb', border: '1.5px solid #085041', color: '#085041',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 5, padding: '5px 0',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#085041'; e.currentTarget.style.color = '#fff'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = '#d1f2eb'; e.currentTarget.style.color = '#085041'; }}
-                        >
-                          <i className="bi bi-check-circle" style={{ fontSize: '0.72rem' }}></i>
-                          Activate
-                        </Button>
-                      )}
-
-                      {/* Deactivate — Active only */}
-                      {rule.status === 'Active' && (
-                        <Button
-                          size="sm"
-                          onClick={() => onDeactivate(rule)}
-                          style={{
-                            width: 100, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                            background: '#fff3e0', border: '1.5px solid #e65100', color: '#e65100',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 5, padding: '5px 0',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#e65100'; e.currentTarget.style.color = '#fff'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = '#fff3e0'; e.currentTarget.style.color = '#e65100'; }}
-                        >
-                          <i className="bi bi-pause-circle" style={{ fontSize: '0.72rem' }}></i>
-                          Deactivate
-                        </Button>
-                      )}
-
-                      {/* Delete — Draft only */}
-                      {rule.status === 'Draft' && (
-                        <Button
-                          size="sm"
-                          onClick={() => onDelete(rule)}
-                          style={{
-                            width: 100, borderRadius: 6, fontWeight: 600, fontSize: '0.78rem',
-                            background: '#ffebee', border: '1.5px solid #ef5350', color: '#c62828',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 5, padding: '5px 0',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = '#ef5350'; e.currentTarget.style.color = '#fff'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = '#ffebee'; e.currentTarget.style.color = '#c62828'; }}
-                        >
-                          <i className="bi bi-trash-fill" style={{ fontSize: '0.72rem' }}></i>
-                          Delete
-                        </Button>
-                      )}
-
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+        {/* ── Gradient header ─────────────────────────────── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: GRID,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '11px 18px',
+          minWidth: 860,
+        }}>
+          {[
+            'Priority', 'Rule Name', 'Type',
+            'Status', 'Ver.', 'Created By', 'Created', 'Actions',
+          ].map((h, i) => (
+            <div key={h} style={{
+              fontSize: '0.69rem',
+              fontWeight: 700,
+              color: 'rgba(255,255,255,0.85)',
+              letterSpacing: '0.6px',
+              textTransform: 'uppercase',
+              textAlign: i === 7 ? 'center' : 'left',
+            }}>
+              {h}
+            </div>
+          ))}
         </div>
-      </Card.Body>
-    </Card>
+
+        {/* ── Data rows ───────────────────────────────────── */}
+        {rules.map((rule, idx) => {
+          const paramsSummary = getParamsSummary(rule);
+          const isLast        = idx === rules.length - 1;
+
+          // How many action buttons will this row have?
+          const actionCount =
+            1 +                                                             // Edit (always)
+            (rule.status === 'Draft' || rule.status === 'Inactive' ? 1 : 0) + // Activate
+            (rule.status === 'Active'                               ? 1 : 0) + // Deactivate
+            (rule.status === 'Draft'                                ? 1 : 0);  // Delete
+
+          return (
+            <div
+              key={rule.ruleID}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: GRID,
+                padding: '12px 18px',
+                minWidth: 860,
+                alignItems: 'center',
+                borderBottom: isLast ? 'none' : '1px solid #f3f0ff',
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#faf9ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+
+              {/* ── Priority ─────────────────────────────────── */}
+              <div>
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                  border: '2px solid #ddd6fe',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 800, fontSize: '0.82rem', color: '#7c3aed',
+                }}>
+                  {rule.priority}
+                </div>
+              </div>
+
+              {/* ── Rule Name + description + params ─────────── */}
+              <div style={{ paddingRight: 10 }}>
+                <div style={{
+                  fontWeight: 700, color: '#1e1b4b',
+                  fontSize: '0.86rem', marginBottom: 2,
+                }}>
+                  {rule.name}
+                </div>
+                {rule.description && (
+                  <div style={{
+                    fontSize: '0.71rem', color: '#6b7280', lineHeight: 1.4,
+                  }}>
+                    {rule.description}
+                  </div>
+                )}
+                {paramsSummary && (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    marginTop: 4, fontSize: '0.67rem', fontFamily: 'monospace',
+                    color: '#5b21b6', background: '#f3f0ff',
+                    padding: '2px 7px', borderRadius: 5,
+                  }}>
+                    <i className="bi bi-sliders" style={{ fontSize: 8 }}></i>
+                    {paramsSummary}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Type ─────────────────────────────────────── */}
+              <div>
+                <TypeBadge type={rule.ruleType} />
+              </div>
+
+              {/* ── Status ───────────────────────────────────── */}
+              <div>
+                <StatusPill status={rule.status} />
+              </div>
+
+              {/* ── Version ──────────────────────────────────── */}
+              <div>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: '0.77rem', fontWeight: 700,
+                  color: '#9ca3af', background: '#f3f4f6',
+                  padding: '2px 7px', borderRadius: 6,
+                }}>
+                  v{rule.version}
+                </span>
+              </div>
+
+              {/* ── Created By ───────────────────────────────── */}
+              <div style={{ fontSize: '0.81rem', color: '#374151' }}>
+                <i className="bi bi-person"
+                   style={{ color: '#9ca3af', fontSize: 10, marginRight: 4 }}></i>
+                {rule.createdByName}
+              </div>
+
+              {/* ── Created At ───────────────────────────────── */}
+              <div style={{ fontSize: '0.77rem', color: '#6b7280' }}>
+                <i className="bi bi-calendar3"
+                   style={{ fontSize: 9, color: '#9ca3af', marginRight: 4 }}></i>
+                {formatDate(rule.createdAt)}
+              </div>
+
+              {/* ── Actions (stacked vertically) ─────────────── */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: actionCount > 1 ? 5 : 0,
+                alignItems: 'stretch',
+                minWidth: 0,
+              }}>
+
+                {/* Edit — always */}
+                <ActionBtn
+                  label="Edit"
+                  icon="bi-pencil-fill"
+                  bg="#eff6ff"        color="#1d4ed8"
+                  border="1.5px solid #93c5fd"
+                  hoverBg="#2563eb"
+                  onClick={() => onEdit(rule)}
+                />
+
+                {/* Activate — Draft or Inactive */}
+                {(rule.status === 'Draft' || rule.status === 'Inactive') && (
+                  <ActionBtn
+                    label="Activate"
+                    icon="bi-check-circle-fill"
+                    bg="#f0fdf4"       color="#15803d"
+                    border="1.5px solid #86efac"
+                    hoverBg="#16a34a"
+                    onClick={() => onActivate(rule)}
+                  />
+                )}
+
+                {/* Deactivate — Active only */}
+                {rule.status === 'Active' && (
+                  <ActionBtn
+                    label="Deactivate"
+                    icon="bi-pause-circle-fill"
+                    bg="#fff7ed"       color="#c2410c"
+                    border="1.5px solid #fdba74"
+                    hoverBg="#ea580c"
+                    onClick={() => onDeactivate(rule)}
+                  />
+                )}
+
+                {/* Delete — Draft only */}
+                {rule.status === 'Draft' && (
+                  <ActionBtn
+                    label="Delete"
+                    icon="bi-trash3-fill"
+                    bg="#fff5f5"       color="#dc2626"
+                    border="1.5px solid #fca5a5"
+                    hoverBg="#ef4444"
+                    onClick={() => onDelete(rule)}
+                  />
+                )}
+              </div>
+
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Footer ──────────────────────────────────────── */}
+      <div style={{
+        padding: '10px 18px',
+        borderTop: '1px solid #f3f0ff',
+        background: '#faf9ff',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          {rules.length} rule{rules.length !== 1 ? 's' : ''}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+          <i className="bi bi-sort-numeric-down me-1"></i>Sorted by priority
+        </span>
+      </div>
+    </div>
   );
 }

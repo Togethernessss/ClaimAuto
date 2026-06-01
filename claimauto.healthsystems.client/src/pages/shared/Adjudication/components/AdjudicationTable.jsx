@@ -1,36 +1,42 @@
 // src/pages/shared/Adjudication/components/AdjudicationTable.jsx
-import { Card, Table, Button, Alert, Spinner } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import {
   formatDate, formatCurrency,
   claimStatusStyle, claimTypeStyle,
   ADJUDICABLE_STATUSES,
 } from '../utils/adjudicationHelpers';
 
-function StatusBadge({ status }) {
+function StatusPill({ status }) {
   const s = claimStatusStyle(status);
   return (
     <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
       background: s.bg, color: s.color,
-      padding: '3px 10px', borderRadius: 6,
-      fontSize: 12, fontWeight: 600,
+      padding: '3px 9px', borderRadius: 999,
+      fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap',
     }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, opacity: 0.75, flexShrink: 0 }} />
       {status === 'UnderReview' ? 'Under Review' : status}
     </span>
   );
 }
 
-function TypeBadge({ type }) {
+function TypePill({ type }) {
   const s = claimTypeStyle(type);
   return (
     <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
       background: s.bg, color: s.color,
-      padding: '2px 8px', borderRadius: 4,
-      fontSize: 11, fontWeight: 500,
+      padding: '3px 9px', borderRadius: 999,
+      fontSize: '0.71rem', fontWeight: 600, whiteSpace: 'nowrap',
     }}>
       {type}
     </span>
   );
 }
+
+// Grid: Claim | Member | Provider | Type | Billed | Status | Submitted | Actions
+const GRID = '110px 1fr 130px 110px 110px 130px 110px 140px';
 
 export default function AdjudicationTable({
   claims,
@@ -41,255 +47,251 @@ export default function AdjudicationTable({
   onRetry,
   onManualAdjudicate,
   onViewResult,
-  isPendingQueue = false,  // true = pending review section, false = history section
+  isPendingQueue = false,
 }) {
 
-  if (loading) {
-    return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <Spinner animation="border" variant="primary" />
-          <div className="mt-2 text-muted small">Loading claims...</div>
-        </Card.Body>
-      </Card>
-    );
-  }
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      padding: '56px 24px', textAlign: 'center',
+    }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: '50%',
+        background: isPendingQueue
+          ? 'linear-gradient(135deg, #e65100, #bf360c)'
+          : 'linear-gradient(135deg, #667eea, #764ba2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 14px',
+      }}>
+        <Spinner animation="border" variant="light" size="sm" />
+      </div>
+      <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>Loading claims…</div>
+    </div>
+  );
 
-  if (error) {
-    return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="p-4">
-          <Alert variant="danger" className="d-flex align-items-center mb-0">
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-            <Button
-              variant="link" size="sm"
-              className="ms-auto p-0 text-danger"
-              onClick={onRetry}
-            >
-              <i className="bi bi-arrow-clockwise me-1"></i> Retry
-            </Button>
-          </Alert>
-        </Card.Body>
-      </Card>
-    );
-  }
+  // ── Error ────────────────────────────────────────────────────────────────
+  if (error) return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: '#fff5f5', border: '1px solid #fca5a5',
+      borderRadius: 14, padding: '16px 20px',
+    }}>
+      <i className="bi bi-exclamation-triangle-fill" style={{ color: '#dc2626', fontSize: 18, flexShrink: 0 }}></i>
+      <div style={{ flex: 1, color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>
+      <button onClick={onRetry} style={{
+        background: '#fee2e2', border: '1px solid #fca5a5',
+        color: '#dc2626', borderRadius: 20, padding: '5px 14px',
+        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+      }}>
+        <i className="bi bi-arrow-clockwise me-1"></i>Retry
+      </button>
+    </div>
+  );
 
-  if (claims.length === 0) {
-    return (
-      <Card className="border-0 shadow-sm">
-        <Card.Body className="text-center py-5">
-          <i
-            className="bi bi-check2-square"
-            style={{ fontSize: 48, color: '#dfe4ea' }}
-          ></i>
-          <div className="fw-semibold text-muted mt-3">
-            {hasFilters
-              ? 'No claims match your filters'
-              : isPendingQueue
-              ? 'No claims pending manual review'
-              : 'No claims yet'}
-          </div>
-          <div className="small text-muted mt-1">
-            {hasFilters
-              ? 'Try clearing your filters.'
-              : isPendingQueue
-              ? 'All claims have been adjudicated. ✅'
-              : 'Claims will appear here once submitted.'}
-          </div>
-        </Card.Body>
-      </Card>
-    );
-  }
+  // ── Empty ────────────────────────────────────────────────────────────────
+  if (claims.length === 0) return (
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      padding: '56px 24px', textAlign: 'center',
+    }}>
+      <div style={{
+        width: 68, height: 68, borderRadius: '50%',
+        background: isPendingQueue ? 'linear-gradient(135deg, #fff7ed, #ffedd5)' : 'linear-gradient(135deg, #f3f0ff, #faf5ff)',
+        border: `2px solid ${isPendingQueue ? '#fed7aa' : '#ede9fe'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 16px',
+      }}>
+        <i className="bi bi-check2-square" style={{ fontSize: '1.8rem', color: isPendingQueue ? '#f97316' : '#7c3aed' }}></i>
+      </div>
+      <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+        {hasFilters ? 'No claims match your filters' : isPendingQueue ? 'No claims pending manual review' : 'No claims yet'}
+      </div>
+      <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>
+        {hasFilters ? 'Try clearing your filters.' : isPendingQueue ? 'All claims have been adjudicated. ✅' : 'Claims will appear here once submitted.'}
+      </div>
+    </div>
+  );
 
+  // ── Table ─────────────────────────────────────────────────────────────────
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
-        <div className="table-responsive">
-          <Table hover className="mb-0 align-middle">
-            <thead style={{
-              backgroundColor: isPendingQueue ? '#fff8f0' : '#f8f9fa',
-              borderBottom: '2px solid #dee2e6',
-            }}>
-              <tr>
-                <th className="ps-4 py-3 text-muted small fw-semibold text-uppercase">Claim</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Member</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Provider</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Type</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Billed</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Status</th>
-                <th className="py-3 text-muted small fw-semibold text-uppercase">Submitted</th>
-                <th className="py-3 pe-4 text-muted small fw-semibold text-uppercase text-end">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {claims.map((claim) => {
-                const canAdjudicate = ADJUDICABLE_STATUSES.includes(claim.status);
-                const isActioning   = actionLoading === claim.claimID;
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      overflow: 'hidden',
+      // Pending queue: left accent border
+      borderLeft: isPendingQueue ? '4px solid #f97316' : 'none',
+    }}>
+      <div style={{ overflowX: 'auto' }}>
 
-                return (
-                  <tr
-                    key={claim.claimID}
+        {/* ── Header ──────────────────────────────────────── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: GRID,
+          background: isPendingQueue
+            ? 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)'
+            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '11px 18px', minWidth: 860,
+        }}>
+          {['Claim', 'Member', 'Provider', 'Type', 'Billed', 'Status', 'Submitted', 'Actions'].map((h, i) => (
+            <div key={h} style={{
+              fontSize: '0.69rem', fontWeight: 700,
+              color: 'rgba(255,255,255,0.85)',
+              letterSpacing: '0.6px', textTransform: 'uppercase',
+              textAlign: i === 7 ? 'right' : 'left',
+            }}>{h}</div>
+          ))}
+        </div>
+
+        {/* ── Rows ────────────────────────────────────────── */}
+        {claims.map((claim, idx) => {
+          const canAdjudicate = ADJUDICABLE_STATUSES.includes(claim.status);
+          const isActioning   = actionLoading === claim.claimID;
+          const isLast        = idx === claims.length - 1;
+
+          return (
+            <div
+              key={claim.claimID}
+              style={{
+                display: 'grid', gridTemplateColumns: GRID,
+                padding: '13px 18px', minWidth: 860,
+                alignItems: 'center',
+                borderBottom: isLast ? 'none' : '1px solid #f3f0ff',
+                background: isPendingQueue ? '#fffbf5' : 'transparent',
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = isPendingQueue ? '#fff7ed' : '#faf9ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = isPendingQueue ? '#fffbf5' : 'transparent'; }}
+            >
+
+              {/* Claim ID */}
+              <div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.83rem', color: '#1e1b4b' }}>
+                  CLM-{claim.claimID}
+                </div>
+                {claim.externalClaimRef && (
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 1 }}>
+                    {claim.externalClaimRef}
+                  </div>
+                )}
+              </div>
+
+              {/* Member + Policy */}
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.83rem', color: '#1e1b4b' }}>{claim.memberName}</div>
+                <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 1 }}>{claim.policyName}</div>
+              </div>
+
+              {/* Provider */}
+              <div style={{ fontSize: '0.82rem', color: '#374151' }}>{claim.providerName}</div>
+
+              {/* Type */}
+              <div><TypePill type={claim.claimType} /></div>
+
+              {/* Billed */}
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e1b4b' }}>
+                {formatCurrency(claim.totalBilledAmount)}
+              </div>
+
+              {/* Status */}
+              <div><StatusPill status={claim.status} /></div>
+
+              {/* Submitted */}
+              <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                <i className="bi bi-calendar3 me-1" style={{ fontSize: 9, color: '#9ca3af' }}></i>
+                {formatDate(claim.submittedAt)}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+
+                {/* Manual Adjudicate */}
+                {canAdjudicate && onManualAdjudicate && (
+                  <button
+                    disabled={isActioning}
+                    onClick={() => onManualAdjudicate(claim)}
                     style={{
-                      // Highlight pending review rows with a subtle warm background
-                      background: isPendingQueue ? '#fffbf5' : 'white',
+                      padding: '5px 14px', borderRadius: 8, fontWeight: 700, fontSize: '0.73rem',
+                      border: 'none', cursor: isActioning ? 'not-allowed' : 'pointer',
+                      background: isPendingQueue
+                        ? 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)'
+                        : '#fff3e0',
+                      color: isPendingQueue ? 'white' : '#e65100',
+                      border: isPendingQueue ? 'none' : '1.5px solid #e65100',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActioning) {
+                        e.currentTarget.style.background = '#e65100';
+                        e.currentTarget.style.color = 'white';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 3px 8px rgba(230,81,0,0.35)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = isPendingQueue
+                        ? 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)'
+                        : '#fff3e0';
+                      e.currentTarget.style.color = isPendingQueue ? 'white' : '#e65100';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
+                    {isActioning
+                      ? <Spinner animation="border" size="sm" style={{ width: 13, height: 13 }} />
+                      : <><i className="bi bi-pencil-fill" style={{ fontSize: '0.68rem' }}></i>
+                          {isPendingQueue ? 'Decide Now' : 'Manual'}</>}
+                  </button>
+                )}
 
-                    {/* Claim ID */}
-                    <td className="ps-4 py-3">
-                      <div className="fw-semibold font-monospace" style={{ fontSize: 13 }}>
-                        CLM-{claim.claimID}
-                      </div>
-                      {claim.externalClaimRef && (
-                        <div className="text-muted" style={{ fontSize: 10 }}>
-                          {claim.externalClaimRef}
-                        </div>
-                      )}
-                    </td>
+                {/* View Result */}
+                {!canAdjudicate && (
+                  <button
+                    onClick={() => onViewResult(claim)}
+                    style={{
+                      padding: '5px 14px', borderRadius: 8, fontWeight: 700, fontSize: '0.73rem',
+                      background: '#eff6ff', border: '1.5px solid #93c5fd',
+                      color: '#1d4ed8', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#2563eb';
+                      e.currentTarget.style.color = 'white';
+                      e.currentTarget.style.borderColor = '#2563eb';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#eff6ff';
+                      e.currentTarget.style.color = '#1d4ed8';
+                      e.currentTarget.style.borderColor = '#93c5fd';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <i className="bi bi-eye" style={{ fontSize: '0.68rem' }}></i>View Result
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-                    {/* Member + Policy */}
-                    <td className="py-3">
-                      <div className="small fw-semibold">{claim.memberName}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>
-                        {claim.policyName}
-                      </div>
-                    </td>
-
-                    {/* Provider */}
-                    <td className="py-3 small">{claim.providerName}</td>
-
-                    {/* Type */}
-                    <td className="py-3">
-                      <TypeBadge type={claim.claimType} />
-                    </td>
-
-                    {/* Amount */}
-                    <td className="py-3 fw-semibold small">
-                      {formatCurrency(claim.totalBilledAmount)}
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3">
-                      <StatusBadge status={claim.status} />
-                    </td>
-
-                    {/* Submitted date */}
-                    <td className="py-3 small text-muted">
-                      {formatDate(claim.submittedAt)}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 pe-4">
-                      <div className="d-flex flex-column align-items-end gap-1">
-
-                        {/* ── Manual Adjudicate button ───────────────────────
-                            Shown for claims that can still be decided.
-                            isPendingQueue = true  → "Decide Now" (urgent, filled style)
-                            isPendingQueue = false → "Manual" (subtle outline style)  */}
-                        {canAdjudicate && onManualAdjudicate && (
-                          <Button
-                            size="sm"
-                            disabled={isActioning}
-                            onClick={() => onManualAdjudicate(claim)}
-                            style={{
-                              width: 120,
-                              borderRadius: 6,
-                              fontWeight: 600,
-                              fontSize: '0.78rem',
-                              // Pending queue = filled orange (urgent)
-                              // History table = outline orange (subtle)
-                              background: isPendingQueue
-                                ? 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)'
-                                : '#fff3e0',
-                              border: isPendingQueue
-                                ? 'none'
-                                : '1.5px solid #e65100',
-                              color: isPendingQueue ? 'white' : '#e65100',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 5,
-                              padding: '5px 0',
-                              transition: 'all 0.15s',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#e65100';
-                              e.currentTarget.style.color = '#fff';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = isPendingQueue
-                                ? 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)'
-                                : '#fff3e0';
-                              e.currentTarget.style.color = isPendingQueue
-                                ? 'white' : '#e65100';
-                            }}
-                          >
-                            {isActioning ? (
-                              <Spinner animation="border" size="sm" />
-                            ) : (
-                              <>
-                                <i
-                                  className="bi bi-pencil-fill"
-                                  style={{ fontSize: '0.72rem' }}
-                                ></i>
-                                {isPendingQueue ? 'Decide Now' : 'Manual'}
-                              </>
-                            )}
-                          </Button>
-                        )}
-
-                        {/* ── View Result button ────────────────────────────
-                            Shown for claims already adjudicated (Approved,
-                            Rejected, Adjudicated, Paid) — read-only view
-                            showing decision + calculations + rule trace.     */}
-                        {!canAdjudicate && (
-                          <Button
-                            size="sm"
-                            onClick={() => onViewResult(claim)}
-                            style={{
-                              width: 120,
-                              borderRadius: 6,
-                              fontWeight: 600,
-                              fontSize: '0.78rem',
-                              background: '#e8f0fe',
-                              border: '1.5px solid #4285f4',
-                              color: '#1a56db',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 5,
-                              padding: '5px 0',
-                              transition: 'all 0.15s',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#4285f4';
-                              e.currentTarget.style.color = '#fff';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = '#e8f0fe';
-                              e.currentTarget.style.color = '#1a56db';
-                            }}
-                          >
-                            <i
-                              className="bi bi-eye"
-                              style={{ fontSize: '0.72rem' }}
-                            ></i>
-                            View Result
-                          </Button>
-                        )}
-
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </div>
-      </Card.Body>
-    </Card>
+      {/* Footer */}
+      <div style={{
+        padding: '10px 18px', borderTop: '1px solid #f3f0ff', background: '#faf9ff',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          {claims.length} claim{claims.length !== 1 ? 's' : ''}
+          {isPendingQueue && <span style={{ marginLeft: 8, color: '#f97316', fontWeight: 600 }}>· Pending review</span>}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+          <i className="bi bi-sort-down me-1"></i>Sorted by submitted date
+        </span>
+      </div>
+    </div>
   );
 }
