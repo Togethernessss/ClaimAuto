@@ -1,4 +1,4 @@
-import { Modal, Button, Spinner, Alert, Badge } from 'react-bootstrap';
+﻿import { Modal, Button, Spinner, Alert, Badge } from 'react-bootstrap';
 import { formatDate, formatCurrency } from '../utils/memberHelpers';
 
 export default function EligibilityModal({
@@ -168,8 +168,8 @@ export default function EligibilityModal({
             >
               <i className="bi bi-clock me-1"></i>
               {result.source === 'Cached'
-                ? `Cached result · checked at ${new Date(result.checkedAt).toLocaleTimeString('en-IN')}`
-                : `Live result · ${new Date(result.checkedAt).toLocaleTimeString('en-IN')}`}
+                ? `Cached result · checked at ${new Date((result.checkedAt && !result.checkedAt.endsWith('Z') ? result.checkedAt + 'Z' : result.checkedAt)).toLocaleTimeString('en-IN')}`
+                : `Live result · ${new Date((result.checkedAt && !result.checkedAt.endsWith('Z') ? result.checkedAt + 'Z' : result.checkedAt)).toLocaleTimeString('en-IN')}`}
             </div>
           </>
         )}

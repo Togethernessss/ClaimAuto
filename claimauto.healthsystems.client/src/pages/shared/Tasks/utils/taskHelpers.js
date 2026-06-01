@@ -1,7 +1,7 @@
-// ─── Date / Currency formatting ─────────────────────────
+﻿// ─── Date / Currency formatting ─────────────────────────
 export function formatDateTime(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     });
@@ -9,7 +9,7 @@ export function formatDateTime(iso) {
 
 export function formatDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
     });
 }
@@ -58,7 +58,7 @@ export function statusIcon(s) {
 export function dueUrgency(iso, status) {
     if (!iso || status === 'Completed') return null;
     const now = new Date();
-    const due = new Date(iso);
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; const due = new Date(utcIso);
     const diff = (due - now) / (1000 * 60 * 60 * 24); // days
     if (diff < 0) return { label: 'Overdue', color: '#dc2626' };
     if (diff <= 2) return { label: 'Due soon', color: '#f59e0b' };

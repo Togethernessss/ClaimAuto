@@ -1,4 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
+﻿// ─────────────────────────────────────────────────────────────────────────────
 // HELPER FUNCTIONS — pure utilities used across components
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -18,14 +18,14 @@ export function formatCompactCurrency(val) {
 
 export function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
   });
 }
 
 export function timeAgo(iso) {
   if (!iso) return '—';
-  const diff = (Date.now() - new Date(iso)) / 1000;
+  const _u = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; const diff = (Date.now() - new Date(_u)) / 1000;
   if (diff < 60)      return 'just now';
   if (diff < 3600)    return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400)   return `${Math.floor(diff / 3600)}h ago`;

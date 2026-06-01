@@ -1,10 +1,10 @@
-// src/pages/shared/Members/utils/memberHelpers.js
+﻿// src/pages/shared/Members/utils/memberHelpers.js
 // Utility functions for the Members module.
 
 // "2024-01-01T00:00:00" → "Jan 01, 2024"  |  null → "—"
 export function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
   });
 }

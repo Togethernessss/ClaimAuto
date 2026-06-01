@@ -1,15 +1,15 @@
-// ─── Date / Currency Formatting ─────────────────────────
+﻿// ─── Date / Currency Formatting ─────────────────────────
 
 export function formatDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
     });
 }
 
 export function formatDateTime(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     });

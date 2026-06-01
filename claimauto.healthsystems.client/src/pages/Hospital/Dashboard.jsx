@@ -1,4 +1,4 @@
-import { Container, Row, Col, Button, Spinner } from 'react-bootstrap';
+﻿import { Container, Row, Col, Button, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
 import { getMenuForRole } from '../../security/permissions';
@@ -68,7 +68,7 @@ export default function HospitalDashboard() {
         const year   = now.getFullYear();
 
         const thisMonth = claims.filter(c => {
-          const d = new Date(c.submittedAt);
+          const _sa = c.submittedAt && !c.submittedAt.endsWith('Z') ? c.submittedAt + 'Z' : c.submittedAt; const d = new Date(_sa);
           return d.getMonth() === month &&
                  d.getFullYear() === year;
         });
@@ -146,7 +146,7 @@ export default function HospitalDashboard() {
 
   function formatDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
     });
   }

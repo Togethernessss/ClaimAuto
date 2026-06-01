@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, Table, Spinner, Alert, Badge } from 'react-bootstrap';
 import {
   getReconciliations,
@@ -108,7 +108,7 @@ export default function ReconciliationTab() {
 
   function formatDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
+    const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
     });
   }

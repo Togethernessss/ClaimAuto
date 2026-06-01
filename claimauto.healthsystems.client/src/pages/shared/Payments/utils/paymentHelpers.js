@@ -1,4 +1,4 @@
-// Shared utility functions for the Payments module.
+﻿// Shared utility functions for the Payments module.
 // Defined here once — imported wherever needed.
 
 // ₹25000 → "₹25,000"   |   null → "—"
@@ -10,7 +10,7 @@ export function formatCurrency(val) {
 // "2024-01-01T00:00:00" → "Jan 01, 2024"   |   null → "—"
 export function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
   });
 }
@@ -18,7 +18,7 @@ export function formatDate(iso) {
 // "2024-01-01T14:30:00" → "Jan 01, 2024 · 2:30 PM"
 export function formatDateTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });
