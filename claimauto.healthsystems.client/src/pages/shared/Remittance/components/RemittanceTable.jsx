@@ -1,4 +1,4 @@
-import { Card, Table, Button, Alert, Spinner } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import { useAuth } from '../../../../security/AuthContext';
 import { canAccess } from '../../../../security/permissions';
 import {
@@ -7,16 +7,52 @@ import {
 } from '../utils/remittanceHelpers';
 import { downloadRemittancePdf } from '../../../../services/payments/remittanceService';
 
-function StatusBadge({ status }) {
+function StatusPill({ status }) {
   const s = statusStyle(status);
   return (
     <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
       background: s.bg, color: s.text,
-      padding: '3px 10px', borderRadius: 6,
-      fontSize: 12, fontWeight: 600,
+      padding: '3px 10px', borderRadius: 999,
+      fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap',
     }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.text, opacity: 0.7, flexShrink: 0 }} />
       {status}
     </span>
+  );
+}
+
+function ActionBtn({ label, icon, bg, color, border, hoverBg, onClick, disabled, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: '5px 12px', borderRadius: 8, border,
+        background: disabled ? '#f3f4f6' : bg,
+        color: disabled ? '#9ca3af' : color,
+        fontWeight: 700, fontSize: '0.73rem',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        transition: 'all 0.15s', whiteSpace: 'nowrap',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.background = hoverBg;
+          e.currentTarget.style.color = 'white';
+          e.currentTarget.style.borderColor = hoverBg;
+          e.currentTarget.style.transform = 'translateY(-1px)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = disabled ? '#f3f4f6' : bg;
+        e.currentTarget.style.color = disabled ? '#9ca3af' : color;
+        e.currentTarget.style.borderColor = border.replace('1.5px solid ', '');
+        e.currentTarget.style.transform = 'translateY(0)';
+      }}
+    >
+      {children || (<><i className={`bi ${icon}`} style={{ fontSize: '0.68rem' }}></i>{label}</>)}
+    </button>
   );
 }
 
@@ -28,251 +64,269 @@ export default function RemittanceTable({
   onRetry,
   onOpenAcknowledge,
 }) {
-  const { user } = useAuth();
-  const isHospital = canAccess(user?.role, ['Hospital']);
+  const { user }    = useAuth();
+  const isHospital  = canAccess(user?.role, ['Hospital']);
+
+  // Grid columns differ for Hospital (no Payee column)
+  const GRID = isHospital
+    ? '120px 110px 110px 130px 100px 110px 110px 170px'
+    : '120px 110px 150px 110px 130px 100px 110px 170px';
+
+  const HEADERS = isHospital
+    ? ['Rem ID', 'Pay ID', 'Claim', 'Amount', 'Generated', 'Sent On', 'Status', 'Actions']
+    : ['Rem ID', 'Pay ID', 'Payee', 'Claim', 'Amount', 'Generated', 'Sent On', 'Status', 'Actions'];
+
+  // ── Loading ─────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      padding: '56px 24px', textAlign: 'center',
+    }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: '50%',
+        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 14px',
+      }}>
+        <Spinner animation="border" variant="light" size="sm" />
+      </div>
+      <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>Loading remittances…</div>
+    </div>
+  );
+
+  // ── Error ────────────────────────────────────────────────────────────────
+  if (error) return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: '#fff5f5', border: '1px solid #fca5a5',
+      borderRadius: 14, padding: '16px 20px',
+    }}>
+      <i className="bi bi-exclamation-triangle-fill" style={{ color: '#dc2626', fontSize: 18, flexShrink: 0 }}></i>
+      <div style={{ flex: 1, color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>
+      <button onClick={onRetry} style={{
+        background: '#fee2e2', border: '1px solid #fca5a5',
+        color: '#dc2626', borderRadius: 20, padding: '5px 14px',
+        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+      }}>
+        <i className="bi bi-arrow-clockwise me-1"></i>Retry
+      </button>
+    </div>
+  );
+
+  // ── Empty ────────────────────────────────────────────────────────────────
+  if (remittances.length === 0) return (
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      padding: '56px 24px', textAlign: 'center',
+    }}>
+      <div style={{
+        width: 68, height: 68, borderRadius: '50%',
+        background: 'linear-gradient(135deg, #f3f0ff, #faf5ff)',
+        border: '2px solid #ede9fe',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 16px',
+      }}>
+        <i className="bi bi-receipt" style={{ fontSize: '1.8rem', color: '#7c3aed' }}></i>
+      </div>
+      <div style={{ fontWeight: 700, color: '#374151', marginBottom: 4 }}>No remittances found</div>
+      <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>
+        Remittances are generated automatically when payments are executed.
+      </div>
+    </div>
+  );
+
+  // ── Table ─────────────────────────────────────────────────────────────────
+  const gridCols = isHospital
+    ? '120px 110px 110px 130px 100px 110px 110px 1fr'
+    : '120px 110px 150px 110px 130px 100px 110px 110px 1fr';
+
+  const headers = isHospital
+    ? ['Rem ID', 'Pay ID', 'Claim', 'Amount', 'Generated', 'Sent On', 'Status', 'Actions']
+    : ['Rem ID', 'Pay ID', 'Payee', 'Claim', 'Amount', 'Generated', 'Sent On', 'Status', 'Actions'];
 
   return (
-    <Card className="border-0 shadow-sm">
-      <Card.Body className="p-0">
+    <div style={{
+      background: 'white', borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(102,126,234,0.10)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ overflowX: 'auto' }}>
 
-        {loading && (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <div className="mt-2 text-muted small">Loading remittances...</div>
-          </div>
-        )}
+        {/* ── Gradient header ─────────────────────────────── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: gridCols,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '11px 18px', minWidth: 860,
+        }}>
+          {headers.map((h, i) => (
+            <div key={h} style={{
+              fontSize: '0.69rem', fontWeight: 700,
+              color: 'rgba(255,255,255,0.85)',
+              letterSpacing: '0.6px', textTransform: 'uppercase',
+              textAlign: i === headers.length - 1 ? 'right' : 'left',
+            }}>{h}</div>
+          ))}
+        </div>
 
-        {!loading && error && (
-          <div className="p-4">
-            <Alert variant="danger" className="d-flex align-items-center mb-0">
-              <i className="bi bi-exclamation-triangle-fill me-2"></i>
-              {error}
-              <Button
-                variant="link"
-                size="sm"
-                className="ms-auto p-0 text-danger"
-                onClick={onRetry}
-              >
-                <i className="bi bi-arrow-clockwise me-1"></i> Retry
-              </Button>
-            </Alert>
-          </div>
-        )}
+        {/* ── Data rows ───────────────────────────────────── */}
+        {remittances.map((r, idx) => {
+          const isLast     = idx === remittances.length - 1;
+          const highlight  = r.status === 'Sent' && isHospital;
 
-        {!loading && !error && remittances.length === 0 && (
-          <div className="text-center py-5">
-            <i className="bi bi-receipt" style={{ fontSize: 48, color: '#dfe4ea' }}></i>
-            <div className="fw-semibold text-muted mt-3">No remittances found</div>
-            <div className="small text-muted mt-1">
-              Remittances are generated automatically when payments are executed.
-            </div>
-          </div>
-        )}
+          return (
+            <div
+              key={r.remittanceID}
+              style={{
+                display: 'grid', gridTemplateColumns: gridCols,
+                padding: '13px 18px', minWidth: 860,
+                alignItems: 'center',
+                background: highlight ? '#fffbf0' : 'transparent',
+                borderBottom: isLast ? 'none' : '1px solid #f3f0ff',
+                borderLeft: highlight ? '3px solid #f59e0b' : '3px solid transparent',
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => { if (!highlight) e.currentTarget.style.background = '#faf9ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = highlight ? '#fffbf0' : 'transparent'; }}
+            >
+              {/* Rem ID */}
+              <div>
+                <span style={{
+                  fontFamily: 'monospace', fontWeight: 700,
+                  fontSize: '0.83rem', color: '#1e1b4b',
+                }}>{formatRemittanceId(r.remittanceID)}</span>
+              </div>
 
-        {!loading && !error && remittances.length > 0 && (
-          <div className="table-responsive">
-            <Table hover className="mb-0 align-middle">
-              <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <tr>
-                  <th className="ps-4 py-3 text-muted small fw-semibold text-uppercase">Rem ID</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Pay ID</th>
-                  {!isHospital && (
-                    <th className="py-3 text-muted small fw-semibold text-uppercase">Payee</th>
-                  )}
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Claim</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Amount</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Generated</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Sent On</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase">Status</th>
-                  <th className="py-3 text-muted small fw-semibold text-uppercase text-end pe-4">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {remittances.map((r) => (
-                  <tr
-                    key={r.remittanceID}
-                    style={{
-                      background: r.status === 'Sent' && isHospital
-                        ? '#fffbf0' : 'white',
-                    }}
-                  >
-                    <td className="ps-4 py-3">
-                      <span className="font-monospace fw-semibold" style={{ fontSize: 13 }}>
-                        {formatRemittanceId(r.remittanceID)}
-                      </span>
-                    </td>
+              {/* Pay ID */}
+              <div>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: '0.77rem',
+                  color: '#6b7280', background: '#f3f4f6',
+                  padding: '2px 7px', borderRadius: 5,
+                }}>{formatPaymentId(r.paymentID)}</span>
+              </div>
 
-                    <td className="py-3">
-                      <span className="font-monospace text-muted" style={{ fontSize: 12 }}>
-                        {formatPaymentId(r.paymentID)}
-                      </span>
-                    </td>
+              {/* Payee — Admin/Staff only */}
+              {!isHospital && (
+                <div style={{ fontWeight: 600, fontSize: '0.83rem', color: '#374151' }}>
+                  {r.payeeName}
+                </div>
+              )}
 
-                    {!isHospital && (
-                      <td className="py-3">
-                        <div className="fw-semibold" style={{ fontSize: 13 }}>
-                          {r.payeeName}
-                        </div>
-                      </td>
+              {/* Claim */}
+              <div>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: '0.77rem', color: '#7c3aed',
+                  background: '#f5f3ff', padding: '2px 7px', borderRadius: 5,
+                }}>CLM-{r.claimID}</span>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e1b4b' }}>
+                  {formatCurrency(r.amount)}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{r.currency}</div>
+              </div>
+
+              {/* Generated */}
+              <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                <i className="bi bi-calendar3 me-1" style={{ fontSize: 9, color: '#9ca3af' }}></i>
+                {formatDate(r.generatedAt)}
+              </div>
+
+              {/* Sent On */}
+              <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                {r.sentToProviderAt
+                  ? <><i className="bi bi-send me-1" style={{ fontSize: 9, color: '#9ca3af' }}></i>{formatDate(r.sentToProviderAt)}</>
+                  : <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>—</span>}
+              </div>
+
+              {/* Status */}
+              <div><StatusPill status={r.status} /></div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+
+                {/* ── Hospital actions ─────────────────────── */}
+                {isHospital && (
+                  <>
+                    {r.status === 'Sent' && (
+                      <ActionBtn
+                        label="Acknowledge"
+                        icon="bi-check2"
+                        bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                        color="white"
+                        border="1.5px solid #667eea"
+                        hoverBg="#4f46e5"
+                        disabled={actionLoading === r.paymentID}
+                        onClick={() => onOpenAcknowledge(r)}
+                      >
+                        {actionLoading === r.paymentID
+                          ? <Spinner animation="border" size="sm" style={{ width: 13, height: 13 }} />
+                          : <><i className="bi bi-check2" style={{ fontSize: '0.68rem' }}></i>Acknowledge</>}
+                      </ActionBtn>
                     )}
 
-                    <td className="py-3">
-                      <span className="font-monospace text-muted" style={{ fontSize: 12 }}>
-                        Claim #{r.claimID}
+                    {r.status === 'Acknowledged' && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontSize: '0.75rem', color: '#059669', fontWeight: 600,
+                        background: '#d1fae5', padding: '4px 10px',
+                        borderRadius: 999, whiteSpace: 'nowrap',
+                      }}>
+                        <i className="bi bi-check-circle-fill" style={{ fontSize: 10 }}></i>
+                        Confirmed
                       </span>
-                    </td>
+                    )}
 
-                    <td className="py-3">
-                      <div className="fw-semibold">{formatCurrency(r.amount)}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>{r.currency}</div>
-                    </td>
+                    {(r.status === 'Sent' || r.status === 'Acknowledged') && r.hasPDF && (
+                      <ActionBtn
+                        label="PDF"
+                        icon="bi-file-earmark-pdf-fill"
+                        bg="#f0fdf4" color="#15803d"
+                        border="1.5px solid #86efac"
+                        hoverBg="#16a34a"
+                        onClick={() => downloadRemittancePdf(r.paymentID)}
+                      />
+                    )}
+                  </>
+                )}
 
-                    <td className="py-3 text-muted" style={{ fontSize: 12 }}>
-                      {formatDate(r.generatedAt)}
-                    </td>
+                {/* ── Admin / Staff actions ────────────────── */}
+                {!isHospital && (
+                  r.hasPDF ? (
+                    <ActionBtn
+                      label="PDF"
+                      icon="bi-file-earmark-pdf-fill"
+                      bg="#f0fdf4" color="#15803d"
+                      border="1.5px solid #86efac"
+                      hoverBg="#16a34a"
+                      onClick={() => downloadRemittancePdf(r.paymentID)}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: '#d1d5db', fontStyle: 'italic' }}>No file</span>
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-                    <td className="py-3 text-muted" style={{ fontSize: 12 }}>
-                      {formatDate(r.sentToProviderAt)}
-                    </td>
-
-                    <td className="py-3">
-                      <StatusBadge status={r.status} />
-                    </td>
-
-                    <td className="py-3 pe-4">
-                      <div className="d-flex align-items-center justify-content-end gap-2">
-
-                        {/* ── Hospital actions ─────────────────────────── */}
-                        {isHospital && (
-
-                          <>
-                            {/* Acknowledge — only for Sent */}
-                            {r.status === 'Sent' && (
-                              <Button
-                                size="sm"
-                                disabled={actionLoading === r.paymentID}
-                                onClick={() => onOpenAcknowledge(r)}
-                                style={{
-                                  borderRadius: 6,
-                                  fontWeight: 600,
-                                  fontSize: '0.78rem',
-                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                  border: 'none',
-                                  color: 'white',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 5,
-                                  padding: '5px 12px',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {actionLoading === r.paymentID
-                                  ? <Spinner animation="border" size="sm" />
-                                  : <><i className="bi bi-check2 me-1"></i>Acknowledge</>}
-                              </Button>
-                            )}
-
-                            {/* Acknowledged label */}
-                            {r.status === 'Acknowledged' && (
-                              <span style={{
-                                fontSize: '0.78rem',
-                                color: '#085041',
-                                fontStyle: 'italic',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                whiteSpace: 'nowrap',
-                              }}>
-                                <i className="bi bi-check-circle-fill text-success"></i>
-                                Confirmed
-                              </span>
-                            )}
-
-                            {/* Download PDF — for Sent and Acknowledged */}
-                            {(r.status === 'Sent' || r.status === 'Acknowledged') && r.hasPDF && (
-                              <Button
-                                size="sm"
-                                onClick={() => downloadRemittancePdf(r.paymentID)}
-                                style={{
-                                  borderRadius: 6,
-                                  fontWeight: 600,
-                                  fontSize: '0.78rem',
-                                  background: '#e8f5e9',
-                                  border: '1.5px solid #2e7d32',
-                                  color: '#2e7d32',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 5,
-                                  padding: '5px 12px',
-                                  whiteSpace: 'nowrap',
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = '#2e7d32';
-                                  e.currentTarget.style.color = '#fff';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = '#e8f5e9';
-                                  e.currentTarget.style.color = '#2e7d32';
-                                }}
-                              >
-                                <i className="bi bi-file-earmark-pdf me-1"></i>
-                                Download PDF
-                              </Button>
-                            )}
-                          </>
-                        )}
-
-                        {/* ── Admin / Staff actions ─────────────────────── */}
-                        {!isHospital && (
-                          r.hasPDF ? (
-                            <Button
-                              size="sm"
-                              onClick={() => downloadRemittancePdf(r.paymentID)}
-                              style={{
-                                borderRadius: 6,
-                                fontWeight: 600,
-                                fontSize: '0.78rem',
-                                background: '#e8f5e9',
-                                border: '1.5px solid #2e7d32',
-                                color: '#2e7d32',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                padding: '5px 12px',
-                                whiteSpace: 'nowrap',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = '#2e7d32';
-                                e.currentTarget.style.color = '#fff';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = '#e8f5e9';
-                                e.currentTarget.style.color = '#2e7d32';
-                              }}
-                            >
-                              <i className="bi bi-file-earmark-pdf me-1"></i>
-                              Download PDF
-                            </Button>
-                          ) : (
-                            <span style={{ fontSize: 12, color: '#9e9e9e' }}>
-                              No file
-                            </span>
-                          )
-                        )}
-
-                      </div>
-                    </td>
-
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
-
-      </Card.Body>
-    </Card>
+      {/* Footer */}
+      <div style={{
+        padding: '10px 18px', borderTop: '1px solid #f3f0ff', background: '#faf9ff',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          {remittances.length} remittance{remittances.length !== 1 ? 's' : ''}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+          <i className="bi bi-clock-history me-1"></i>Sorted by newest first
+        </span>
+      </div>
+    </div>
   );
 }
