@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Badge, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../security/AuthContext';
@@ -200,7 +200,7 @@ export default function Profile() {
   const roleIcon  = ROLE_ICON[user.role]  ?? 'bi-person-fill';
 
   const joined = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString(undefined, {
+    ? new Date((user.createdAt && !user.createdAt.endsWith('Z') ? user.createdAt + 'Z' : user.createdAt)).toLocaleDateString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
       })
     : '—';
@@ -954,7 +954,7 @@ export default function Profile() {
 // ── Formats an ISO date string as "Jan 2024" for the insurance card ──
 function fmtCardDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z'; return new Date(utcIso).toLocaleDateString(undefined, {
     year: 'numeric', month: 'short',
   });
 }

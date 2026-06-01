@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { checkExpiredPolicies } from '../../services/policies/policyService';
 import { Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
@@ -77,7 +77,7 @@ export default function AdminDashboard() {
         const rev   = paymentsRes.value
           .filter(p => {
             if (p.status !== 'Executed') return false;
-            const d = new Date(p.executedAt);
+            const _ea = p.executedAt && !p.executedAt.endsWith('Z') ? p.executedAt + 'Z' : p.executedAt; const d = new Date(_ea);
             return d.getMonth() === month &&
                    d.getFullYear() === year;
           })

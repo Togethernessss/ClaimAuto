@@ -2,14 +2,16 @@
 
 export function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z';
+  return new Date(utcIso).toLocaleDateString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
   });
 }
 
 export function formatDateTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', {
+  const utcIso = String(iso).endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : iso + 'Z';
+  return new Date(utcIso).toLocaleString('en-IN', {
     year: 'numeric', month: 'short', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });

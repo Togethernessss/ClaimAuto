@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Container, Modal, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../../security/AuthContext';
 import InviteUserModal from '../../components/identity/InviteUserModal';
@@ -453,7 +453,7 @@ export default function AdminUsers() {
 
               {/* Joined date */}
               <div style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-                {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                {u.createdAt ? new Date(u.createdAt.endsWith('Z') || /[+\-]\d{2}:?\d{2}$/.test(u.createdAt) ? u.createdAt : u.createdAt + 'Z').toLocaleDateString() : '—'}
               </div>
 
               {/* Actions */}
