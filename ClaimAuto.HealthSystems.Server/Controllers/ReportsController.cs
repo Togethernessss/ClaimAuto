@@ -135,6 +135,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
 
         /// <summary>Returns all audit packages.</summary>
         [HttpGet("audit-packages")]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllAuditPackages()
         {
