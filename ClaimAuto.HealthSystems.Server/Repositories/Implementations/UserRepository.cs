@@ -3,6 +3,7 @@ using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
+//difference between IEnumerable and IQueryable: IEnumerable is for in-memory collections and does not support deferred execution or database querying, while IQueryable allows for building database queries with deferred execution, making it more efficient for large datasets. In this repository, we use IQueryable to build queries that can be executed against the database, allowing for filtering and other operations to be performed at the database level rather than in memory.
 namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
     public class UserRepository : IUserRepository
@@ -18,7 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         // Fetch all users (optionally scoped to an organization)
         public async Task<IEnumerable<User>> GetAllUsersAsync(int? userOrgId = null)
         {
-            var query = _context.Users.AsQueryable();
+            var query = _context.Users.AsQueryable();// AsQueryable allows us to conditionally add filters before executing the query
             if (userOrgId.HasValue)
                 query = query.Where(u => u.OrganizationID == userOrgId.Value);
             return await query.ToListAsync();

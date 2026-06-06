@@ -58,7 +58,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                     await _notif.CreateAsync(new Notification
                     {
                         UserID = userId,
-                        ClaimID = null,
+                        ClaimID = null,// Account-level notification (not tied to a specific claim)
                         Message = message,
                         Category = NotificationCategory.Account,
                         Severity = severity,
@@ -266,8 +266,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             [ProducesResponseType(StatusCodes.Status404NotFound)]
             public async Task<ActionResult<MfaSetupResponseDto>> SetupMfa()
             {
-                if (GetLoggedInUserId() is not int userId)
-                    return Unauthorized("Invalid token.");
+                if (GetLoggedInUserId() is not int userId)// This should never fail because of [Authorize], but we'll check just in case.
+                return Unauthorized("Invalid token.");
 
                 var user = await _auth.GetUserByIdAsync(userId);
                 if (user == null)
@@ -503,7 +503,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             }
 
             // ── Helper: builds the standard UserResponseDto used by Login/VerifyMfa/Register.
-            private static UserResponseDto BuildUserResponse(User user) => new()
+            private static UserResponseDto BuildUserResponse(User user) => new()// This method ensures we always return a consistent set of user info in auth-related responses.
             {
                 UserID = user.UserID,
                 Name = user.Name,
