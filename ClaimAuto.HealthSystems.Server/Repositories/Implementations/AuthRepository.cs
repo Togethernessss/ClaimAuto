@@ -12,14 +12,14 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 {
     public class AuthRepository: IAuthRepository
     {
-        private readonly ApplicationDbContext _db;
-        private readonly IConfiguration _config;
-        private readonly ITotpRepository _totp;
+        private readonly ApplicationDbContext _db; // The Entity Framework Core database context for accessing user and authentication data.
+        private readonly IConfiguration _config; 
+        private readonly ITotpRepository _totp;// A repository for handling Time-based One-Time Passwords (TOTP) used in MFA.
 
         private const int MAX_MFA_ATTEMPTS = 5;
         private const int LOCKOUT_MINUTES = 15;
 
-        // Password login lockout settings (OWASP A07)
+        // Password login lockout settings (OWASP A07) OWASP recommends locking out accounts after a certain number of failed login attempts to prevent brute-force attacks. These constants define the thresholds for that mechanism.
         private const int MAX_LOGIN_ATTEMPTS = 5;
         private const int LOGIN_LOCKOUT_MINUTES = 15;
 
@@ -33,7 +33,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             _totp = totp;
         }
 
-        // ── User lookups ────────────────────────────────────────────
+        // User lookups 
         // Both methods now Include() the Organization so callers can
         // access user.Organization.Name without a second DB roundtrip.
         public Task<User?> GetUserByEmailAsync(string email) =>
@@ -49,7 +49,9 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         public Task<bool> EmailExistsAsync(string email) =>
             _db.Users.AnyAsync(u => u.Email == email);
 
-        // ── Password ────────────────────────────────────────────────
+
+       
+        // Password
         public string HashPassword(string plain) =>
             BCrypt.Net.BCrypt.HashPassword(plain);
 
@@ -98,7 +100,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-                       var claimsList = new List<System.Security.Claims.Claim>
+            var claimsList = new List<System.Security.Claims.Claim>
             {
                 new(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
                 new(JwtRegisteredClaimNames.Email, user.Email),
@@ -122,7 +124,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             signingCredentials: credentials
 );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new JwtSecurityTokenHandler().WriteToken(token);// This method generates a JWT token for authenticated users. It includes standard claims like sub (user ID), email, name, role, and a unique jti. If the user belongs to an organization, it also includes an org_id claim for multi-tenant support. The token is signed with a symmetric key and has an expiration time defined in the configuration (defaulting to 60 minutes if not set).
         }
 
         public string GenerateMfaToken(User user)
@@ -166,7 +168,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
                 };
 
-                var principal = tokenHandler.ValidateToken(mfaToken, parameters, out _);
+                var principal = tokenHandler.ValidateToken(mfaToken, parameters, out _);// out _ means we don't care about the validated token object here, just the claims principal.
 
                 if (principal.FindFirst("purpose")?.Value != "mfa_verification")
                     return null;
@@ -344,7 +346,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             // Generate 32-byte cryptographically random token (URL-safe base64)
             var bytes = RandomNumberGenerator.GetBytes(32);
             var rawToken = Convert.ToBase64String(bytes)
-                .Replace("+", "-").Replace("/", "_").Replace("=", "");
+                .Replace("+", "-").Replace("/", "_").Replace("=", "");// Make it URL-safe and remove padding chars.
 
             var hash = HashToken(rawToken);
 
@@ -424,7 +426,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
         }
 
         // Hash helper — SHA-256 hex
-        private static string HashToken(string rawToken)
+        private static string HashToken(string rawToken)// This method hashes the raw token using SHA-256 and returns the hash as a hexadecimal string. This way, the actual token value is never stored in the database, only its hash, which enhances security in case of a database breach.
         {
             using var sha = SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(rawToken));

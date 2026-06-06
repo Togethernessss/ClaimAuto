@@ -449,7 +449,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (callerId == null || callerId.Value != id)
                 return Forbid();
 
-            if (string.IsNullOrWhiteSpace(dto.ProfilePhoto))
+            if (string.IsNullOrWhiteSpace(dto.ProfilePhoto))// Required for PUT since it fully replaces the photo. For PATCH, we might allow null to mean "no change".
                 return BadRequest("ProfilePhoto is required.");
 
             // Must be a data URL of an image type.

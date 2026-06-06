@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 const ROLE_SHORTCUTS = {
   Admin: [
-    { label: 'New User',    icon: 'bi-person-plus',
+    { label: 'Enroll Member',    icon: 'bi-person-plus',
       path: '/admin/members' },
     { label: 'Fraud Cases', icon: 'bi-shield-exclamation',
       path: '/admin/fraud' },

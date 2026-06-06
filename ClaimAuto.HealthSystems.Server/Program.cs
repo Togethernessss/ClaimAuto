@@ -35,11 +35,11 @@ namespace ClaimAuto.HealthSystems.Server
             try
             {
                 Log.Information("Starting ClaimAuto Health Systems API");
-                await RunAsync(args);
+                await RunAsync(args);// Calls the RunAsync method, which contains the main logic for configuring and running the web application. This method is awaited to ensure that the application runs asynchronously and can handle incoming HTTP requests without blocking the main thread.
             }
             catch (Exception ex)
             {
-                Log.Fatal(ex, "Application terminated unexpectedly");
+                Log.Fatal(ex, "Application terminated unexpectedly");// Logs a fatal error message if an unhandled exception occurs during the startup or execution of the application, providing details about the exception that caused the termination.
             }
             finally
             {
@@ -47,9 +47,10 @@ namespace ClaimAuto.HealthSystems.Server
             }
         }
 
+        
         private static async Task RunAsync(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var builder = WebApplication.CreateBuilder(args);// Creates a new instance of the WebApplicationBuilder class, which is used to configure and build the web application. The builder provides methods for setting up services, middleware, and other configurations needed to run the application.
 
             // Replace the default .NET logger with Serilog, reading config from appsettings.json.
             builder.Host.UseSerilog((context, services, configuration) => configuration
@@ -106,16 +107,18 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddSingleton<IRuleStrategy, RequireDocTypeStrategy>();
             builder.Services.AddSingleton<IRuleStrategy, RouteToReviewStrategy>();
 
-
+            // Configure JSON Serialisation to handle cycles and enums as strings.
             builder.Services.AddControllers()
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.ReferenceHandler =
-                    System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                    System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;// Added this line to configure the JSON serializer to ignore reference cycles, which can occur when serializing objects that reference each other, preventing infinite loops and stack overflow errors during serialization.
 
                 options.JsonSerializerOptions.Converters.Add(
                     new System.Text.Json.Serialization.JsonStringEnumConverter());
             });
+
+
 
             var jwtKey = builder.Configuration["Jwt:Key"]!;
 
@@ -141,7 +144,7 @@ namespace ClaimAuto.HealthSystems.Server
 
             builder.Services.AddAuthorization();
 
-            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddEndpointsApiExplorer();// This line adds support for API endpoint exploration, which is used by tools like Swagger to discover and document the available API endpoints in the application.
             builder.Services.AddSwaggerGen(options =>
             {
                 options.SwaggerDoc("v1", new OpenApiInfo

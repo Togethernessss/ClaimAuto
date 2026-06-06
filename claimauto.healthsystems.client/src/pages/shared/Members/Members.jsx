@@ -367,6 +367,7 @@ const [policyholderUsers, setPolicyholderUsers] = useState([]);
         onEdit={openEdit}
         onCheckEligibility={openEligibility}
         onCreateFirst={() => setShowCreate(true)}
+        onRowClick={openEligibility}
       />
 
       {!loading && !error && totalPages > 1 && (
