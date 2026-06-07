@@ -29,10 +29,6 @@ export default function QuickActionsPanel({ claims, activeAppeal }) {
     window.location.href = `mailto:${supportEmail}?subject=${encodeURIComponent(supportSubject)}`;
   };
 
-  const handlePrintDashboard = () => {
-    window.print();
-  };
-
   const actions = [
     {
       icon: 'bi-scales', title: 'File New Appeal',
@@ -56,12 +52,6 @@ export default function QuickActionsPanel({ claims, activeAppeal }) {
       desc: '24/7 helpline available',
       color: '#2e7d32', bg: '#d1f2eb',
       action: handleContactSupport,
-    },
-    {
-      icon: 'bi-printer', title: 'Print Dashboard',
-      desc: 'Save a snapshot offline',
-      color: '#1565c0', bg: '#e3f2fd',
-      action: handlePrintDashboard,
     },
   ];
 

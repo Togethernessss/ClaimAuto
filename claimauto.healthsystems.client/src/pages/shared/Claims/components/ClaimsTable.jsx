@@ -368,6 +368,7 @@ function ClaimRow({
 
   return (
     <div
+      onClick={() => onView(claim)}
       style={{
         display:         'grid',
         gridTemplateColumns: buildColumns(isAdmin, isStaff),
@@ -377,10 +378,10 @@ function ClaimRow({
         borderBottom:    '1px solid #f1f5f9',
         background:      'white',
         transition:      'background 0.12s',
-        cursor:          'default',
+        cursor:          'pointer',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#faf9ff';
+        e.currentTarget.style.background = '#f5f3ff';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'white';
@@ -476,7 +477,7 @@ function ClaimRow({
       }}>
         {/* View */}
         <ActionBtn
-          onClick={() => onView(claim)}
+          onClick={(e) => { e.stopPropagation(); onView(claim); }}
           title="View claim details"
           icon="bi-eye-fill"
           color="#3b82f6"
@@ -486,7 +487,7 @@ function ClaimRow({
         {/* Update status */}
         {canUpdateThis && (
           <ActionBtn
-            onClick={() => onUpdateStatus(claim)}
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(claim); }}
             title="Update status"
             icon="bi-pencil-fill"
             color="#d97706"
@@ -497,7 +498,7 @@ function ClaimRow({
         {/* Delete */}
         {canDeleteThis && (
           <ActionBtn
-            onClick={() => onDelete(claim)}
+            onClick={(e) => { e.stopPropagation(); onDelete(claim); }}
             title="Delete claim"
             icon="bi-trash3-fill"
             color="#ef4444"

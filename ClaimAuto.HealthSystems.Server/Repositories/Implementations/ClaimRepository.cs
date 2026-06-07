@@ -98,9 +98,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 var claimIds = claims.Select(c => c.ClaimID).ToList();
 
                 // ── Primary: read from Payments ────────────────────────────────────
+                // Include Pending / Authorized / Executed payments — exclude Failed and
+                // OnHold (these are the "bad" states; PaymentStatus has no Cancelled value).
                 var paymentsByClaim = await _db.Payments
                     .Where(p => claimIds.Contains(p.ClaimID)
-                             && p.Status != PaymentStatus.Cancelled)
+                             && p.Status != PaymentStatus.Failed
+                             && p.Status != PaymentStatus.OnHold)
                     .GroupBy(p => p.ClaimID)
                     .Select(g => new
                     {
