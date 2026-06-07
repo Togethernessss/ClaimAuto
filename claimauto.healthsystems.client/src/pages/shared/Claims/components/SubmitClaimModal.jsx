@@ -142,13 +142,40 @@ export default function SubmitClaimModal({
     setForm((prev) => ({ ...prev, memberID: '', policyID: '', claimType: '' }));
     try {
       const enrollments = await lookupMemberEnrollmentsByNumber(lookupQuery.trim());
+
+      // ── Step 1: keep only Active enrollments ─────────────────────────────
       const activeEnrollments = enrollments.filter((m) => m.status === 'Active');
-      if (activeEnrollments.length === 0) {
-        setLookupError('Member found, but no active policy enrollment is available for claim submission.');
-      } else if (activeEnrollments.length === 1) {
-        applyLookupEnrollment(activeEnrollments[0]);
+
+      // ── Step 2: exclude enrollments whose coverage hasn't started yet ─────
+      // A future coverageStart means services rendered today would fail the
+      // "service date before coverage start" validation — block those upfront
+      // so they never appear in the selector or get auto-selected.
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);   // compare against start-of-day
+
+      const eligibleEnrollments = activeEnrollments.filter((m) => {
+        if (!m.coverageStart) return true;                    // no start date → don't block
+        const cs = new Date(m.coverageStart);
+        cs.setHours(0, 0, 0, 0);
+        return cs <= todayStart;                              // only include if started today or earlier
+      });
+
+      // ── Step 3: surface the right error / result ──────────────────────────
+      if (eligibleEnrollments.length === 0) {
+        if (activeEnrollments.length > 0) {
+          // Member exists and has Active enrollments — but all have future start dates
+          setLookupError(
+            'Member found, but their policy coverage has not yet started. ' +
+            'Claims can only be submitted under policies whose coverage is currently active.'
+          );
+        } else {
+          // No Active enrollments at all
+          setLookupError('Member found, but no active policy enrollment is available for claim submission.');
+        }
+      } else if (eligibleEnrollments.length === 1) {
+        applyLookupEnrollment(eligibleEnrollments[0]);
       } else {
-        setLookupOptions(activeEnrollments);
+        setLookupOptions(eligibleEnrollments);
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data || 'Member not found.';
@@ -414,26 +441,76 @@ export default function SubmitClaimModal({
               </div>
             </div>
 
-            {/* Multi-enrollment selector */}
-            {lookupOptions.length > 1 && !lookupResult && (
-              <div style={{ marginTop:12 }}>
-                <FL label="Select Policy Enrollment" required />
+            {/* ── Multi-enrollment result card ─────────────────────────────────
+                 Shown when patient has 2+ currently-active policy enrollments.
+                 Deliberately styled like a RESULT card (blue, with icon + header)
+                 so users know the search succeeded and they need to pick a policy.
+            ────────────────────────────────────────────────────────────────── */}
+            {lookupOptions.length > 0 && !lookupResult && (
+              <div style={{
+                marginTop: 12,
+                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                border: '1.5px solid #93c5fd',
+                borderRadius: 10,
+                padding: '12px 14px',
+              }}>
+
+                {/* "Patient found" header — mirrors the green single-match card */}
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                  <div style={{
+                    width:36, height:36, borderRadius:'50%', flexShrink:0,
+                    background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>
+                    <i className="bi bi-person-check-fill" style={{ color:'white', fontSize:15 }}></i>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:700, color:'#1d4ed8', fontSize:'0.88rem' }}>
+                      Patient found — {lookupOptions.length} active {lookupOptions.length === 1 ? 'policy' : 'policies'}
+                    </div>
+                    <div style={{ fontSize:'0.72rem', color:'#3b82f6' }}>
+                      Select which policy covers this treatment to continue
+                    </div>
+                  </div>
+                </div>
+
+                <FL label="Policy Enrollment for this Claim" required />
                 <select
-                  value=""
+                  defaultValue=""
                   onChange={(e) => {
-                    const sel = lookupOptions.find((m) => m.memberID === Number(e.target.value));
+                    const sel = lookupOptions.find((m) => String(m.memberID) === e.target.value);
                     if (sel) applyLookupEnrollment(sel);
                   }}
-                  style={{ ...inp, appearance:'none', backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`, backgroundRepeat:'no-repeat', backgroundPosition:'calc(100% - 12px) 50%', paddingRight:32 }}
+                  style={{
+                    ...inp,
+                    borderColor: '#93c5fd',
+                    background: 'white',
+                    appearance:'none',
+                    backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%233b82f6' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat:'no-repeat',
+                    backgroundPosition:'calc(100% - 12px) 50%',
+                    paddingRight:32,
+                  }}
                 >
-                  <option value="">Select policy enrollment for this claim</option>
-                  {lookupOptions.map((member) => (
-                    <option key={member.memberID} value={member.memberID}>
-                      {member.name} ({member.memberNumber}) — {member.policyName}
-                    </option>
-                  ))}
+                  <option value="">— Choose a policy —</option>
+                  {lookupOptions.map((m) => {
+                    const start = m.coverageStart
+                      ? new Date(m.coverageStart).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+                      : '—';
+                    const end = m.coverageEnd
+                      ? new Date(m.coverageEnd).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+                      : 'Open-ended';
+                    return (
+                      <option key={m.memberID} value={String(m.memberID)}>
+                        {m.policyName}  ·  covers {start} → {end}
+                      </option>
+                    );
+                  })}
                 </select>
-                <div style={{ fontSize:'0.7rem', color:'#6b7280', marginTop:4 }}>This Member ID has multiple active policies. Pick the policy used for this treatment.</div>
+                <div style={{ fontSize:'0.7rem', color:'#1d4ed8', marginTop:5, display:'flex', alignItems:'center', gap:5 }}>
+                  <i className="bi bi-info-circle"></i>
+                  Each policy is a separate enrollment. Pick the one that applies to this treatment.
+                </div>
               </div>
             )}
 
