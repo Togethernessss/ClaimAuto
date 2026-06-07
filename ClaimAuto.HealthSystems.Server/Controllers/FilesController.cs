@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Handles binary document storage and retrieval for claim documents.</summary>
     [ApiController]
     [Route("api/files")]
     public class FilesController : BaseController

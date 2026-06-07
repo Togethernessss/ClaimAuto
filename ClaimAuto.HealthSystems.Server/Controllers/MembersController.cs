@@ -19,6 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _memberRepo = memberRepo;
         }
 
+        /// <summary>Returns members for the org. Hospital sees only patients they have prior claims for; Policyholder sees only their own enrollments.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllMembers(
@@ -47,6 +48,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(members);
         }
 
+        /// <summary>Returns a single member by ID. Admin, Staff, and Hospital only.</summary>
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -60,6 +62,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(member);
         }
 
+        /// <summary>Runs an eligibility check for a member against their active policy rules and coverage limits.</summary>
         [HttpGet("{id}/eligibility")]
         [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -77,6 +80,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(result);
         }
 
+        /// <summary>Enrolls a new member under a policy. Returns 409 if the policyholder is already enrolled in the same policy.</summary>
         [HttpPost]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -115,6 +119,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetMemberById), new { id = created.MemberID }, created);
         }
 
+        /// <summary>Updates a member's coverage dates or status. Admin and Staff only.</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -138,6 +143,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
+        /// <summary>Scans all members and expires any whose coverage end date has passed. Admin and Staff only.</summary>
         [HttpPost("check-expired")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]

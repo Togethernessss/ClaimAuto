@@ -245,7 +245,7 @@ export default function ClaimsTable({
             : isHospital
             ? 'Submit your first claim using the button above.'
             : isPolicyholder
-            ? 'Request a reimbursement using the button above.'
+            ? 'Your claims will appear here once submitted.'
             : 'Claims will appear here once submitted.'}
         </div>
       </div>
