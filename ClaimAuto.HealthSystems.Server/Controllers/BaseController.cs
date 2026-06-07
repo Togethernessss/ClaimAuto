@@ -4,6 +4,7 @@ using System.Security.Claims;
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
 
+    /// <summary>Shared base controller that exposes JWT claim helpers to all derived controllers.</summary>
     public class BaseController : ControllerBase
     {
         // ── GET LOGGED IN USER ID ────────────────────────────────────────────────

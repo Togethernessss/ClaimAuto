@@ -19,6 +19,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _notificationRepository = notificationRepository;
         }
 
+        /// <summary>Returns all notifications for the current user. Optionally filter by status or category.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -34,6 +35,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Returns only unread notifications for the current user. Used for the bell badge count.</summary>
         [HttpGet("unread")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -49,6 +51,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Manually creates a notification for a target user. Admin and Staff only.</summary>
         [HttpPost]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -90,6 +93,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
                 response);
         }
 
+        /// <summary>Marks all of the current user's notifications as Read.</summary>
         [HttpPut("read-all")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -104,6 +108,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(new { message = $"{count} notification(s) marked as read." });
         }
 
+        /// <summary>Marks a single notification as Read.</summary>
         [HttpPut("{id}/read")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -122,6 +127,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Marks a notification as Dismissed, hiding it from the default notification list.</summary>
         [HttpPut("{id}/dismiss")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -140,6 +146,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Permanently deletes a single notification.</summary>
         [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -158,6 +165,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
 
+        /// <summary>Permanently deletes all notifications for the current user.</summary>
         [HttpDelete("all")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

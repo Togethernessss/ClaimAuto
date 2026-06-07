@@ -14,7 +14,7 @@ export default function ClaimsHeader({
     ? 'All insurance claims across all providers and members'
     : isHospital
     ? 'Claims submitted by your facility'
-    : 'Your insurance claims and reimbursement requests';
+    : 'Your insurance claims and coverage history';
 
   return (
     <>
