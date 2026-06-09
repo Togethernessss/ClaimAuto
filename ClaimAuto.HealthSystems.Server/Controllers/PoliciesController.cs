@@ -20,6 +20,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             _policyRepo = policyRepo;
         }
 
+        /// <summary>Returns active policies. Policyholders see only their own enrolled policies; all others see the full org list.</summary>
         [HttpGet("active")]
         [Authorize(Roles = "Admin,InsuranceStaff,Hospital,Policyholder")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -45,6 +46,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(allActive);
         }
 
+        /// <summary>Returns all policies. Policyholders see only their own enrollments; Admin and Staff see all org policies.</summary>
         [HttpGet]
         [Authorize(Roles = "Admin,InsuranceStaff,Policyholder")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -69,6 +71,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(policies);
         }
 
+        /// <summary>Returns a single policy by ID. Admin, Staff, and Hospital only.</summary>
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin,InsuranceStaff,Hospital")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -82,6 +85,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(policy);
         }
 
+        /// <summary>Creates a new policy. Returns 409 if the PlanCode already exists. Admin only.</summary>
         [HttpPost]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -102,6 +106,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetPolicyById), new { id = created.PolicyID }, created);
         }
 
+        /// <summary>Updates an existing policy. Expired policies cannot be modified. Admin only.</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -131,6 +136,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(updated);
         }
 
+        /// <summary>Deactivates a policy. Fails with 400 if the policy has active members enrolled. Admin only.</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -163,6 +169,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             };
         }
 
+        /// <summary>Scans all policies and marks any past their EffectiveTo date as Expired. Admin only.</summary>
         [HttpPost("check-expired")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
