@@ -448,8 +448,8 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             // POST: api/auth/reset-password/validate
             /// <summary>Checks whether a reset token is currently valid.</summary>
             [HttpPost("reset-password/validate")]
-            [ProducesResponseType(StatusCodes.Status200OK)]
-            [ProducesResponseType(StatusCodes.Status400BadRequest)]
+            [ProducesResponseType(StatusCodes.Status200OK)] // ProduceResponseType doesn't support multiple 200 variants, so we'll return { Valid: false } for invalid tokens instead of 400.
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
             public async Task<ActionResult> ValidateResetToken(ValidateResetTokenDto dto)
             {
                 var userId = await _auth.ValidatePasswordResetTokenAsync(dto.Token);

@@ -338,11 +338,12 @@ export default function ClaimsTable({
 function buildColumns(isAdmin, isStaff) {
   const withProvider = isAdmin || isStaff;
   if (withProvider) {
-    // Claim | Member | Provider | Type | Amount | Status | Priority | Date | Actions
-    return '160px 150px 130px 120px 100px 130px 90px 95px 100px';
+    // Claim | Member | Provider | Type | Amount | Status | Priority | Submitted | Actions
+    // Tightened so all 9 columns fit within ~1150px (viewport with sidebar)
+    return '130px 155px 115px 110px 105px 125px 88px 100px 88px';
   }
-  // Claim | Member | Type | Amount | Status | Priority | Date | Actions
-  return '160px 170px 120px 100px 130px 90px 95px 100px';
+  // Claim | Member | Type | Amount | Status | Priority | Submitted | Actions
+  return '130px 175px 110px 105px 125px 88px 100px 88px';
 }
 
 function HEADER_COLS(isAdmin, isStaff) {
@@ -388,24 +389,25 @@ function ClaimRow({
       }}
     >
       {/* Claim ID */}
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{
-          fontFamily:  'monospace',
-          fontWeight:  700,
-          fontSize:    '0.82rem',
-          color:       '#4c1d95',
+          fontFamily:    'monospace',
+          fontWeight:    700,
+          fontSize:      '0.82rem',
+          color:         '#4c1d95',
           letterSpacing: '0.2px',
+          whiteSpace:    'nowrap',
         }}>
           CLM-{claim.claimID}
         </div>
         {claim.externalClaimRef && (
           <div style={{
-            fontSize:  '0.68rem',
-            color:     '#94a3b8',
-            marginTop: 1,
-            overflow:  'hidden',
+            fontSize:     '0.68rem',
+            color:        '#94a3b8',
+            marginTop:    1,
+            overflow:     'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            whiteSpace:   'nowrap',
           }}>
             {claim.externalClaimRef}
           </div>
@@ -413,11 +415,25 @@ function ClaimRow({
       </div>
 
       {/* Member */}
-      <div>
-        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontSize:     '0.82rem',
+          fontWeight:   600,
+          color:        '#1e293b',
+          whiteSpace:   'nowrap',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+        }}>
           {claim.memberName}
         </div>
-        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 1 }}>
+        <div style={{
+          fontSize:     '0.68rem',
+          color:        '#94a3b8',
+          marginTop:    1,
+          whiteSpace:   'nowrap',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+        }}>
           {claim.policyName}
         </div>
       </div>
@@ -425,11 +441,12 @@ function ClaimRow({
       {/* Provider (admin/staff) */}
       {withProvider && (
         <div style={{
-          fontSize:    '0.8rem',
-          color:       '#374151',
-          overflow:    'hidden',
-          textOverflow:'ellipsis',
-          whiteSpace:  'nowrap',
+          fontSize:     '0.8rem',
+          color:        '#374151',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace:   'nowrap',
+          minWidth:     0,
         }}>
           {claim.providerName ?? '—'}
         </div>

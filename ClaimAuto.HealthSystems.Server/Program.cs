@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+﻿using System.Reflection; // for loading XML comments into Swagger
 using System.Text;
 using ClaimAuto.HealthSystems.Server.Data;
 using ClaimAuto.HealthSystems.Server.Middleware;
@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using ClaimAuto.HealthSystems.Server.Services;
+//using ClaimAuto.HealthSystems.Server.Services;
 using ClaimAuto.HealthSystems.Server.Model;
 using ClaimAuto.HealthSystems.Server.Services.RuleEngine;
 using ClaimAuto.HealthSystems.Server.Services.RuleEngine.Strategies;
