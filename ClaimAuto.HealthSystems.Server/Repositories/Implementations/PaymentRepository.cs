@@ -220,19 +220,6 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     Status = RemittanceStatus.Sent,
                     SentToProviderAt = DateTime.UtcNow,
                 };
-                try
-                {
-                    remittance.RemitFilePDF =
-                        _pdfService.GenerateRemittancePdf(
-                            remittance, payment);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(
-                        $"[PDF ERROR] Payment {id}: " +
-                        $"{ex.Message}\n{ex.StackTrace}");
-                    remittance.RemitFilePDF = null;
-                }
                 _context.Remittances.Add(remittance);
                 payment.Remittance = remittance;
                 _context.AuditLogs.Add(new AuditLog
@@ -268,6 +255,24 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 OrganizationID = payment.OrganizationID,
             });
             await _context.SaveChangesAsync();
+            // ── Generate PDF now that remittance has a real DB-assigned ID ─
+            if (remittance != null)
+            {
+                try
+                {
+                    remittance.RemitFilePDF =
+                        _pdfService.GenerateRemittancePdf(
+                            remittance, payment);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(
+                        $"[PDF ERROR] Payment {id}: " +
+                        $"{ex.Message}\n{ex.StackTrace}");
+                    remittance.RemitFilePDF = null;
+                }
+                await _context.SaveChangesAsync();
+            }
             // ── Notify Hospital ───────────────────────────────────────
             await _notificationRepo.CreateAsync(new Notification
             {
