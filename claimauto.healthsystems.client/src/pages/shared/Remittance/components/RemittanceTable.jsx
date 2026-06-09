@@ -138,9 +138,12 @@ export default function RemittanceTable({
   );
 
   // ── Table ─────────────────────────────────────────────────────────────────
+  // All columns are fixed-pixel widths so the Actions header never gets clipped.
+  // Using 1fr for the last column caused it to collapse to ~0 when the fixed
+  // columns already exceeded the minWidth constraint.
   const gridCols = isHospital
-    ? '120px 110px 110px 130px 100px 110px 110px 1fr'
-    : '120px 110px 150px 110px 130px 100px 110px 110px 1fr';
+    ? '120px 110px 110px 130px 100px 110px 110px 120px'
+    : '120px 110px 150px 110px 130px 100px 110px 110px 120px';
 
   const headers = isHospital
     ? ['Rem ID', 'Pay ID', 'Claim', 'Amount', 'Generated', 'Sent On', 'Status', 'Actions']
@@ -158,7 +161,7 @@ export default function RemittanceTable({
         <div style={{
           display: 'grid', gridTemplateColumns: gridCols,
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: '11px 18px', minWidth: 860,
+          padding: '11px 18px', minWidth: 'max-content',
         }}>
           {headers.map((h, i) => (
             <div key={h} style={{
@@ -180,7 +183,7 @@ export default function RemittanceTable({
               key={r.remittanceID}
               style={{
                 display: 'grid', gridTemplateColumns: gridCols,
-                padding: '13px 18px', minWidth: 860,
+                padding: '13px 18px', minWidth: 'max-content',
                 alignItems: 'center',
                 background: highlight ? '#fffbf0' : 'transparent',
                 borderBottom: isLast ? 'none' : '1px solid #f3f0ff',
