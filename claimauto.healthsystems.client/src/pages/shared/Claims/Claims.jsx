@@ -18,6 +18,7 @@ import {
 import { uploadFile } from '../../../services/files/fileService';
 import { computeSHA256 } from './utils/claimHelpers';
 import { getAllMembers } from '../../../services/members/memberService';
+import { manualAdjudicate } from '../../../services/adjudication/adjudicationService';
 import ClaimsHeader from './components/ClaimsHeader';
 import ClaimsFilters from './components/ClaimsFilters';
 import ClaimsSummary from './components/ClaimsSummary';
@@ -27,6 +28,7 @@ import SubmitClaimModal from './components/SubmitClaimModal';
 import ClaimDetailModal from './components/ClaimDetailModal';
 import UpdateStatusModal from './components/UpdateStatusModal';
 import DeleteClaimModal from './components/DeleteClaimModal';
+import ManualAdjudicationModal from './components/ManualAdjudicationModal';
 import { useSearchParams } from 'react-router-dom';
 import { toast, addToast } from '../../../services/toastService';
 
@@ -154,6 +156,12 @@ export default function Claims() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [deleteError, setDeleteError] = useState(null);
+
+    // ── MANUAL ADJUDICATION MODAL (UnderReview claims) ────────────────────────
+    const [showManualAdj,   setShowManualAdj]   = useState(false);
+    const [manualAdjClaim,  setManualAdjClaim]  = useState(null);
+    const [manualAdjLoading, setManualAdjLoading] = useState(false);
+    const [manualAdjError,  setManualAdjError]  = useState(null);
 
     // ── LOAD CLAIMS ───────────────────────────────────────────────────────────
     const loadClaims = useCallback(async () => {
@@ -413,6 +421,46 @@ export default function Claims() {
         }
     };
 
+    // ── MANUAL ADJUDICATION HANDLER ───────────────────────────────────────────
+    // Called when staff clicks "Make Decision" on an UnderReview claim.
+    // Opens ManualAdjudicationModal pre-loaded with the claim.
+    const openManualAdj = (claim) => {
+        setManualAdjClaim(claim);
+        setManualAdjError(null);
+        setShowManualAdj(true);
+    };
+
+    const handleManualAdjudicate = async (dto) => {
+        setManualAdjError(null);
+        setManualAdjLoading(true);
+        try {
+            await manualAdjudicate(dto);
+            setShowManualAdj(false);
+            setManualAdjClaim(null);
+            // Refresh list and, if the detail modal is still open, refresh it too
+            await loadClaims();
+            if (showDetail && detailClaim?.claimID === dto.claimID) {
+                const refreshed = await import('../../../services/claims/claimService')
+                    .then(m => m.getClaimById(dto.claimID));
+                setDetailClaim(refreshed);
+            }
+            const decisionLabel = dto.decision === 'Denied'  ? 'denied'
+                                : dto.decision === 'Partial' ? 'partially approved'
+                                : 'approved';
+            setSuccessMsg(`Claim CLM-${dto.claimID} has been ${decisionLabel}. ${
+                dto.decision !== 'Denied' ? 'A payment record has been created.' : 'The provider has been notified.'
+            }`);
+            toast.success(`CLM-${dto.claimID} ${decisionLabel}.`, 'Decision Recorded');
+        } catch (err) {
+            const msg = err.response?.data?.message
+                || err.response?.data
+                || 'Failed to record decision.';
+            setManualAdjError(typeof msg === 'string' ? msg : 'Failed to record decision.');
+        } finally {
+            setManualAdjLoading(false);
+        }
+    };
+
     // ── UPDATE STATUS HANDLERS ────────────────────────────────────────────────
     const openUpdate = (claim) => {
         setUpdateTarget(claim);
@@ -595,7 +643,8 @@ export default function Claims() {
                 onVerifyDocument={handleVerifyDocument}
                 onProceedToAdjudication={handleProceedToAdjudication}
                 onRejectClaim={handleRejectClaim}
-                onReplaceDocument={handleReplaceDocument}    /* ← ADDED */
+                onReplaceDocument={handleReplaceDocument}
+                onManualAdjudicate={openManualAdj}
             />
 
             <UpdateStatusModal
@@ -614,6 +663,16 @@ export default function Claims() {
                 claim={deleteTarget}
                 onHide={() => setShowDelete(false)}
                 onConfirm={handleDeleteClaim}
+            />
+
+            {/* Manual Adjudication — Staff/Admin decision for UnderReview claims */}
+            <ManualAdjudicationModal
+                show={showManualAdj}
+                claim={manualAdjClaim}
+                loading={manualAdjLoading}
+                error={manualAdjError}
+                onHide={() => { setShowManualAdj(false); setManualAdjError(null); }}
+                onSubmit={handleManualAdjudicate}
             />
 
         </Container>

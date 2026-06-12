@@ -1,37 +1,32 @@
-// src/services/adjudication/adjudicationService.js
 import api from '../../api/axiosClient';
 
-// ── AUTO ADJUDICATE ───────────────────────────────────────────────────────────
-// Backend:  POST /api/adjudication/auto/{claimId}
-// Runs the engine against active rules
-// Returns:  AdjudicationResponseDto | { message, adjudication } for PendingReview
-export async function autoAdjudicate(claimId) {
-  const res = await api.post(`/api/adjudication/auto/${claimId}`);
-  return res.data;
-}
-
-// ── MANUAL ADJUDICATE ─────────────────────────────────────────────────────────
+// ── MANUAL ADJUDICATION ───────────────────────────────────────────────────────
 // Backend:  POST /api/adjudication/manual
-// Staff/Admin manually decides: Approved | Denied | Partial
-// Notes are required
-// Returns:  AdjudicationResponseDto
+// Who:      Admin + InsuranceStaff only
+// Body:     { claimID, decision, payableAmount?, notes, calculationsJSON? }
+// Decision: "Paid" | "Partial" | "Denied"
+//   Paid    → claim becomes Approved, full payment record created
+//   Partial → claim becomes Approved, partial payment record created
+//   Denied  → claim becomes Rejected
+// Notes are REQUIRED — backend rejects without them.
 export async function manualAdjudicate(dto) {
-  const res = await api.post('/api/adjudication/manual', dto);
-  return res.data;
+  const response = await api.post('/api/adjudication/manual', dto);
+  return response.data;
 }
 
 // ── GET ADJUDICATION RECORD ───────────────────────────────────────────────────
 // Backend:  GET /api/adjudication/{claimId}
-// Returns:  AdjudicationResponseDto | null
+// Who:      Admin + InsuranceStaff only
 export async function getAdjudication(claimId) {
-  const res = await api.get(`/api/adjudication/${claimId}`);
-  return res.data;
+  const response = await api.get(`/api/adjudication/${claimId}`);
+  return response.data;
 }
 
 // ── GET RULE TRACE ────────────────────────────────────────────────────────────
 // Backend:  GET /api/adjudication/{claimId}/trace
-// Returns:  RuleTraceDto[] — which rules fired and their results
+// Who:      Admin + InsuranceStaff only
+// Returns:  The rule trace showing which adjudication rules fired on a claim.
 export async function getRuleTrace(claimId) {
-  const res = await api.get(`/api/adjudication/${claimId}/trace`);
-  return res.data;
+  const response = await api.get(`/api/adjudication/${claimId}/trace`);
+  return response.data;
 }

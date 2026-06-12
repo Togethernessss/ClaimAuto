@@ -48,7 +48,7 @@ namespace ClaimAuto.HealthSystems.Server.Middleware
                 await _next(context);
                 return;
             }
-
+            
             var status = await db.Users
                 .Where(u => u.UserID == userId)
                 .Select(u => (AccountStatus?)u.Status)

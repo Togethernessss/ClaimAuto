@@ -348,41 +348,89 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .Select(u => u.Name)
                 .FirstOrDefaultAsync() ?? "Unknown Staff";
 
+            // ── Resolve payable amount ────────────────────────────────────────────
+            // Start from what staff requested (or full billed if not specified).
+            var resolvedPayable = (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
+                ? (dto.PayableAmount ?? claim.TotalBilledAmount)
+                : 0m;
+
+            var coverageCapNote = "";  // appended to notes if coverage limit is enforced
+
+            // ── Enforce policy coverage limit (SumInsured) ────────────────────────
+            // This is the authoritative server-side enforcement. Even if the staff
+            // enters a payableAmount > remaining coverage in the UI, we cap it here.
+            // This mirrors what CoverageRemainingStrategy does for auto-adjudication.
+            if ((decision == AdjDecision.Approved || decision == AdjDecision.Partial)
+                && claim.Policy?.SumInsured.HasValue == true
+                && claim.Policy.SumInsured.Value > 0)
+            {
+                // Sum all executed payments for this member + policy combination.
+                var alreadyPaid = await _db.Payments
+                    .Where(p => p.Status == PaymentStatus.Executed
+                             && _db.Claims.Any(c => c.ClaimID == p.ClaimID
+                                                 && c.PolicyID == claim.PolicyID
+                                                 && c.MemberID == claim.MemberID))
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+                var coverageRemaining = claim.Policy.SumInsured.Value - alreadyPaid;
+
+                if (coverageRemaining <= 0)
+                {
+                    // Coverage fully exhausted — override to Denied regardless of staff decision.
+                    decision        = AdjDecision.Denied;
+                    resolvedPayable = 0m;
+                    coverageCapNote = $" [System override: Policy coverage of ₹{claim.Policy.SumInsured.Value:N0} " +
+                                      $"is fully exhausted (₹{alreadyPaid:N0} already claimed). " +
+                                      $"Decision changed to Denied.]";
+                }
+                else if (resolvedPayable > coverageRemaining)
+                {
+                    // Requested amount exceeds remaining coverage — cap at remaining.
+                    var originalPayable = resolvedPayable;
+                    resolvedPayable = coverageRemaining;
+                    decision        = AdjDecision.Partial;
+                    coverageCapNote = $" [System: Payable reduced from ₹{originalPayable:N0} to " +
+                                      $"₹{coverageRemaining:N0} — policy coverage limit enforced " +
+                                      $"(₹{alreadyPaid:N0} of ₹{claim.Policy.SumInsured.Value:N0} already used).]";
+                }
+            }
+
             var calculationsJson = dto.CalculationsJSON
                 ?? System.Text.Json.JsonSerializer.Serialize(new
                 {
-                    billed = claim.TotalBilledAmount,
-                    allowed = claim.TotalBilledAmount,
-                    payable = decision == AdjDecision.Denied ? 0 : claim.TotalBilledAmount,
-                    note = "Manual adjudication — calculations provided by staff"
+                    billed  = claim.TotalBilledAmount,
+                    allowed = resolvedPayable,
+                    payable = decision == AdjDecision.Denied ? 0 : resolvedPayable,
+                    note    = "Manual adjudication — calculations provided by staff" + coverageCapNote,
                 });
 
             var adjRecord = new AdjudicationRecord
             {
-                ClaimID = dto.ClaimID,
-                ExecutedAt = DateTime.UtcNow,
-                EngineVersion = "manual",
-                Decision = decision,
+                ClaimID          = dto.ClaimID,
+                ExecutedAt       = DateTime.UtcNow,
+                EngineVersion    = "manual",
+                Decision         = decision,                 // may have been overridden by coverage cap
                 CalculationsJSON = calculationsJson,
                 AppliedRulesJSON = System.Text.Json.JsonSerializer.Serialize(new[]
-    {
-                    new { source = "Manual", performedBy = staffName,
-                          note   = dto.Notes ?? "No notes provided" }
+                {
+                    new { source      = "Manual",
+                          performedBy = staffName,
+                          note        = (dto.Notes ?? "No notes provided") + coverageCapNote }
                 }),
-                Notes = dto.Notes ?? $"Manually adjudicated by {staffName}.",
-                PerformedByID = performedByUserId,
-                OrganizationID = claim.OrganizationID   // ← inherit from claim
+                Notes          = (dto.Notes ?? $"Manually adjudicated by {staffName}.") + coverageCapNote,
+                PerformedByID  = performedByUserId,
+                OrganizationID = claim.OrganizationID,
             };
             _db.AdjudicationRecords.Add(adjRecord);
 
             // ── Update claim status ───────────────────────────────────────
-            // Paid/Partial → Approved (not Adjudicated — Adjudicated is removed from flow)
+            // decision may have been changed by the coverage cap enforcement above
             claim.Status = decision switch
             {
                 AdjDecision.Approved => ClaimStatus.Approved,
-                AdjDecision.Denied => ClaimStatus.Rejected,
-                AdjDecision.Partial => ClaimStatus.Approved,
-                _ => ClaimStatus.Rejected  // PendingReview from manual = Rejected
+                AdjDecision.Denied   => ClaimStatus.Rejected,
+                AdjDecision.Partial  => ClaimStatus.Approved,
+                _                    => ClaimStatus.Rejected,
             };
 
             foreach (var line in claim.ClaimLines)
@@ -390,28 +438,25 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 line.LineStatus = decision switch
                 {
                     AdjDecision.Approved => LineStatus.Approved,
-                    AdjDecision.Denied => LineStatus.Denied,
-                    AdjDecision.Partial => LineStatus.Approved,
-                    _ => LineStatus.Pending
+                    AdjDecision.Denied   => LineStatus.Denied,
+                    AdjDecision.Partial  => LineStatus.Approved,
+                    _                    => LineStatus.Pending,
                 };
             }
 
-            // ── Auto-create Payment on Paid/Partial ───────────────────────
-            var payableAmount = decision == AdjDecision.Approved || decision == AdjDecision.Partial
-                ? (dto.PayableAmount ?? claim.TotalBilledAmount)
-                : 0m;
-
+            // ── Auto-create Payment on Approved/Partial ───────────────────
+            // resolvedPayable is already capped at remaining coverage (see above)
             if (decision == AdjDecision.Approved || decision == AdjDecision.Partial)
             {
                 _db.Payments.Add(new Payment
                 {
-                    ClaimID = dto.ClaimID,
-                    PayeeID = claim.ProviderID,
-                    Amount = payableAmount,
-                    Currency = claim.Currency,
+                    ClaimID       = dto.ClaimID,
+                    PayeeID       = claim.ProviderID,
+                    Amount        = resolvedPayable,         // capped amount, not raw dto value
+                    Currency      = claim.Currency,
                     PaymentMethod = PaymentMethod.EFT,
-                    Status = PaymentStatus.Pending,
-                    CreatedAt = DateTime.UtcNow,
+                    Status        = PaymentStatus.Pending,
+                    CreatedAt     = DateTime.UtcNow,
                     OrganizationID = claim.OrganizationID,
                 });
             }
@@ -436,19 +481,19 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             await _db.SaveChangesAsync();
 
-            await SendAdjudicationNotificationsAsync(claim, decision, payableAmount);
+            await SendAdjudicationNotificationsAsync(claim, decision, resolvedPayable);
 
             return new AdjudicationResponseDto
             {
-                AdjID = adjRecord.AdjID,
-                ClaimID = dto.ClaimID,
-                ExecutedAt = adjRecord.ExecutedAt,
-                EngineVersion = "manual",
-                Decision = decision.ToString(),
+                AdjID            = adjRecord.AdjID,
+                ClaimID          = dto.ClaimID,
+                ExecutedAt       = adjRecord.ExecutedAt,
+                EngineVersion    = "manual",
+                Decision         = decision.ToString(),
                 CalculationsJSON = adjRecord.CalculationsJSON,
                 AppliedRulesJSON = adjRecord.AppliedRulesJSON,
-                Notes = adjRecord.Notes,
-                PerformedByName = staffName
+                Notes            = adjRecord.Notes,
+                PerformedByName  = staffName
             };
         }
         public async Task<AdjudicationResponseDto?> GetAdjudicationAsync(int claimId, int? userOrgId = null)

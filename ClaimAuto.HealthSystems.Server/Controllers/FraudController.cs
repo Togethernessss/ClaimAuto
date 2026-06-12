@@ -31,7 +31,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
-        // GET /api/fraud/scores/{claimId}
+        /// <summary>Returns the existing fraud score for a claim. Run POST first to generate one.</summary>
         [HttpGet("scores/{claimId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -59,7 +59,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
-        // POST /api/fraud/scores/{claimId}
+        /// <summary>Runs the fraud scoring engine on a claim. Automatically opens a High-priority fraud case if score is 70 or above.</summary>
         [HttpPost("scores/{claimId}")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -133,7 +133,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
-        // GET /api/fraud/cases
+        /// <summary>Returns all fraud cases for the organisation. Optionally filter by status and priority.</summary>
         [HttpGet("cases")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllFraudCases(
@@ -165,7 +165,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
-        // GET /api/fraud/cases/{id}
+        /// <summary>Returns a single fraud case by ID.</summary>
         [HttpGet("cases/{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -196,7 +196,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
-        // POST /api/fraud/cases
+        /// <summary>Manually opens a fraud case for a claim. Returns 409 if a case already exists for that claim.</summary>
         [HttpPost("cases")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -246,7 +246,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
 
-        // PUT /api/fraud/cases/{id}/resolve
+        /// <summary>Resolves a fraud case. Confirmed outcome rejects the claim; Cleared outcome re-adjudicates it.</summary>
         [HttpPut("cases/{id}/resolve")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

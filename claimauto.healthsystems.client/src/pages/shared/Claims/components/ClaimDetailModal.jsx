@@ -103,6 +103,8 @@ export default function ClaimDetailModal({
   // frontend/claim additions — wire up in Claims.jsx to enable Reject + Re-upload
   onRejectClaim,
   onReplaceDocument,
+  // manual adjudication — Staff/Admin decision for UnderReview claims
+  onManualAdjudicate,
 }) {
   // ── state (merged from both branches) ──────────────────────────────────────
   const [activeTab,        setActiveTab]        = useState('info');
@@ -1239,6 +1241,22 @@ export default function ClaimDetailModal({
         </Modal.Body>
 
         <Modal.Footer className="border-0 pt-0">
+
+          {/* ── Manual Decision button — UnderReview claims only ────────────
+              Shown to Staff/Admin when the claim is in UnderReview status.
+              Opens ManualAdjudicationModal in the parent (Claims.jsx).       */}
+          {(isAdmin || isStaff) && claim?.status === 'UnderReview' && (
+            <Button
+              variant="success"
+              className="rounded-pill px-4 fw-semibold"
+              onClick={() => onManualAdjudicate?.(claim)}
+              style={{ marginRight: 'auto' }}
+            >
+              <i className="bi bi-clipboard2-check-fill me-2"></i>
+              Make Decision
+            </Button>
+          )}
+
           {/* Reject Claim button — Staff/Admin on non-finalized claims (frontend/claim) */}
           {(isAdmin || isStaff) && claim && !claimFinalized && (
             <Button

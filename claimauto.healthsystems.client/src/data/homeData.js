@@ -107,7 +107,7 @@ export const stakeholdersData = [
   {
     icon: 'bi-hospital',
     role: 'Hospital',
-    tagline: 'Seamless billing, faster reimbursements.',
+    tagline: 'Seamless billing, faster payments.',
     desc: 'Submit patient claims, verify eligibility in real-time, track billing status, and acknowledge incoming payments with zero paperwork.',
     features: ['Submit patient claims', 'Real-time eligibility check', 'Track payment status', 'Acknowledge remittances'],
     color: '#e8f5e9',

@@ -61,6 +61,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             catch { /* never block the admin action */ }
         }
 
+        /// <summary>Returns all users in the current organisation. Admin only.</summary>
         [HttpGet]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -87,6 +88,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Returns a single user by ID. Admin only.</summary>
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -114,6 +116,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             });
         }
 
+        /// <summary>Returns all users with a specific role within the organisation. Admin and Staff only.</summary>
         [HttpGet("role/{role}")]
         [Authorize(Roles = "Admin,InsuranceStaff")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -140,6 +143,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return Ok(response);
         }
 
+        /// <summary>Creates a new user with a known password. Returns 409 if the email is already taken. Admin only.</summary>
         [HttpPost]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -189,6 +193,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetUser), new { id = createdUser.UserID }, response);
         }
 
+        /// <summary>Creates a new user and sends an invitation email with a temporary password. Admin only.</summary>
         [HttpPost("invite")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -265,6 +270,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return CreatedAtAction(nameof(GetUser), new { id = created.UserID }, response);
         }
 
+        /// <summary>Updates a user's profile fields. Admins can update any user in the org; non-admins can only update themselves.</summary>
         [HttpPut("{id}")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -368,6 +374,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             return NoContent();
         }
 
+        /// <summary>Soft-deletes a user, preventing login without removing their data. Admin only.</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -438,6 +445,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         // Body: { "profilePhoto": "data:image/png;base64,..." }
         // Self-only: the caller must be the same user. Admins are NOT permitted
         // here on purpose — personal photo is a self-service field.
+        /// <summary>Replaces the caller's profile photo with a base64 data URL. Self-only — max 2 MB.</summary>
         [HttpPut("{id}/photo")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -449,7 +457,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
             if (callerId == null || callerId.Value != id)
                 return Forbid();
 
-            if (string.IsNullOrWhiteSpace(dto.ProfilePhoto))
+            if (string.IsNullOrWhiteSpace(dto.ProfilePhoto))// Required for PUT since it fully replaces the photo. For PATCH, we might allow null to mean "no change".
                 return BadRequest("ProfilePhoto is required.");
 
             // Must be a data URL of an image type.
@@ -487,6 +495,7 @@ namespace ClaimAuto.HealthSystems.Server.Controllers
         }
 
         // DELETE /api/users/{id}/photo — clears the photo. Self-only.
+        /// <summary>Clears the caller's profile photo. Self-only.</summary>
         [HttpDelete("{id}/photo")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

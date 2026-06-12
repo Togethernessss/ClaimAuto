@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClaimAuto.HealthSystems.Server.Controllers
 {
+    /// <summary>Read-only access to organisation data used for registration and dashboard branding.</summary>
     [ApiController]
     [Route("api/organizations")]
     [Produces("application/json")]

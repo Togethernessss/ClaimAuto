@@ -80,28 +80,73 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
 
             var claims = await pagedQuery.ToListAsync();
 
-            // ── Enrich with ApprovedAmount from latest AdjudicationRecord ─────
-            // One round trip to the DB instead of N+1. We pull each claim's most
-            // recent CalculationsJSON, then parse client-side for "approvedAmount"
-            // (auto-adjudication shape) or "payable" (manual adjudication shape).
+            // ── Enrich ApprovedAmount from the Payments table (authoritative source) ─
+            // The Payments table holds the ACTUAL payable amount that was set during
+            // adjudication (auto or manual). Reading from AdjudicationRecord.CalculationsJSON
+            // was unreliable because the manual adjudication path previously stored the
+            // full billed amount in that JSON regardless of what staff approved.
+            //
+            // Strategy:
+            //   1. Primary   — use the most recent non-cancelled Payment.Amount for the claim.
+            //                  This is always correct: payment is created with the exact
+            //                  approved/capped amount at adjudication time.
+            //   2. Fallback  — if no Payment exists (e.g. claim is still pending or Denied),
+            //                  parse CalculationsJSON from the latest AdjudicationRecord.
+            //                  Denied claims have no payment, so ApprovedAmount stays null/0.
             if (claims.Count > 0)
             {
                 var claimIds = claims.Select(c => c.ClaimID).ToList();
 
-                var adjJsonByClaim = await _db.AdjudicationRecords
-                    .Where(a => claimIds.Contains(a.ClaimID))
-                    .GroupBy(a => a.ClaimID)
+                // ── Primary: read from Payments ────────────────────────────────────
+                // Include Pending / Authorized / Executed payments — exclude Failed and
+                // OnHold (these are the "bad" states; PaymentStatus has no Cancelled value).
+                var paymentsByClaim = await _db.Payments
+                    .Where(p => claimIds.Contains(p.ClaimID)
+                             && p.Status != PaymentStatus.Failed
+                             && p.Status != PaymentStatus.OnHold)
+                    .GroupBy(p => p.ClaimID)
                     .Select(g => new
                     {
                         ClaimID = g.Key,
-                        Latest  = g.OrderByDescending(a => a.ExecutedAt)
-                                   .Select(a => a.CalculationsJSON)
+                        Amount  = g.OrderByDescending(p => p.CreatedAt)
+                                   .Select(p => (decimal?)p.Amount)
                                    .FirstOrDefault()
                     })
-                    .ToDictionaryAsync(x => x.ClaimID, x => x.Latest);
+                    .ToDictionaryAsync(x => x.ClaimID, x => x.Amount);
+
+                // ── Fallback: read from AdjudicationRecord.CalculationsJSON ────────
+                // Only used for claims that have an adjudication record but no payment
+                // (shouldn't normally happen for Approved/Paid, but handles edge cases).
+                var fallbackClaimIds = claimIds
+                    .Where(id => !paymentsByClaim.ContainsKey(id))
+                    .ToList();
+
+                Dictionary<int, string?> adjJsonByClaim = new();
+                if (fallbackClaimIds.Count > 0)
+                {
+                    adjJsonByClaim = await _db.AdjudicationRecords
+                        .Where(a => fallbackClaimIds.Contains(a.ClaimID))
+                        .GroupBy(a => a.ClaimID)
+                        .Select(g => new
+                        {
+                            ClaimID = g.Key,
+                            Latest  = g.OrderByDescending(a => a.ExecutedAt)
+                                       .Select(a => a.CalculationsJSON)
+                                       .FirstOrDefault()
+                        })
+                        .ToDictionaryAsync(x => x.ClaimID, x => x.Latest);
+                }
 
                 foreach (var dto in claims)
                 {
+                    // Primary: payment amount
+                    if (paymentsByClaim.TryGetValue(dto.ClaimID, out var payAmt) && payAmt.HasValue)
+                    {
+                        dto.ApprovedAmount = payAmt.Value;
+                        continue;
+                    }
+
+                    // Fallback: parse CalculationsJSON
                     if (!adjJsonByClaim.TryGetValue(dto.ClaimID, out var calcJson)
                         || string.IsNullOrWhiteSpace(calcJson))
                         continue;
@@ -116,12 +161,12 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                             dto.ApprovedAmount = approvedAmt.GetDecimal();
                         else if (root.TryGetProperty("payable", out var payable))
                             dto.ApprovedAmount = payable.GetDecimal();
-                        else if (root.TryGetProperty("approved", out var approved))
-                            dto.ApprovedAmount = approved.GetDecimal();
+                        else if (root.TryGetProperty("allowed", out var allowed))
+                            dto.ApprovedAmount = allowed.GetDecimal();
                     }
                     catch
                     {
-                        // Malformed JSON or wrong shape — leave ApprovedAmount null
+                        // Malformed JSON or unexpected shape — leave ApprovedAmount null
                     }
                 }
             }
