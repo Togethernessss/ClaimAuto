@@ -101,7 +101,6 @@ namespace ClaimAuto.HealthSystems.Server
             builder.Services.AddSingleton<IRuleStrategy, ClaimTypeDenyStrategy>();
             builder.Services.AddSingleton<IRuleStrategy, ClaimTypePassStrategy>();
             builder.Services.AddSingleton<IRuleStrategy, DuplicateCheckStrategy>();
-            // ReimbursementDuplicateStrategy removed — Reimbursement claim type no longer exists.
             builder.Services.AddSingleton<IRuleStrategy, DeductibleStrategy>();
             builder.Services.AddSingleton<IRuleStrategy, CoPayStrategy>();
             builder.Services.AddSingleton<IRuleStrategy, RequireDocTypeStrategy>();
