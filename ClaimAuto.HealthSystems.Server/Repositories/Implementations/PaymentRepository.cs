@@ -208,8 +208,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             payment.ReferenceNumber = referenceNumber;
             if (payment.Claim != null)
                 payment.Claim.Status = ClaimStatus.Paid;
-            // ── Generate remittance PDF ────────────────────────────────
-            // Reimbursement removed — all paid claims now get a remittance.
+            // ── Generate remittance PDF 
             Remittance? remittance = null;
             if (payment.Claim != null)
             {
@@ -303,8 +302,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     OrganizationID = payment.OrganizationID,
                 });
             }
-            // ── Notify Admin + Staff ──────────────────────────────────
-            // ← FIX: was missing entirely
+            // ── Notify Admin + Staff
             var adminAndStaff = await _context.Users
                 .Where(u =>
                     (u.Role == UserRole.Admin ||
@@ -333,7 +331,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             }
             return MapPayment(payment);
         }
-        // ── HOLD PAYMENT ──────────────────────────────────────────────
+        // ── HOLD PAYMENT
         public async Task<PaymentResponseDto?> HoldPaymentAsync(
             int id, int heldByUserId)
         {
@@ -363,7 +361,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _context.SaveChangesAsync();
             return MapPayment(payment);
         }
-        // ── RESUME PAYMENT ────────────────────────────────────────────
+        // ── RESUME PAYMENT 
         public async Task<PaymentResponseDto?> ResumePaymentAsync(
             int id, int resumedByUserId)
         {
@@ -391,7 +389,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
             await _context.SaveChangesAsync();
             return MapPayment(payment);
         }
-        // ── GET REMITTANCE BY PAYMENT ID ──────────────────────────────
+        // ── GET REMITTANCE BY PAYMENT ID 
         public async Task<RemittanceResponseDto?>
             GetRemittanceByPaymentIdAsync(int paymentId)
         {
@@ -400,7 +398,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync(r => r.PaymentID == paymentId);
             return remittance == null ? null : MapRemittance(remittance);
         }
-        // ── GET ALL REMITTANCES ───────────────────────────────────────
+        // ── GET ALL REMITTANCES 
         public async Task<List<RemittanceResponseDto>> GetAllRemittancesAsync(
             int? userId,
             string? userRole,
@@ -437,7 +435,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     r.Payment.Payee.Name.ToLower().Contains(sl) ||
                     r.RemittanceID.ToString().Contains(search));
             }
-            if (dateFrom.HasValue)
+            if (dateFrom.HasValue)     // for showing 30 days remittance
                 query = query.Where(
                     r => r.GeneratedAt >= dateFrom.Value);
             if (dateTo.HasValue)
@@ -532,8 +530,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                     OrganizationID = payment.OrganizationID,
                 });
             }
-            // ── Notify Admin + Staff ──────────────────────────────────
-            // ← FIX: was Staff only, now includes Admin
+            // ── Notify Admin + Staff 
             var adminAndStaff = await _context.Users
                 .Where(u =>
                     (u.Role == UserRole.Admin ||
@@ -693,16 +690,16 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                                         .Length > 0,
             };
         }
-        // ── GET REMITTANCE PDF ────────────────────────────────────────
+        // ── GET REMITTANCE PDF 
         public async Task<byte[]?> GetRemittancePdfAsync(
             int paymentId)
         {
             var remittance = await _context.Remittances
                 .FirstOrDefaultAsync(
                     r => r.PaymentID == paymentId);
-            return remittance?.RemitFilePDF;
+            return remittance?.RemitFilePDF;    // only if remittance is not null
         }
-        // ── GET RECONCILIATION PDF ────────────────────────────────────
+        // ── GET RECONCILIATION PDF
         public async Task<byte[]?> GetReconciliationPdfAsync(
             int reconId, int? userOrgId = null)
         {
@@ -715,7 +712,7 @@ namespace ClaimAuto.HealthSystems.Server.Repositories.Implementations
                 .FirstOrDefaultAsync();
             return reconciliation?.ReconFilePDF;
         }
-        // ── PRIVATE HELPERS ───────────────────────────────────────────
+        // ── PRIVATE HELPERS
         private static PaymentResponseDto MapPayment(Payment p) =>
             new PaymentResponseDto
             {

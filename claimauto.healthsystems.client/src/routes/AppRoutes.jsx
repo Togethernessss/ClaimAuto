@@ -312,10 +312,10 @@ export default function AppRoutes() {
             />
           </Route>
 
-          {/* ════════════════════════════════════════════
+          {/* 
               CATCH-ALL — inside AppLayout
               Always shows with sidebar + navbar
-          ════════════════════════════════════════════ */}
+              */}
           <Route path="*" element={<AccessDenied />} />
 
         </Route>
